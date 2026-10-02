@@ -29,6 +29,12 @@ export default defineConfig(
     }
   },
   {
+    files: ['tests/**/*.mjs'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
+  {
     files: ['src/renderer/src/components/ui/**/*.tsx'],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',

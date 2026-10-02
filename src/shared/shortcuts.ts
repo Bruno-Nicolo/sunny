@@ -1,6 +1,6 @@
 type KeyBinding = {
   key: string
-  modifier?: 'command'
+  modifier?: 'command' | 'control'
   shift?: boolean
 }
 
@@ -22,20 +22,23 @@ export const shortcuts = [
     id: 'zoom-in',
     label: 'Zoom In',
     accelerator: 'CmdOrCtrl+Plus',
-    keys: [{ key: '=', modifier: 'command' }]
+    keys: [
+      { key: '+', modifier: 'command' },
+      { key: '=', modifier: 'command' }
+    ]
   },
   { id: 'zoom-out', label: 'Zoom Out', accelerator: 'CmdOrCtrl+-' },
   {
     id: 'next-tab',
     label: 'Next Tab',
     accelerator: 'Ctrl+Tab',
-    keys: [{ key: 'Tab', modifier: 'command' }]
+    keys: [{ key: 'Tab', modifier: 'control' }]
   },
   {
     id: 'previous-tab',
     label: 'Previous Tab',
     accelerator: 'Ctrl+Shift+Tab',
-    keys: [{ key: 'Tab', modifier: 'command', shift: true }]
+    keys: [{ key: 'Tab', modifier: 'control', shift: true }]
   },
   { id: 'tab-1', label: 'Tab 1', accelerator: 'CmdOrCtrl+1' },
   { id: 'tab-2', label: 'Tab 2', accelerator: 'CmdOrCtrl+2' },
@@ -46,22 +49,28 @@ export const shortcuts = [
   { id: 'tab-7', label: 'Tab 7', accelerator: 'CmdOrCtrl+7' },
   { id: 'tab-8', label: 'Tab 8', accelerator: 'CmdOrCtrl+8' },
   { id: 'tab-9', label: 'Tab 9', accelerator: 'CmdOrCtrl+9' },
-  { id: 'previous-page', label: 'Previous Page', keys: [{ key: 'ArrowLeft' }] },
-  { id: 'next-page', label: 'Next Page', keys: [{ key: 'ArrowRight' }] }
+  { id: 'previous-page', label: 'Previous Page' },
+  { id: 'next-page', label: 'Next Page' },
+  { id: 'navigate-left', label: 'Navigate Left', keys: [{ key: 'ArrowLeft' }] },
+  { id: 'navigate-right', label: 'Navigate Right', keys: [{ key: 'ArrowRight' }] }
 ] as const satisfies readonly Shortcut[]
 
 export type ShortcutCommand = (typeof shortcuts)[number]['id']
 
 export type ShortcutHandlers = Record<ShortcutCommand, () => void>
 
-export function matchesKeyBinding(event: KeyboardEvent, binding: KeyBinding): boolean {
-  const command = navigator.platform.startsWith('Mac') ? event.metaKey : event.ctrlKey
+export function matchesKeyBinding(
+  event: Pick<KeyboardEvent, 'key' | 'altKey' | 'shiftKey' | 'ctrlKey' | 'metaKey'>,
+  binding: KeyBinding,
+  isMac: boolean
+): boolean {
+  const control = binding.modifier === 'control' || (binding.modifier === 'command' && !isMac)
+  const command = binding.modifier === 'command' && isMac
   return (
     event.key === binding.key &&
     !event.altKey &&
     event.shiftKey === (binding.shift ?? false) &&
-    (binding.modifier === 'command'
-      ? command && !(navigator.platform.startsWith('Mac') ? event.ctrlKey : event.metaKey)
-      : !event.ctrlKey && !event.metaKey)
+    event.ctrlKey === control &&
+    event.metaKey === command
   )
 }

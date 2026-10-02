@@ -44,6 +44,7 @@ export type PdfDocumentHandle = {
   setScale(scale: string): void
   zoomIn(): void
   zoomOut(): void
+  navigateHorizontally(direction: -1 | 1): void
   setHighlightMode(enabled: boolean): void
   setHighlightColor(color: string): void
   undo(): void
@@ -150,6 +151,19 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
     },
     zoomOut() {
       viewerRef.current?.decreaseScale()
+    },
+    navigateHorizontally(direction) {
+      const container = containerRef.current
+      const viewer = viewerRef.current
+      if (!container || !viewer || !viewer.pagesCount) return
+      if (container.scrollWidth > container.clientWidth) {
+        container.scrollBy({ left: direction * 40, behavior: 'smooth' })
+        return
+      }
+      viewer.currentPageNumber = Math.min(
+        viewer.pagesCount,
+        Math.max(1, viewer.currentPageNumber + direction)
+      )
     },
     setHighlightMode(enabled) {
       const viewer = viewerRef.current

@@ -6,6 +6,7 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
     if (!enabled) return
 
     const cleanups = shortcuts.map(({ id }) => window.lepis.onCommand(id, handlers[id]))
+    const isMac = navigator.platform.startsWith('Mac')
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.isComposing) return
       const target = event.target
@@ -20,7 +21,7 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
       for (const shortcut of shortcuts) {
         if (
           'keys' in shortcut &&
-          shortcut.keys.some((binding) => matchesKeyBinding(event, binding))
+          shortcut.keys.some((binding) => matchesKeyBinding(event, binding, isMac))
         ) {
           event.preventDefault()
           handlers[shortcut.id]()

@@ -371,7 +371,9 @@ function App(): React.JSX.Element {
       'tab-8': () => selectTab(7),
       'tab-9': () => selectTab(8),
       'previous-page': () => turnPage(-1),
-      'next-page': () => turnPage(1)
+      'next-page': () => turnPage(1),
+      'navigate-left': () => withViewer((viewer) => viewer.navigateHorizontally(-1)),
+      'navigate-right': () => withViewer((viewer) => viewer.navigateHorizontally(1))
     }
   }, [activeId, activeTab, closeTab, openDialog, saveTab, tabs])
 
