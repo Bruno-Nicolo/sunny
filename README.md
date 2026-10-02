@@ -9,6 +9,8 @@ Documents never leave the computer.
 - Keep documents in tabs and restore the last session.
 - Scroll pages vertically, jump to a page, zoom, fit width, and fit page.
 - Highlight selectable text with a small color palette.
+- Add images from the toolbar, paste them with Command-V, or drop image files into the active PDF.
+- Move and resize inserted images; delete them with Backspace and save them with Command-S.
 - Undo and redo annotations with the standard macOS shortcuts.
 - Save changes to the original PDF with Command-S.
 - Detect external file changes and protect signed or restricted PDFs from edits.
@@ -30,6 +32,7 @@ Run the checks and create a production bundle:
 ```bash
 pnpm lint
 pnpm build
+pnpm test:images
 ```
 
 Build the unsigned macOS application:

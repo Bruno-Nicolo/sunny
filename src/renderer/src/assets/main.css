@@ -249,3 +249,7 @@
 .pdf-viewer-container .annotationEditorLayer {
   user-select: text;
 }
+
+.pdf-viewer-container .annotationEditorLayer .stampEditor .editToolbar {
+  display: none;
+}

@@ -5,6 +5,7 @@ import {
   GlobalWorkerOptions,
   PasswordResponses,
   PermissionFlag,
+  SupportedImageMimeTypes,
   getDocument,
   type PDFDocumentProxy,
   type PDFDocumentLoadingTask
@@ -47,6 +48,7 @@ export type PdfDocumentHandle = {
   navigateHorizontally(direction: -1 | 1): void
   setHighlightMode(enabled: boolean): void
   setHighlightColor(color: string): void
+  addImage(file: File): Promise<void>
   undo(): void
   redo(): void
 }
@@ -58,6 +60,7 @@ type Props = {
   initialScrollTop: number
   highlightEnabled: boolean
   highlightColor: string
+  active: boolean
   onDirtyChange(dirty: boolean): void
   onSnapshot(snapshot: ViewerSnapshot): void
   onError(message: string): void
@@ -68,6 +71,7 @@ type ViewerInternals = PDFViewer & {
     annotationEditorUIManager?: {
       undo(): void
       redo(): void
+      getMode(): number
     }
   }
 }
@@ -97,6 +101,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
     initialScrollTop,
     highlightEnabled,
     highlightColor,
+    active,
     onDirtyChange,
     onSnapshot,
     onError
@@ -125,6 +130,8 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
   const [password, setPassword] = useState('')
   const [passwordIncorrect, setPasswordIncorrect] = useState(false)
   const [loading, setLoading] = useState(true)
+  const activeRef = useRef(active)
+  activeRef.current = active
 
   const emitSnapshot = useCallback((changes: Partial<ViewerSnapshot>): void => {
     snapshotRef.current = { ...snapshotRef.current, ...changes }
@@ -179,6 +186,56 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
         value: color
       })
     },
+    async addImage(file) {
+      const viewer = viewerRef.current
+      const eventBus = eventBusRef.current
+      if (!viewer || !eventBus || !snapshotRef.current.canAnnotate || loading) {
+        throw new Error('This PDF is not ready for editing.')
+      }
+      if (!SupportedImageMimeTypes.includes(file.type)) {
+        throw new Error('Choose a supported image file, such as PNG, JPEG or WebP.')
+      }
+      // Decode before creating the editor so invalid files produce a visible error.
+      const url = URL.createObjectURL(file)
+      try {
+        const image = new Image()
+        image.src = url
+        await image.decode()
+      } catch {
+        throw new Error('The image could not be opened.')
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+      if (viewerRef.current !== viewer || !activeRef.current) return
+      if (
+        viewer._layerProperties.annotationEditorUIManager?.getMode() !== AnnotationEditorType.STAMP
+      ) {
+        await new Promise<void>((resolve, reject) => {
+          const cleanup = (): void => {
+            clearTimeout(timer)
+            eventBus.off('annotationeditormodechanged', onModeChanged)
+          }
+          const onModeChanged = ({ mode }: { mode: number }): void => {
+            cleanup()
+            if (mode === AnnotationEditorType.STAMP) resolve()
+            else reject(new Error('Image insertion was interrupted. Try again.'))
+          }
+          const timer = setTimeout(() => {
+            cleanup()
+            reject(new Error('The image editor is not ready. Try again.'))
+          }, 10000)
+          eventBus.on('annotationeditormodechanged', onModeChanged)
+          viewer.annotationEditorMode = { mode: AnnotationEditorType.STAMP }
+        })
+      }
+      if (viewerRef.current !== viewer || !activeRef.current) return
+      containerRef.current?.focus()
+      eventBus.dispatch('switchannotationeditorparams', {
+        source: null,
+        type: AnnotationEditorParamsType.CREATE,
+        value: { bitmapFile: file }
+      })
+    },
     undo() {
       viewerRef.current?._layerProperties.annotationEditorUIManager?.undo()
     },
@@ -209,6 +266,13 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
     linkService.setViewer(viewer)
     viewerRef.current = viewer
     eventBusRef.current = eventBus
+
+    // PDF.js requests mode changes when pasting or selecting an existing image.
+    eventBus.on('switchannotationeditormode', (options: { mode: number }) => {
+      if (activeRef.current && snapshotRef.current.canAnnotate) {
+        viewer.annotationEditorMode = options
+      }
+    })
 
     eventBus.on('pagesinit', () => {
       viewer.currentPageNumber = Math.max(1, Math.min(initialView.initialPage, viewer.pagesCount))
@@ -287,7 +351,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
     viewer.annotationEditorMode = {
       mode: highlightEnabled ? AnnotationEditorType.HIGHLIGHT : AnnotationEditorType.NONE
     }
-  }, [highlightEnabled])
+  }, [active, highlightEnabled])
 
   useEffect(() => {
     eventBusRef.current?.dispatch('switchannotationeditorparams', {
@@ -311,7 +375,11 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
           Opening document…
         </div>
       )}
-      <div ref={containerRef} className="pdf-viewer-container absolute inset-0 overflow-auto">
+      <div
+        ref={containerRef}
+        tabIndex={-1}
+        className="pdf-viewer-container absolute inset-0 overflow-auto"
+      >
         <div ref={viewerElementRef} className="pdfViewer" />
       </div>
 

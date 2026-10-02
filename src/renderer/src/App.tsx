@@ -4,6 +4,7 @@ import {
   ChevronDown,
   FileText,
   Highlighter,
+  ImagePlus,
   Minus,
   Monitor,
   Moon,
@@ -32,6 +33,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
 import type { ShortcutHandlers } from '../../shared/shortcuts'
+import { SupportedImageMimeTypes } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 const COLORS = [
   { name: 'Yellow', value: '#FDE047' },
@@ -99,6 +101,7 @@ function App(): React.JSX.Element {
   const tabsRef = useRef(tabs)
   const activeIdRef = useRef(activeId)
   const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? null
   const dirtyTabs = tabs.filter((tab) => tab.dirty)
@@ -116,6 +119,39 @@ function App(): React.JSX.Element {
     setMessage(text)
     window.setTimeout(() => setMessage((current) => (current === text ? null : current)), 3200)
   }
+
+  const addImages = useCallback(async (files: File[]): Promise<void> => {
+    const id = activeIdRef.current
+    const viewer = id ? refs.current.get(id) : undefined
+    if (!viewer) return
+    setHighlightEnabled(false)
+    try {
+      for (const file of files) await viewer.addImage(file)
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : 'The image could not be added.')
+    }
+  }, [])
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent): void => {
+      const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
+        SupportedImageMimeTypes.includes(file.type)
+      )
+      if (!files.length) return
+      // Capture image pastes before PDF.js's document listeners in the other tabs.
+      event.stopImmediatePropagation()
+      if (
+        event.target instanceof Element &&
+        event.target.closest('input, textarea, select, [contenteditable], [role="dialog"]')
+      )
+        return
+      event.preventDefault()
+      if (closeRequest || conflictId || !activeTab?.view.canAnnotate) return
+      void addImages(files)
+    }
+    window.addEventListener('paste', onPaste, true)
+    return () => window.removeEventListener('paste', onPaste, true)
+  }, [activeTab?.view.canAnnotate, addImages, closeRequest, conflictId])
 
   const addOpenedPdfs = useCallback((pdfs: OpenedPdf[]): void => {
     if (pdfs.length === 0) return
@@ -395,6 +431,15 @@ function App(): React.JSX.Element {
     <main
       className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
       onDragOver={(event) => event.preventDefault()}
+      onDropCapture={(event) => {
+        const images = Array.from(event.dataTransfer.files).filter((file) =>
+          SupportedImageMimeTypes.includes(file.type)
+        )
+        if (!images.length) return
+        event.preventDefault()
+        event.stopPropagation()
+        if (activeTab?.view.canAnnotate && !closeRequest && !conflictId) void addImages(images)
+      }}
       onDrop={(event) => {
         event.preventDefault()
         const paths = Array.from(event.dataTransfer.files)
@@ -528,6 +573,34 @@ function App(): React.JSX.Element {
             </PopoverContent>
           </Popover>
 
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept={SupportedImageMimeTypes.join(',')}
+            multiple
+            hidden
+            aria-label="Choose images"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? [])
+              event.target.value = ''
+              void addImages(files)
+            }}
+          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Add image"
+                disabled={!activeTab?.view.canAnnotate}
+                onClick={() => imageInputRef.current?.click()}
+              >
+                <ImagePlus />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add image (or paste with ⌘V)</TooltipContent>
+          </Tooltip>
+
           <div className="flex-1" />
 
           {activeTab && (
@@ -629,6 +702,7 @@ function App(): React.JSX.Element {
               initialScrollTop={tab.view.scrollTop}
               highlightEnabled={tab.id === activeId && highlightEnabled}
               highlightColor={highlightColor}
+              active={tab.id === activeId}
               onDirtyChange={(dirty) => updateTab(tab.id, { dirty })}
               onSnapshot={(view) => updateTab(tab.id, { view })}
               onError={(error) => updateTab(tab.id, { error })}
@@ -649,8 +723,8 @@ function App(): React.JSX.Element {
             <DialogTitle>Save changes before closing?</DialogTitle>
             <DialogDescription>
               {closeRequest?.type === 'window' && dirtyTabs.length > 1
-                ? `${dirtyTabs.length} documents have unsaved highlights.`
-                : 'This document has unsaved highlights.'}
+                ? `${dirtyTabs.length} documents have unsaved annotations.`
+                : 'This document has unsaved annotations.'}
             </DialogDescription>
           </DialogHeader>
           {closeRequest?.type === 'window' && dirtyTabs.length > 1 && (
