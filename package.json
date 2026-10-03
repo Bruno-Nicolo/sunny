@@ -12,6 +12,7 @@
     "test:images": "pnpm build && electron tests/images.integration.mjs",
     "test:memory": "pnpm build && electron tests/tabs-memory.integration.mjs",
     "test:documents": "pnpm build && electron tests/documents.integration.mjs",
+    "test:sidebar": "pnpm build && electron tests/sidebar.integration.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
@@ -23,6 +24,7 @@
     "build:mac": "pnpm run build && electron-builder --mac"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "class-variance-authority": "^0.7.1",

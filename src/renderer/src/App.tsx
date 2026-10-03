@@ -16,6 +16,7 @@ import { defaultHighlightColor } from '@/features/pdf/highlightColors'
 
 function App(): React.JSX.Element {
   const [highlightEnabled, setHighlightEnabled] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
   const [theme, setTheme] = useState<SessionState['theme']>('system')
   const [message, setMessage] = useState<string | null>(null)
@@ -219,7 +220,8 @@ function App(): React.JSX.Element {
           highlightColor={highlightColor}
           theme={theme}
           imageAccept={supportedImageMimeTypes.join(',')}
-          onSave={() => activeId && void saveTab(activeId)}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleHighlight={() => setHighlightEnabled((value) => !value)}
           onHighlightColorChange={setHighlightColor}
           onAddImages={(files) => void addImages(files)}
@@ -235,6 +237,7 @@ function App(): React.JSX.Element {
         tabs={tabs}
         activeId={activeId}
         ready={ready}
+        sidebarOpen={sidebarOpen}
         highlightEnabled={highlightEnabled}
         highlightColor={highlightColor}
         onOpen={() => void openDialog()}

@@ -9,6 +9,7 @@ type Props = {
   tabs: Tab[]
   activeId: string | null
   ready: boolean
+  sidebarOpen: boolean
   highlightEnabled: boolean
   highlightColor: string
   onOpen(): void
@@ -22,6 +23,7 @@ export function DocumentWorkspace({
   tabs,
   activeId,
   ready,
+  sidebarOpen,
   highlightEnabled,
   highlightColor,
   onOpen,
@@ -60,6 +62,7 @@ export function DocumentWorkspace({
             highlightEnabled={tab.id === activeId && highlightEnabled}
             highlightColor={highlightColor}
             active={tab.id === activeId}
+            sidebarOpen={sidebarOpen}
             onDirtyChange={(dirty) => onDirtyChange(tab.id, dirty)}
             onSnapshot={(view) => onSnapshot(tab.id, view)}
             onError={(error) => onError(tab.id, error)}

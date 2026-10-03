@@ -35,9 +35,11 @@ type Options = {
   onLoadingChange(loading: boolean): void
   onPasswordRequest(request: PasswordRequest | null): void
   onError(message: string): void
+  onDocumentReady(document: PDFDocumentProxy): void
 }
 
 export type PdfViewerController = PdfDocumentHandle & {
+  navigateToDestination(destination: string | unknown[]): Promise<void>
   setAnnotationOptions(options: PdfAnnotationOptions): void
   destroy(): Promise<void>
 }
@@ -53,7 +55,8 @@ export function createPdfViewer({
   onDirtyChange,
   onLoadingChange,
   onPasswordRequest,
-  onError
+  onError,
+  onDocumentReady
 }: Options): PdfViewerController {
   const lifetime = new AbortController()
   const eventBus = new EventBus()
@@ -78,6 +81,7 @@ export function createPdfViewer({
   let destroyed = false
   let loading = true
   let scrollFrame: number | null = null
+  let destinationRequest = 0
   let annotationOptions = initialOptions
   let editorMode: number = AnnotationEditorType.NONE
   let snapshot: ViewerSnapshot = {
@@ -162,6 +166,17 @@ export function createPdfViewer({
   )
   const handleScroll = (): void => emitSnapshot({ scrollTop: container.scrollTop })
   container.addEventListener('scroll', handleScroll, { passive: true, signal: lifetime.signal })
+  let containerSize = container.getBoundingClientRect()
+  const resizeObserver = new ResizeObserver(() => {
+    const size = container.getBoundingClientRect()
+    if (size.width === containerSize.width && size.height === containerSize.height) return
+    containerSize = size
+    if (destroyed || loading || !container.clientWidth || !container.clientHeight) return
+    const scale = viewer.currentScaleValue
+    if (scale && Number.isNaN(Number(scale))) viewer.currentScaleValue = scale
+    viewer.update()
+  })
+  resizeObserver.observe(container)
 
   onLoadingChange(true)
   onPasswordRequest(null)
@@ -191,6 +206,7 @@ export function createPdfViewer({
       }
       linkService.setDocument(pdfDocument)
       viewer.setDocument(pdfDocument)
+      onDocumentReady(pdfDocument)
     })
     .catch((error: unknown) => {
       if (destroyed) return
@@ -232,6 +248,20 @@ export function createPdfViewer({
   }
 
   return {
+    async navigateToDestination(destination) {
+      if (destroyed || !document) return
+      const request = ++destinationRequest
+      const target =
+        typeof destination === 'string' ? await document.getDestination(destination) : destination
+      if (!target) throw new Error('The outline destination is missing.')
+      const reference = target[0]
+      const pageIndex =
+        typeof reference === 'number'
+          ? reference
+          : await document.getPageIndex(reference as { num: number; gen: number })
+      if (destroyed || request !== destinationRequest) return
+      viewer.scrollPageIntoView({ pageNumber: pageIndex + 1, destArray: target })
+    },
     async saveDocument() {
       if (destroyed || !document) throw new Error('The PDF is not ready.')
       return document.saveDocument()
@@ -291,6 +321,7 @@ export function createPdfViewer({
     async destroy() {
       if (destroyed) return
       destroyed = true
+      resizeObserver.disconnect()
       lifetime.abort()
       if (scrollFrame !== null) cancelAnimationFrame(scrollFrame)
       if (document) document.annotationStorage.onSetModified = null

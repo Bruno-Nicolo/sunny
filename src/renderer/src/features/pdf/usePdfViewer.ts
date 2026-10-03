@@ -1,12 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPdfViewer, type PdfViewerController } from './createPdfViewer'
 import type { PasswordRequest, PdfDocumentHandle, PdfDocumentViewProps } from './types'
+import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 type PdfViewerState = {
   containerRef: RefObject<HTMLDivElement | null>
   viewerElementRef: RefObject<HTMLDivElement | null>
   handle: PdfDocumentHandle
   loading: boolean
+  document: PDFDocumentProxy | null
+  page: number
+  navigateToDestination(destination: string | unknown[]): Promise<void>
   passwordRequest: PasswordRequest | null
   submitPassword(password: string): void
 }
@@ -17,6 +21,8 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
   const controllerRef = useRef<PdfViewerController | null>(null)
   const propsRef = useRef(props)
   const [loading, setLoading] = useState(true)
+  const [document, setDocument] = useState<PDFDocumentProxy | null>(null)
+  const [page, setPage] = useState(props.initialPage)
   const [passwordRequest, setPasswordRequest] = useState<PasswordRequest | null>(null)
   useLayoutEffect(() => {
     propsRef.current = props
@@ -27,6 +33,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     const viewerElement = viewerElementRef.current
     if (!container || !viewerElement) return
     const initial = propsRef.current
+    setDocument(null)
     const controller = createPdfViewer({
       container,
       viewerElement,
@@ -37,7 +44,11 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         scrollTop: initial.initialScrollTop
       },
       annotationOptions: initial,
-      onSnapshot: (snapshot) => propsRef.current.onSnapshot(snapshot),
+      onSnapshot: (snapshot) => {
+        setPage(snapshot.page)
+        propsRef.current.onSnapshot(snapshot)
+      },
+      onDocumentReady: setDocument,
       onDirtyChange: (dirty) => propsRef.current.onDirtyChange(dirty),
       onError: (message) => propsRef.current.onError(message),
       onLoadingChange: setLoading,
@@ -86,6 +97,11 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     viewerElementRef,
     handle,
     loading,
+    document,
+    page,
+    async navigateToDestination(destination) {
+      await controllerRef.current?.navigateToDestination(destination)
+    },
     passwordRequest,
     submitPassword(password) {
       if (!password || !passwordRequest) return

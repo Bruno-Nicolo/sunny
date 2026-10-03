@@ -29,6 +29,7 @@ export type PdfAnnotationOptions = {
 }
 
 export type PdfDocumentViewProps = PdfAnnotationOptions & {
+  sidebarOpen: boolean
   data: ArrayBuffer
   initialPage: number
   initialScale: string
