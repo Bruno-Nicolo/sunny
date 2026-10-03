@@ -154,6 +154,9 @@ function App(): React.JSX.Element {
       },
       undo: () => withViewer((viewer) => viewer.undo()),
       redo: () => withViewer((viewer) => viewer.redo()),
+      'toggle-sidebar': () => {
+        if (activeTab) setSidebarOpen((open) => !open)
+      },
       'zoom-in': () => withViewer((viewer) => viewer.zoomIn()),
       'zoom-out': () => withViewer((viewer) => viewer.zoomOut()),
       'next-tab': () => cycleTab(1),

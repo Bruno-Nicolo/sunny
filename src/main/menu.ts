@@ -49,6 +49,8 @@ export function createMenu(): void {
     {
       label: 'View',
       submenu: [
+        shortcutMenuItem('toggle-sidebar'),
+        { type: 'separator' },
         shortcutMenuItem('zoom-in'),
         shortcutMenuItem('zoom-out'),
         { type: 'separator' },

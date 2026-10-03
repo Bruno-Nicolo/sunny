@@ -72,7 +72,7 @@ export function DocumentToolbar({
             <PanelLeft />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}</TooltipContent>
+        <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} (⌘\)</TooltipContent>
       </Tooltip>
       <Separator orientation="vertical" className="mx-1 h-5" />
       <Tooltip>

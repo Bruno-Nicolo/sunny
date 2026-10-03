@@ -65,11 +65,20 @@ test('additional modifiers do not trigger a shortcut', () => {
   assert.equal(matches('zoom-in', '+', { ctrlKey: true, metaKey: true }), false)
 })
 
+test('sidebar toggle matches command-backslash and rejects other modifiers', () => {
+  assert.equal(matches('toggle-sidebar', '\\', { metaKey: true }), true)
+  assert.equal(matches('toggle-sidebar', '\\'), false)
+  assert.equal(matches('toggle-sidebar', '\\', { metaKey: true, shiftKey: true }), false)
+  assert.equal(matches('toggle-sidebar', '\\', { metaKey: true, altKey: true }), false)
+  assert.equal(matches('toggle-sidebar', '\\', { ctrlKey: true }, false), true)
+})
+
 test('native accelerators cover zoom, closing, and all nine tab positions', () => {
   const accelerator = (id) => shortcuts.find((shortcut) => shortcut.id === id).accelerator
   assert.equal(accelerator('zoom-in'), 'CmdOrCtrl+Plus')
   assert.equal(accelerator('zoom-out'), 'CmdOrCtrl+-')
   assert.equal(accelerator('close-tab'), 'CmdOrCtrl+W')
+  assert.equal(accelerator('toggle-sidebar'), 'CmdOrCtrl+\\')
   assert.equal(accelerator('next-tab'), 'Ctrl+Tab')
   assert.equal(accelerator('previous-tab'), 'Ctrl+Shift+Tab')
   for (let position = 1; position <= 9; position++) {

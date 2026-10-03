@@ -186,6 +186,15 @@ app
     await waitFor(
       `document.querySelector('.visible [aria-current="page"]')?.getAttribute('aria-label') === 'Go to page 2'`
     )
+    await evaluate(
+      `window.dispatchEvent(new KeyboardEvent('keydown', {key: String.fromCharCode(92), metaKey: true, bubbles: true, cancelable: true}))`
+    )
+    await waitFor(`document.querySelector('.visible [aria-label="PDF navigation"]') === null`)
+    await evaluate(
+      `window.dispatchEvent(new KeyboardEvent('keydown', {key: String.fromCharCode(92), metaKey: true, bubbles: true, cancelable: true}))`
+    )
+    await waitFor(`document.querySelector('.visible [aria-label="PDF navigation"]') !== null`)
+    console.log('PASS: Command-backslash closes and opens the sidebar through keyboard input')
     await evaluate(`document.querySelector('[aria-label="Toggle PDF sidebar"]').click()`)
     await waitFor(`document.querySelector('.visible [aria-label="PDF navigation"]') === null`)
     await evaluate(`document.querySelector('[aria-label="Toggle PDF sidebar"]').click()`)
