@@ -31,7 +31,7 @@ export function createTab(pdf: OpenedPdf, restored?: SessionTab): Tab {
     view: {
       page: restored?.page ?? 1,
       pages: 0,
-      scale: restored?.scale ?? 'page-width',
+      scale: restored?.scale ?? 'page-fit',
       zoomPercent: 100,
       scrollTop: restored?.scrollTop ?? 0,
       canAnnotate: false,

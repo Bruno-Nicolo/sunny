@@ -47,8 +47,8 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag flex h-11 min-w-0 items-end pl-[78px]">
-        <div className="titlebar-no-drag flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto px-1">
+      <div className="titlebar-drag relative z-10 -mb-px flex h-11 min-w-0 items-end pl-[78px]">
+        <div className="titlebar-no-drag flex h-full min-w-0 flex-1 items-end gap-0.5 overflow-x-auto px-1">
           {tabs.map((tab, index) => (
             <SortableTab
               key={tab.id}
@@ -61,7 +61,7 @@ export function TabBar({
           ))}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="mb-1 shrink-0" onClick={onOpen}>
+              <Button variant="ghost" size="icon-sm" className="mb-0.5 shrink-0" onClick={onOpen}>
                 <Plus />
               </Button>
             </TooltipTrigger>
@@ -94,9 +94,11 @@ function SortableTab({
       type="button"
       onClick={() => onSelect(tab.id)}
       className={cn(
-        'group relative flex select-none h-9 max-w-72 shrink-0 items-center gap-2 rounded-t-md border border-b-0 px-3 text-left text-sm transition-colors',
-        active ? 'bg-background text-foreground' : 'border-transparent text-muted-foreground',
-        !active && (isDragSource ? 'bg-muted' : 'bg-muted/35 hover:bg-muted/65')
+        'group relative flex select-none max-w-72 shrink-0 items-center gap-2 border px-3 text-left text-sm transition-colors',
+        active
+          ? 'h-9 rounded-t-md border-b-0 bg-background pb-px text-foreground'
+          : 'mb-0.5 h-8 rounded-md border-transparent text-muted-foreground',
+        !active && (isDragSource ? 'bg-muted' : 'bg-transparent hover:bg-muted/65')
       )}
       title={tab.path}
       aria-label={tab.name}

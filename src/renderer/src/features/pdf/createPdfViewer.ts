@@ -133,7 +133,7 @@ export function createPdfViewer({
     'pagesinit',
     () => {
       viewer.currentPageNumber = Math.max(1, Math.min(initialView.page, viewer.pagesCount))
-      viewer.currentScaleValue = initialView.scale || 'page-width'
+      viewer.currentScaleValue = initialView.scale || 'page-fit'
       scrollFrame = requestAnimationFrame(() => {
         container.scrollTop = initialView.scrollTop
       })

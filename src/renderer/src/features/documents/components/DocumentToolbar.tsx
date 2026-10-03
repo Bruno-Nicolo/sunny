@@ -58,7 +58,7 @@ export function DocumentToolbar({
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor
 
   return (
-    <div className="titlebar-no-drag flex h-11 items-center gap-1 px-3">
+    <div className="titlebar-no-drag flex h-11 items-center gap-1 border-t px-3">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
