@@ -40,8 +40,9 @@ test('zoom accepts plus and equals with the platform command key', () => {
   for (const isMac of [true, false]) {
     const modifier = isMac ? { metaKey: true } : { ctrlKey: true }
     assert.equal(matches('zoom-in', '+', modifier, isMac), true)
-    assert.equal(matches('zoom-in', '+', { ...modifier, shiftKey: true }, isMac), false)
+    assert.equal(matches('zoom-in', '+', { ...modifier, shiftKey: true }, isMac), true)
     assert.equal(matches('zoom-in', '=', modifier, isMac), true)
+    assert.equal(matches('zoom-in', '=', { ...modifier, shiftKey: true }, isMac), true)
     assert.equal(matches('zoom-in', '+', {}, isMac), false)
   }
 })

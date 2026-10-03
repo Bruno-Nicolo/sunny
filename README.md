@@ -31,8 +31,11 @@ Run the checks and create a production bundle:
 
 ```bash
 pnpm lint
+pnpm test
 pnpm build
 pnpm test:images
+pnpm test:documents
+pnpm test:memory
 ```
 
 Build the unsigned macOS application:
@@ -43,13 +46,45 @@ pnpm build:mac
 
 ## Architecture
 
+- `src/shared/contracts.ts`: document, session, save request, and preload API types shared by all processes.
 - `src/shared/shortcuts.ts`: central shortcut configuration shared by native menus and the renderer.
-- `src/main`: native window, menus, file access, session persistence, and atomic saves.
-- `src/preload`: narrow IPC API exposed to the renderer.
+- `src/main/index.ts`: Electron startup and application lifecycle.
+- `src/main/window.ts` and `menu.ts`: native window and application menus.
+- `src/main/ipc.ts` and `pdf-dialogs.ts`: IPC handlers and native file dialogs.
+- `src/main/pdf-files.ts`, `session.ts`, and `atomic-write.ts`: PDF file access, backups, session persistence, and atomic writes. These modules do not depend on Electron.
+- `src/preload`: narrow IPC API exposed to the renderer and checked against the shared `LepisApi` contract.
 - `src/renderer`: React interface, shadcn components, Tailwind theme, and PDF.js viewer/editor.
+- `src/renderer/src/App.tsx`: interface composition, preferences, and input handling.
+- `src/renderer/src/features/documents/documentsReducer.ts`: atomic tab and selection transitions, including merging session restore with documents opened during startup.
+- `src/renderer/src/features/documents/useDocuments.ts`: document operations, viewer handles, save/close/conflict workflows, and external file checks.
+- `src/renderer/src/features/session/useDocumentSession.ts`: session restore, debounced persistence, and the explicit write awaited before window closure.
+- `src/renderer/src/features/documents/components`: tab bar, toolbar, document workspace, and close/conflict dialogs. Components receive state and callbacks.
+- `src/renderer/src/features/documents/types.ts`: renderer tab and close request types.
+- `src/renderer/src/features/pdf/createPdfViewer.ts`: PDF.js loading, events, permissions, annotation commands, and resource cleanup. Undo and redo use the viewer's event bus.
+- `src/renderer/src/features/pdf/usePdfViewer.ts`: React lifecycle integration and the document command handle.
+- `src/renderer/src/features/pdf/PdfDocumentView.tsx` and `PasswordDialog.tsx`: viewer containers, loading indicator, and password form.
+- `src/renderer/src/features/pdf/types.ts` and `highlightColors.ts`: viewer contracts and the palette shared with the toolbar.
+- `src/renderer/src/features/pdf/imageFiles.ts` and `signatures.ts`: image decoding and conservative signature marker detection.
 
 Lepis uses the official `pdfjs-dist` package directly. The renderer has no Node.js access and runs
 with Electron context isolation and sandboxing enabled.
+
+`pnpm test` covers shortcuts, document state transitions, and filesystem behavior, including
+backups, save conflicts, copy saves, failed atomic writes, and session persistence.
+`pnpm test:images` checks image editing in Electron. `pnpm test:documents` checks concurrent
+startup and close operations, partial open failures, and save/close/conflict workflows.
+It also checks page and zoom retention on reload, password retries, active-tab password prompts,
+external changes to edited PDFs, close failures, and session persistence before window closure.
+Session writes are serialized in the main process so earlier writes cannot overwrite newer state.
+If saving the session fails, the window stays open and the error is shown.
+The document and image integration suites use a simulated file API and temporary session data.
+`pnpm test:memory` runs the development renderer with the real preload and PDF file reader,
+two 32 MB PDFs, repeated tab operations, and a 384 MB JavaScript heap limit.
+
+Opened PDF bytes use `ArrayBuffer` across IPC and React props. React's development performance
+tracing enumerates typed-array entries when describing props; exposing a large `Uint8Array`
+there can exhaust the renderer heap. PDF.js accepts the opaque buffer directly, and receives
+a copy because it transfers ownership to its worker. Saved PDF output remains `Uint8Array`.
 
 ## Keyboard shortcuts
 

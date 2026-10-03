@@ -1,4 +1,5 @@
 import electron from 'electron'
+import { blankPdf } from './fixtures/pdf.mjs'
 const { app, BrowserWindow, ipcMain } = electron
 import fs from 'node:fs'
 import path from 'node:path'
@@ -7,29 +8,13 @@ import os from 'node:os'
 const root = path.resolve(import.meta.dirname, '..')
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lepis-images-'))
 app.setPath('userData', temp)
-const objects = [
-  '<< /Type /Catalog /Pages 2 0 R >>',
-  '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-  '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Contents 4 0 R >>',
-  '<< /Length 0 >>\nstream\n\nendstream'
-]
-let pdf = '%PDF-1.7\n'
-const offsets = [0]
-for (const [index, object] of objects.entries()) {
-  offsets.push(pdf.length)
-  pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
-}
-const xref = pdf.length
-pdf += `xref\n0 5\n0000000000 65535 f \n${offsets
-  .slice(1)
-  .map((x) => `${String(x).padStart(10, '0')} 00000 n \n`)
-  .join('')}trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+const pdf = Buffer.from(blankPdf)
 const saved = new Map()
 ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
   directoryName: 'test',
-  data: new Uint8Array(saved.get(name) ?? Buffer.from(pdf)),
+  data: new Uint8Array(saved.get(name) ?? Buffer.from(pdf)).buffer,
   mtimeMs: 1,
   size: pdf.length
 }))

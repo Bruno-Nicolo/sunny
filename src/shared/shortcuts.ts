@@ -24,7 +24,9 @@ export const shortcuts = [
     accelerator: 'CmdOrCtrl+Plus',
     keys: [
       { key: '+', modifier: 'command' },
-      { key: '=', modifier: 'command' }
+      { key: '+', modifier: 'command', shift: true },
+      { key: '=', modifier: 'command' },
+      { key: '=', modifier: 'command', shift: true }
     ]
   },
   { id: 'zoom-out', label: 'Zoom Out', accelerator: 'CmdOrCtrl+-' },
