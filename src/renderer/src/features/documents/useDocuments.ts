@@ -16,6 +16,7 @@ type DocumentsController = DocumentsState & {
   closeRequest: CloseRequest
   conflictId: string | null
   selectTab(id: string): void
+  reorderTab(id: string, index: number): void
   updateTab(id: string, changes: TabChanges): void
   restoreSession(tabs: Tab[], activePath: string | null): void
   registerViewer(id: string, viewer: PdfDocumentHandle | null): void
@@ -47,6 +48,9 @@ export function useDocuments(
   }, [state])
 
   const selectTab = useCallback((id: string): void => dispatch({ type: 'select', id }), [])
+  const reorderTab = useCallback((id: string, index: number): void => {
+    dispatch({ type: 'reorder', id, index })
+  }, [])
   const updateTab = useCallback((id: string, changes: TabChanges): void => {
     dispatch({ type: 'update', id, changes })
   }, [])
@@ -298,6 +302,7 @@ export function useDocuments(
     closeRequest,
     conflictId,
     selectTab,
+    reorderTab,
     updateTab,
     restoreSession,
     registerViewer,

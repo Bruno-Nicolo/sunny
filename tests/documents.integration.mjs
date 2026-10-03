@@ -167,6 +167,40 @@ app
       'PASS: delayed restore preserves startup documents and selection without duplicates'
     )
 
+    const tabOrder = () =>
+      evaluate(
+        'Array.from(document.querySelectorAll("header button[title]")).map(tab => tab.title)'
+      )
+    const dragTab = async (name, target) => {
+      const points = await evaluate(`(() => {
+        const center = name => {
+          const rect = document.querySelector('header button[title="' + name + '"]').getBoundingClientRect();
+          return {x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2)};
+        };
+        return [center(${JSON.stringify(name)}), center(${JSON.stringify(target)})];
+      })()`)
+      const [start, end] = points
+      win.webContents.sendInputEvent({ type: 'mouseMove', ...start })
+      win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...start })
+      for (let step = 1; step <= 12; step++) {
+        win.webContents.sendInputEvent({
+          type: 'mouseMove',
+          x: Math.round(start.x + ((end.x - start.x) * step) / 12),
+          y: start.y
+        })
+        await new Promise((resolve) => setTimeout(resolve, 30))
+      }
+      win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...end })
+    }
+    await dragTab('startup.pdf', 'restored.pdf')
+    await waitUntil(async () => (await tabOrder())[0] === 'startup.pdf')
+    await waitUntil(() => persistedSessions.at(-1)?.tabs[0]?.path === 'startup.pdf')
+    assert.equal(await evaluate(activeTab('startup.pdf')), true)
+    await dragTab('startup.pdf', 'restored.pdf')
+    await waitUntil(() => persistedSessions.at(-1)?.tabs[0]?.path === 'restored.pdf')
+    assert.deepEqual(await tabOrder(), ['restored.pdf', 'startup.pdf'])
+    console.log('PASS: dragging tabs in both directions preserves selection and persists the order')
+
     blockedClosePath = 'startup.pdf'
     await evaluate("window.testCommands.run('close-tab')")
     await waitUntil(() => resolveClose !== null)

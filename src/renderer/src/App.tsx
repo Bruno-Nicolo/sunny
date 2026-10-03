@@ -49,6 +49,7 @@ function App(): React.JSX.Element {
     closeRequest,
     conflictId,
     selectTab,
+    reorderTab,
     updateTab,
     restoreSession,
     registerViewer,
@@ -214,6 +215,7 @@ function App(): React.JSX.Element {
           tabs={tabs}
           activeId={activeId}
           onSelect={selectTab}
+          onReorder={reorderTab}
           onClose={(id) => void closeTab(id)}
           onOpen={() => void openDialog()}
         />

@@ -12,6 +12,7 @@ export type TabChanges = Partial<Pick<Tab, 'dirty' | 'unavailable' | 'error' | '
 export type DocumentsAction =
   | { type: 'open'; tabs: Tab[] }
   | { type: 'select'; id: string }
+  | { type: 'reorder'; id: string; index: number }
   | { type: 'update'; id: string; changes: TabChanges }
   | { type: 'close'; id: string }
   | { type: 'restore'; tabs: Tab[]; activePath: string | null }
@@ -55,6 +56,20 @@ export function documentsReducer(state: DocumentsState, action: DocumentsAction)
       return state.tabs.some((tab) => tab.id === action.id)
         ? { ...state, activeId: action.id }
         : state
+    case 'reorder': {
+      const from = state.tabs.findIndex((tab) => tab.id === action.id)
+      if (
+        from === -1 ||
+        from === action.index ||
+        action.index < 0 ||
+        action.index >= state.tabs.length
+      )
+        return state
+      const tabs = [...state.tabs]
+      const [tab] = tabs.splice(from, 1)
+      tabs.splice(action.index, 0, tab)
+      return { ...state, tabs }
+    }
     case 'update':
       return {
         ...state,

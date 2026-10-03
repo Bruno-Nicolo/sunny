@@ -138,3 +138,19 @@ test('late save and update results never resurrect a closed tab', () => {
   assert.deepEqual(state.tabs, [])
   assert.equal(state.activeId, null)
 })
+
+test('reordering preserves document identity, edits, position, and active selection', () => {
+  const tabs = ['first.pdf', 'second.pdf', 'third.pdf'].map(tab)
+  tabs[0].dirty = true
+  tabs[0].view.scrollTop = 400
+  const initial = reduce(initialDocumentsState, { type: 'open', tabs })
+  const moved = reduce(initial, { type: 'reorder', id: tabs[0].id, index: 2 })
+  assert.deepEqual(moved.tabs, [tabs[1], tabs[2], tabs[0]])
+  assert.equal(moved.tabs[2], tabs[0])
+  assert.equal(moved.activeId, initial.activeId)
+  const closed = reduce(moved, { type: 'close', id: tabs[2].id })
+  assert.equal(closed.activeId, tabs[0].id)
+  assert.equal(reduce(moved, { type: 'reorder', id: 'missing', index: 0 }), moved)
+  assert.equal(reduce(moved, { type: 'reorder', id: tabs[0].id, index: -1 }), moved)
+  assert.equal(reduce(moved, { type: 'reorder', id: tabs[0].id, index: 3 }), moved)
+})
