@@ -214,6 +214,8 @@ function App(): React.JSX.Element {
         <TabBar
           tabs={tabs}
           activeId={activeId}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onSelect={selectTab}
           onReorder={reorderTab}
           onClose={(id) => void closeTab(id)}
@@ -225,8 +227,6 @@ function App(): React.JSX.Element {
           highlightColor={highlightColor}
           theme={theme}
           imageAccept={supportedImageMimeTypes.join(',')}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleHighlight={() => setHighlightEnabled((value) => !value)}
           onHighlightColorChange={setHighlightColor}
           onAddImages={(files) => void addImages(files)}

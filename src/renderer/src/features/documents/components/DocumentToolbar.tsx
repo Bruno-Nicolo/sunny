@@ -8,7 +8,6 @@ import {
   Monitor,
   Moon,
   Plus,
-  PanelLeft,
   Sun
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -21,12 +20,10 @@ import { highlightColors } from '@/features/pdf/highlightColors'
 
 type Props = {
   activeTab: Pick<Tab, 'view'> | null
-  sidebarOpen: boolean
   highlightEnabled: boolean
   highlightColor: string
   theme: SessionState['theme']
   imageAccept: string
-  onToggleSidebar(): void
   onToggleHighlight(): void
   onHighlightColorChange(color: string): void
   onAddImages(files: File[]): void
@@ -43,8 +40,6 @@ export function DocumentToolbar({
   highlightColor,
   theme,
   imageAccept,
-  sidebarOpen,
-  onToggleSidebar,
   onToggleHighlight,
   onHighlightColorChange,
   onAddImages,
@@ -59,22 +54,6 @@ export function DocumentToolbar({
 
   return (
     <div className="titlebar-no-drag flex h-11 items-center gap-1 border-t px-3">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!activeTab}
-            aria-label="Toggle PDF sidebar"
-            aria-expanded={sidebarOpen}
-            onClick={onToggleSidebar}
-          >
-            <PanelLeft />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} (⌘\)</TooltipContent>
-      </Tooltip>
-      <Separator orientation="vertical" className="mx-1 h-5" />
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

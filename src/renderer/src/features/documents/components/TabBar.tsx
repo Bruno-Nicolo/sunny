@@ -2,7 +2,7 @@ import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from '@dn
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import { Plus, X } from 'lucide-react'
+import { PanelLeft, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,8 @@ import type { Tab } from '../types'
 type Props = {
   tabs: Pick<Tab, 'id' | 'path' | 'name' | 'directoryName' | 'dirty'>[]
   activeId: string | null
+  sidebarOpen: boolean
+  onToggleSidebar(): void
   onSelect(id: string): void
   onClose(id: string): void
   onReorder(id: string, index: number): void
@@ -33,6 +35,8 @@ const sensors = [
 export function TabBar({
   tabs,
   activeId,
+  sidebarOpen,
+  onToggleSidebar,
   onSelect,
   onClose,
   onReorder,
@@ -47,8 +51,24 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 -mb-px flex h-11 min-w-0 items-end pl-[78px]">
-        <div className="titlebar-no-drag flex h-full min-w-0 flex-1 items-end gap-0.5 overflow-x-auto px-1">
+      <div className="titlebar-drag relative z-10 -mb-px flex h-11 min-w-0 items-center pl-[92px]">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="titlebar-no-drag"
+              disabled={!activeId}
+              aria-label="Toggle PDF sidebar"
+              aria-expanded={sidebarOpen}
+              onClick={onToggleSidebar}
+            >
+              <PanelLeft />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} (⌘\)</TooltipContent>
+        </Tooltip>
+        <div className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-2">
           {tabs.map((tab, index) => (
             <SortableTab
               key={tab.id}
@@ -61,7 +81,7 @@ export function TabBar({
           ))}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="mb-0.5 shrink-0" onClick={onOpen}>
+              <Button variant="ghost" size="icon-sm" onClick={onOpen}>
                 <Plus />
               </Button>
             </TooltipTrigger>
@@ -96,8 +116,8 @@ function SortableTab({
       className={cn(
         'group relative flex select-none max-w-72 shrink-0 items-center gap-2 border px-3 text-left text-sm transition-colors',
         active
-          ? 'h-9 rounded-t-md border-b-0 bg-background pb-px text-foreground'
-          : 'mb-0.5 h-8 rounded-md border-transparent text-muted-foreground',
+          ? 'document-tab-active z-10 h-[38px] self-end rounded-t-md border-b-0 bg-background pb-[7px] text-foreground'
+          : 'h-8 rounded-md border-transparent text-muted-foreground',
         !active && (isDragSource ? 'bg-muted' : 'bg-transparent hover:bg-muted/65')
       )}
       title={tab.path}
@@ -105,9 +125,11 @@ function SortableTab({
       aria-pressed={active}
     >
       {tab.dirty && <span className="size-2 shrink-0 rounded-full bg-foreground" />}
-      <span className="max-w-36 truncate font-medium">{tab.name}</span>
-      <span className="max-w-24 truncate text-[11px] text-muted-foreground">
-        {tab.directoryName}
+      <span className="flex min-w-0 items-baseline gap-2 leading-5">
+        <span className="max-w-36 truncate font-medium">{tab.name}</span>
+        <span className="max-w-24 truncate text-[11px] leading-none text-muted-foreground">
+          {tab.directoryName}
+        </span>
       </span>
       <span
         role="button"
