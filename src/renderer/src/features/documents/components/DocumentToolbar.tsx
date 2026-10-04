@@ -1,20 +1,9 @@
 import { useRef } from 'react'
-import {
-  Check,
-  ChevronDown,
-  Highlighter,
-  ImagePlus,
-  Minus,
-  Monitor,
-  Moon,
-  Plus,
-  Sun
-} from 'lucide-react'
+import { Check, ChevronDown, Highlighter, ImagePlus, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { SessionState } from '../../../../../shared/contracts'
 import type { Tab } from '../types'
 import { highlightColors } from '@/features/pdf/highlightColors'
 
@@ -22,7 +11,6 @@ type Props = {
   activeTab: Pick<Tab, 'view'> | null
   highlightEnabled: boolean
   highlightColor: string
-  theme: SessionState['theme']
   imageAccept: string
   onToggleHighlight(): void
   onHighlightColorChange(color: string): void
@@ -31,14 +19,12 @@ type Props = {
   onScaleChange(scale: string): void
   onZoomIn(): void
   onZoomOut(): void
-  onCycleTheme(): void
 }
 
 export function DocumentToolbar({
   activeTab,
   highlightEnabled,
   highlightColor,
-  theme,
   imageAccept,
   onToggleHighlight,
   onHighlightColorChange,
@@ -46,14 +32,46 @@ export function DocumentToolbar({
   onPageChange,
   onScaleChange,
   onZoomIn,
-  onZoomOut,
-  onCycleTheme
+  onZoomOut
 }: Props): React.JSX.Element {
   const imageInputRef = useRef<HTMLInputElement>(null)
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor
 
   return (
-    <div className="titlebar-no-drag flex h-11 items-center gap-1 border-t px-3">
+    <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 border-t px-3">
+      {activeTab && (
+        <>
+          <Button variant="ghost" size="icon-sm" onClick={onZoomOut}>
+            <Minus />
+          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="min-w-16">
+                {activeTab.view.zoomPercent}%
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="center" className="w-44 p-1">
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => onScaleChange('page-width')}
+              >
+                Fit width
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => onScaleChange('page-fit')}
+              >
+                Fit page
+              </Button>
+            </PopoverContent>
+          </Popover>
+          <Button variant="ghost" size="icon-sm" onClick={onZoomIn}>
+            <Plus />
+          </Button>
+          <Separator orientation="vertical" className="mx-1 h-5" />
+        </>
+      )}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -135,10 +153,9 @@ export function DocumentToolbar({
         <TooltipContent>Add image (or paste with ⌘V)</TooltipContent>
       </Tooltip>
 
-      <div className="flex-1" />
-
       {activeTab && (
         <>
+          <Separator orientation="vertical" className="mx-1 h-5" />
           <input
             aria-label="Current page"
             className="h-8 w-12 rounded-md border bg-transparent px-1 text-center text-sm"
@@ -151,47 +168,8 @@ export function DocumentToolbar({
             }}
           />
           <span className="text-xs text-muted-foreground">/ {activeTab.view.pages || '—'}</span>
-          <Separator orientation="vertical" className="mx-1 h-5" />
-          <Button variant="ghost" size="icon-sm" onClick={onZoomOut}>
-            <Minus />
-          </Button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="min-w-16">
-                {activeTab.view.zoomPercent}%
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="center" className="w-44 p-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => onScaleChange('page-width')}
-              >
-                Fit width
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => onScaleChange('page-fit')}
-              >
-                Fit page
-              </Button>
-            </PopoverContent>
-          </Popover>
-          <Button variant="ghost" size="icon-sm" onClick={onZoomIn}>
-            <Plus />
-          </Button>
         </>
       )}
-      <Separator orientation="vertical" className="mx-1 h-5" />
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" onClick={onCycleTheme}>
-            <ThemeIcon />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Theme: {theme}</TooltipContent>
-      </Tooltip>
     </div>
   )
 }

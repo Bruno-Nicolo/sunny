@@ -215,17 +215,18 @@ function App(): React.JSX.Element {
           tabs={tabs}
           activeId={activeId}
           sidebarOpen={sidebarOpen}
+          theme={theme}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onSelect={selectTab}
           onReorder={reorderTab}
           onClose={(id) => void closeTab(id)}
           onOpen={() => void openDialog()}
+          onCycleTheme={cycleTheme}
         />
         <DocumentToolbar
           activeTab={activeTab}
           highlightEnabled={highlightEnabled}
           highlightColor={highlightColor}
-          theme={theme}
           imageAccept={supportedImageMimeTypes.join(',')}
           onToggleHighlight={() => setHighlightEnabled((value) => !value)}
           onHighlightColorChange={setHighlightColor}
@@ -234,7 +235,6 @@ function App(): React.JSX.Element {
           onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
           onZoomIn={() => getActiveViewer()?.zoomIn()}
           onZoomOut={() => getActiveViewer()?.zoomOut()}
-          onCycleTheme={cycleTheme}
         />
       </header>
 

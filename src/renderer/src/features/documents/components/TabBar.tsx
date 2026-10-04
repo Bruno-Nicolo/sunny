@@ -2,21 +2,24 @@ import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from '@dn
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import { PanelLeft, Plus, X } from 'lucide-react'
+import { Monitor, Moon, PanelLeft, Plus, Sun, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { SessionState } from '../../../../../shared/contracts'
 import type { Tab } from '../types'
 
 type Props = {
   tabs: Pick<Tab, 'id' | 'path' | 'name' | 'directoryName' | 'dirty'>[]
   activeId: string | null
   sidebarOpen: boolean
+  theme: SessionState['theme']
   onToggleSidebar(): void
   onSelect(id: string): void
   onClose(id: string): void
   onReorder(id: string, index: number): void
   onOpen(): void
+  onCycleTheme(): void
 }
 
 const tabModifiers = [
@@ -36,12 +39,16 @@ export function TabBar({
   tabs,
   activeId,
   sidebarOpen,
+  theme,
   onToggleSidebar,
   onSelect,
   onClose,
   onReorder,
-  onOpen
+  onOpen,
+  onCycleTheme
 }: Props): React.JSX.Element {
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor
+
   return (
     <DragDropProvider
       sensors={sensors}
@@ -51,7 +58,7 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 -mb-px flex h-11 min-w-0 items-center pl-[92px]">
+      <div className="titlebar-drag relative z-10 -mb-px flex h-11 min-w-0 items-center pr-3 pl-[92px]">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -88,6 +95,20 @@ export function TabBar({
             <TooltipContent>Open PDF (⌘O)</TooltipContent>
           </Tooltip>
         </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="titlebar-no-drag shrink-0"
+              aria-label={`Change theme: ${theme}`}
+              onClick={onCycleTheme}
+            >
+              <ThemeIcon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Theme: {theme}</TooltipContent>
+        </Tooltip>
       </div>
     </DragDropProvider>
   )
