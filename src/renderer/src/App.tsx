@@ -117,6 +117,7 @@ function App(): React.JSX.Element {
   }, [activeTab?.view.canAnnotate, addImages, closeRequest, conflictId])
 
   useEffect(() => {
+    window.lepis.setTheme(theme)
     const root = document.documentElement
     root.classList.remove('light', 'dark')
     if (theme === 'system') {

@@ -28,6 +28,7 @@ fs.writeFileSync(
   `const { contextBridge, ipcRenderer } = require('electron')
 const handlers = new Map()
 contextBridge.exposeInMainWorld('lepis', {
+  setTheme: () => {},
   loadSession: async () => ({ tabs: [{path:'first.pdf',page:1,scale:'page-fit',scrollTop:0},{path:'second.pdf',page:1,scale:'page-fit',scrollTop:0}], activePath:'second.pdf', highlightColor:'#FDE047', theme:'light' }),
   readPdf: path => ipcRenderer.invoke('test:read', path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),

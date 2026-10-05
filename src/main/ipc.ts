@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, nativeTheme } from 'electron'
 import type { SavePdfAsRequest, SavePdfRequest, SessionState } from '../shared/contracts'
 import { deleteBackup, readPdf, savePdf, statPdf } from './pdf-files'
 import { openPdfDialog, savePdfAs } from './pdf-dialogs'
@@ -24,4 +24,7 @@ export function registerIpc(): void {
     return sessionWrite
   })
   ipcMain.on('window:confirm-close', confirmWindowClose)
+  ipcMain.on('theme:set', (_event, theme: SessionState['theme']) => {
+    nativeTheme.themeSource = theme
+  })
 }

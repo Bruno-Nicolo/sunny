@@ -11,6 +11,7 @@ const api: LepisApi = {
   closePdf: (tabId: string) => ipcRenderer.invoke('pdf:close', tabId),
   loadSession: () => ipcRenderer.invoke('session:load'),
   saveSession: (state) => ipcRenderer.invoke('session:save', state),
+  setTheme: (theme) => ipcRenderer.send('theme:set', theme),
   confirmWindowClose: () => ipcRenderer.send('window:confirm-close'),
   onOpenRequested: (callback: (path: string) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, path: string): void => callback(path)

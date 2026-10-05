@@ -49,6 +49,7 @@ export interface LepisApi {
   closePdf(tabId: string): Promise<void>
   loadSession(): Promise<SessionState>
   saveSession(state: SessionState): Promise<void>
+  setTheme(theme: SessionState['theme']): void
   confirmWindowClose(): void
   onOpenRequested(callback: (path: string) => void): () => void
   onCommand(command: ShortcutCommand | 'window-close-requested', callback: () => void): () => void

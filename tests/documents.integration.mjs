@@ -87,6 +87,7 @@ fs.writeFileSync(
 const commands = new Map()
 const openListeners = new Set()
 contextBridge.exposeInMainWorld('lepis', {
+  setTheme: () => {},
   loadSession: () => ipcRenderer.invoke('test:session'),
   readPdf: path => ipcRenderer.invoke('test:read', path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),
