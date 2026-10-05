@@ -40,36 +40,57 @@ export function DocumentToolbar({
     <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 border-t px-3">
       {activeTab && (
         <>
-          <Button variant="ghost" size="icon-sm" onClick={onZoomOut}>
-            <Minus />
-          </Button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="min-w-16">
-                {activeTab.view.zoomPercent}%
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="center" className="w-44 p-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => onScaleChange('page-width')}
-              >
-                Fit width
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => onScaleChange('page-fit')}
-              >
-                Fit page
-              </Button>
-            </PopoverContent>
-          </Popover>
-          <Button variant="ghost" size="icon-sm" onClick={onZoomIn}>
-            <Plus />
-          </Button>
-          <Separator orientation="vertical" className="mx-1 h-5" />
+          <div className="flex items-center gap-1">
+            <input
+              aria-label="Current page"
+              className="h-8 w-12 rounded-md border bg-transparent px-1 text-center text-sm"
+              value={activeTab.view.page}
+              onChange={(event) => {
+                const page = Number(event.target.value)
+                if (Number.isInteger(page) && page >= 1 && page <= activeTab.view.pages) {
+                  onPageChange(page)
+                }
+              }}
+            />
+            <span className="text-xs text-muted-foreground">/ {activeTab.view.pages || '—'}</span>
+          </div>
+          <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
+        </>
+      )}
+      {activeTab && (
+        <>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon-sm" onClick={onZoomOut}>
+              <Minus />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="min-w-16">
+                  {activeTab.view.zoomPercent}%
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="center" className="w-44 p-1">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => onScaleChange('page-width')}
+                >
+                  Fit width
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => onScaleChange('page-fit')}
+                >
+                  Fit page
+                </Button>
+              </PopoverContent>
+            </Popover>
+            <Button variant="ghost" size="icon-sm" onClick={onZoomIn}>
+              <Plus />
+            </Button>
+          </div>
+          <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
         </>
       )}
       <Tooltip>
@@ -152,24 +173,6 @@ export function DocumentToolbar({
         </TooltipTrigger>
         <TooltipContent>Add image (or paste with ⌘V)</TooltipContent>
       </Tooltip>
-
-      {activeTab && (
-        <>
-          <Separator orientation="vertical" className="mx-1 h-5" />
-          <input
-            aria-label="Current page"
-            className="h-8 w-12 rounded-md border bg-transparent px-1 text-center text-sm"
-            value={activeTab.view.page}
-            onChange={(event) => {
-              const page = Number(event.target.value)
-              if (Number.isInteger(page) && page >= 1 && page <= activeTab.view.pages) {
-                onPageChange(page)
-              }
-            }}
-          />
-          <span className="text-xs text-muted-foreground">/ {activeTab.view.pages || '—'}</span>
-        </>
-      )}
     </div>
   )
 }

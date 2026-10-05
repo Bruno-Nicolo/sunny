@@ -219,7 +219,7 @@ export function PdfSidebar({
             <TabsTrigger value="pages">Pages</TabsTrigger>
             <TabsTrigger value="outline">Outline</TabsTrigger>
           </TabsList>
-          <TabsContent value="pages" className="min-h-0 overflow-y-auto px-2 pb-2">
+          <TabsContent value="pages" className="min-h-0 space-y-2 overflow-y-auto px-2 pb-2">
             {Array.from({ length: document.numPages }, (_, index) => (
               <PageThumbnail
                 key={index}
