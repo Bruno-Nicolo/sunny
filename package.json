@@ -9,6 +9,7 @@
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "test": "node --test tests/*.test.mjs",
+    "test:highlight": "pnpm build && electron tests/highlight.integration.mjs",
     "test:images": "pnpm build && electron tests/images.integration.mjs",
     "test:memory": "pnpm build && electron tests/tabs-memory.integration.mjs",
     "test:documents": "pnpm build && electron tests/documents.integration.mjs",
