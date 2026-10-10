@@ -31,6 +31,11 @@ export type PdfSearchSnapshot = {
   pending: boolean
 }
 
+export type PdfSearchOptions = {
+  caseSensitive: boolean
+  entireWord: boolean
+}
+
 export type PdfDocumentViewProps = AnnotationOptions & {
   sidebarOpen: boolean
   data: ArrayBuffer

@@ -27,7 +27,7 @@ type PdfViewerState = {
   page: number
   searchSnapshot: PdfSearchSnapshot
   searchRequest: number | null
-  search(query: string, previous?: boolean): void
+  search: PdfViewerController['search']
   closeSearch(): void
   navigateToDestination(destination: string | unknown[]): Promise<void>
   passwordRequest: PasswordRequest | null
@@ -126,8 +126,8 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     []
   )
 
-  const search = useCallback((query: string, previous?: boolean): void => {
-    controllerRef.current?.search(query, previous)
+  const search = useCallback<PdfViewerController['search']>((query, options, previous) => {
+    controllerRef.current?.search(query, options, previous)
   }, [])
   const closeSearch = useCallback((): void => {
     controllerRef.current?.closeSearch()

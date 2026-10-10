@@ -112,7 +112,7 @@ app
       await evaluate(
         `document.querySelector('.visible [role="search"]').querySelectorAll('input,button').length`
       ),
-      2
+      5
     )
     assert.equal(
       await evaluate(
@@ -136,6 +136,10 @@ app
     await waitFor(`${status} === '1 of 3'`)
     await key('Enter', { shiftKey: true })
     await waitFor(`${status} === '3 of 3'`)
+    await evaluate(`document.querySelector('.visible [aria-label="Next result"]').click()`)
+    await waitFor(`${status} === '1 of 3'`)
+    await evaluate(`document.querySelector('.visible [aria-label="Previous result"]').click()`)
+    await waitFor(`${status} === '3 of 3'`)
     await key('f', { metaKey: true })
     await waitFor(`${input} === document.activeElement && ${input}.selectionEnd === 5`)
     console.log(
@@ -144,6 +148,10 @@ app
 
     await query('missing')
     await waitFor(`${status} === 'No results'`)
+    assert.equal(
+      await evaluate(`document.querySelector('.visible [aria-label="Next result"]').disabled`),
+      true
+    )
     await query('')
     await waitFor(`${status} === '' && document.querySelector('.visible .highlight') === null`)
     await query('hello')
@@ -167,6 +175,30 @@ app
     await waitFor(`${input} !== null`)
     await query('world')
     await waitFor(`${status} === '1 of 1'`)
+    await query('hello')
+    await waitFor(`${status}.includes('of 3')`)
+    await evaluate(`document.querySelector('.visible [aria-label="Search options"]').click()`)
+    const option = (label) =>
+      `Array.from(document.querySelectorAll('[data-slot="popover-content"] button')).find(button => button.textContent === '${label}')`
+    await waitFor(`${option('Match case')} !== undefined`)
+    await evaluate(`${option('Match case')}.click()`)
+    await waitFor(`${status} === '1 of 1'`)
+    assert.equal(await evaluate(`${option('Match case')}.getAttribute('aria-pressed')`), 'true')
+    await query('hell')
+    await waitFor(`${status} === '1 of 1'`)
+    await evaluate(`${option('Whole words')}.click()`)
+    await waitFor(`${status} === 'No results'`)
+    await evaluate(`${option('Match case')}.click()`)
+    await waitFor(`${status} === 'No results'`)
+    await evaluate(`${option('Whole words')}.click()`)
+    await waitFor(`${status}.includes('of 3')`)
+    await query('hello')
+    await waitFor(`${status}.includes('of 3')`)
+    await evaluate(`${option('Whole words')}.click()`)
+    await waitFor(`${status}.includes('of 3')`)
+    await evaluate(`document.querySelector('.visible [aria-label="Search options"]').click()`)
+    await waitFor(`document.querySelector('[data-slot="popover-content"]') === null`)
+    console.log('PASS: case and whole-word options recompute results and navigation buttons work')
     fs.writeFileSync('/tmp/lepis-search.png', (await win.webContents.capturePage()).toPNG())
     await evaluate(`document.querySelector('.visible [aria-label="Close search"]').click()`)
     await waitFor(`${input} === null && document.querySelector('.visible .highlight') === null`)

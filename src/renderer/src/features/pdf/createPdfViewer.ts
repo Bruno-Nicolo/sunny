@@ -21,6 +21,7 @@ import { containsDigitalSignature } from './signatures'
 import type {
   PasswordRequest,
   PdfDocumentHandle,
+  PdfSearchOptions,
   PdfSearchSnapshot,
   PdfViewPosition,
   ViewerSnapshot
@@ -48,7 +49,7 @@ type Options = {
 }
 
 export type PdfViewerController = Omit<PdfDocumentHandle, 'openSearch'> & {
-  search(query: string, previous?: boolean): void
+  search(query: string, options: PdfSearchOptions, previous?: boolean): void
   closeSearch(): void
   navigateToDestination(destination: string | unknown[]): Promise<void>
   setAnnotationOptions(options: AnnotationOptions): void
@@ -224,14 +225,13 @@ export function createPdfViewer({
     })
 
   return {
-    search(query, previous) {
+    search(query, options, previous) {
       if (destroyed) return
       eventBus.dispatch('find', {
         source: findController,
         type: previous === undefined ? '' : 'again',
         query,
-        caseSensitive: false,
-        entireWord: false,
+        ...options,
         highlightAll: true,
         findPrevious: previous ?? false,
         matchDiacritics: false
