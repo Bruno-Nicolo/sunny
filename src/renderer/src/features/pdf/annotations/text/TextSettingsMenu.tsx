@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import './text.css'
-import { Check, SlidersHorizontal } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Tick02Icon, SlidersHorizontalIcon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -47,7 +48,7 @@ export function TextSettingsMenu({
             className="shadow-sm"
             onPointerDown={(event) => event.preventDefault()}
           >
-            <SlidersHorizontal />
+            <HugeiconsIcon icon={SlidersHorizontalIcon} />
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -88,7 +89,9 @@ export function TextSettingsMenu({
                       className="size-5 rounded-full border border-black/10"
                       style={{ backgroundColor: color.value }}
                     />
-                    {selected && <Check className="absolute size-3 text-white" />}
+                    {selected && (
+                      <HugeiconsIcon icon={Tick02Icon} className="absolute size-3 text-white" />
+                    )}
                   </Button>
                 )
               })}

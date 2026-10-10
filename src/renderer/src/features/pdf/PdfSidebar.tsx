@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { ChevronRight } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { Collapsible } from 'radix-ui'
 import { Sidebar, SidebarContent } from '@/components/ui/sidebar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -134,7 +135,10 @@ function OutlineItems({
                       aria-label={`Toggle section: ${item.title}`}
                       className="group mt-1 grid size-6 shrink-0 place-items-center rounded-md hover:bg-sidebar-accent focus-visible:outline-sidebar-ring"
                     >
-                      <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        className="size-3.5 transition-transform group-data-[state=open]:rotate-90"
+                      />
                     </button>
                   </Collapsible.Trigger>
                 ) : (

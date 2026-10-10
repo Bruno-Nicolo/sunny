@@ -262,13 +262,13 @@ app
       )
       assert.equal(
         await evaluate(
-          `document.querySelectorAll('[aria-label="Text color"] .lucide-check').length`
+          `document.querySelectorAll('[aria-label="Text color"] [aria-pressed="true"]').length`
         ),
         1
       )
       assert.equal(
         await evaluate(
-          `document.querySelector('[aria-label="Text color"] [aria-label="${color}"] .lucide-check') !== null`
+          `document.querySelector('[aria-label="Text color"] [aria-label="${color}"][aria-pressed="true"]') !== null`
         ),
         true
       )

@@ -1,4 +1,5 @@
-import { Minus, Plus } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Remove01Icon, Add01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
@@ -56,7 +57,7 @@ export function DocumentToolbar({
         <>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon-sm" onClick={onZoomOut}>
-              <Minus />
+              <HugeiconsIcon icon={Remove01Icon} />
             </Button>
             <Popover>
               <PopoverTrigger asChild>
@@ -82,7 +83,7 @@ export function DocumentToolbar({
               </PopoverContent>
             </Popover>
             <Button variant="ghost" size="icon-sm" onClick={onZoomIn}>
-              <Plus />
+              <HugeiconsIcon icon={Add01Icon} />
             </Button>
           </div>
           <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />

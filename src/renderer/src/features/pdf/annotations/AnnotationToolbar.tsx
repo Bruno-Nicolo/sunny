@@ -1,4 +1,4 @@
-import { Type } from 'lucide-react'
+import { TextIcon } from '@hugeicons/core-free-icons'
 import { AnnotationToolButton } from './AnnotationToolButton'
 import { HighlightControls } from './highlight/HighlightControls'
 import { ImageInputButton } from './images/ImageInputButton'
@@ -35,7 +35,7 @@ export function AnnotationToolbar({
         tool="text"
         activeTool={annotationTool}
         label="Add text"
-        icon={Type}
+        icon={TextIcon}
         disabled={!canAnnotate}
         onChange={onAnnotationToolChange}
       />

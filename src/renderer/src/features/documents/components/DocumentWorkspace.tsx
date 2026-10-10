@@ -1,4 +1,5 @@
-import { FileText } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { File01Icon } from '@hugeicons/core-free-icons'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import { Button } from '@/components/ui/button'
 import { PdfDocumentView } from '@/features/pdf/PdfDocumentView'
@@ -39,7 +40,7 @@ export function DocumentWorkspace({
         <div className="absolute inset-0 grid place-items-center">
           <div className="flex flex-col items-center gap-4 text-center">
             <div className="grid size-14 place-items-center rounded-2xl border bg-background shadow-sm">
-              <FileText className="size-6 text-muted-foreground" />
+              <HugeiconsIcon icon={File01Icon} className="size-6 text-muted-foreground" />
             </div>
             <div>
               <h1 className="text-lg font-semibold">Open a PDF</h1>
