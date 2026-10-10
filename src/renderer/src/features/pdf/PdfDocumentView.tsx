@@ -1,10 +1,11 @@
 import { forwardRef, useImperativeHandle } from 'react'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import 'pdfjs-dist/web/pdf_viewer.css'
+import './annotations/annotations.css'
 import { PasswordDialog } from './PasswordDialog'
 import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
-import { TextSettingsMenu } from './TextSettingsMenu'
+import { TextSettingsMenu } from './annotations/text/TextSettingsMenu'
 import { PdfSidebar } from './PdfSidebar'
 
 export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProps>(

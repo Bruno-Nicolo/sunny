@@ -1,7 +1,8 @@
 import { FileText } from 'lucide-react'
+import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import { Button } from '@/components/ui/button'
 import { PdfDocumentView } from '@/features/pdf/PdfDocumentView'
-import type { AnnotationTool, PdfDocumentHandle, ViewerSnapshot } from '@/features/pdf/types'
+import type { PdfDocumentHandle, ViewerSnapshot } from '@/features/pdf/types'
 import { cn } from '@/lib/utils'
 import type { Tab } from '../types'
 

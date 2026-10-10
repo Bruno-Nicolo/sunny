@@ -1,18 +1,15 @@
-import { useRef } from 'react'
-import { Check, ChevronDown, Highlighter, ImagePlus, Minus, Plus, Type } from 'lucide-react'
+import { Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { AnnotationTool } from '@/features/pdf/types'
+import { AnnotationToolbar } from '@/features/pdf/annotations/AnnotationToolbar'
+import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import type { Tab } from '../types'
-import { highlightColors } from '@/features/pdf/highlightColors'
 
 type Props = {
   activeTab: Pick<Tab, 'view'> | null
   annotationTool: AnnotationTool
   highlightColor: string
-  imageAccept: string
   onAnnotationToolChange(tool: AnnotationTool): void
   onHighlightColorChange(color: string): void
   onAddImages(files: File[]): void
@@ -26,7 +23,6 @@ export function DocumentToolbar({
   activeTab,
   annotationTool,
   highlightColor,
-  imageAccept,
   onAnnotationToolChange,
   onHighlightColorChange,
   onAddImages,
@@ -35,8 +31,6 @@ export function DocumentToolbar({
   onZoomIn,
   onZoomOut
 }: Props): React.JSX.Element {
-  const imageInputRef = useRef<HTMLInputElement>(null)
-
   return (
     <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 border-t px-3">
       {activeTab && (
@@ -94,105 +88,15 @@ export function DocumentToolbar({
           <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
         </>
       )}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={annotationTool === 'highlight' ? 'secondary' : 'ghost'}
-            aria-label="Highlight text"
-            aria-pressed={annotationTool === 'highlight'}
-            size="icon-sm"
-            disabled={!activeTab?.view.canAnnotate}
-            onClick={() =>
-              onAnnotationToolChange(annotationTool === 'highlight' ? 'none' : 'highlight')
-            }
-          >
-            <Highlighter />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {activeTab?.view.signed ? 'Signed PDFs are read-only' : 'Highlight text'}
-        </TooltipContent>
-      </Tooltip>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!activeTab?.view.canAnnotate}
-            className="gap-1.5 px-2"
-          >
-            <span
-              className="size-4 rounded-full border border-black/10"
-              style={{ backgroundColor: highlightColor }}
-            />
-            <ChevronDown className="size-3" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto p-2">
-          <div className="flex gap-1">
-            {highlightColors.map((color) => (
-              <button
-                key={color.value}
-                type="button"
-                aria-label={color.name}
-                onClick={() => onHighlightColorChange(color.value)}
-                className="relative grid size-8 place-items-center rounded-md hover:bg-muted"
-              >
-                <span
-                  className="size-5 rounded-full border border-black/10"
-                  style={{ backgroundColor: color.value }}
-                />
-                {highlightColor === color.value && (
-                  <Check className="absolute size-3 text-black/70" />
-                )}
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={annotationTool === 'text' ? 'secondary' : 'ghost'}
-            size="icon-sm"
-            aria-label="Add text"
-            aria-pressed={annotationTool === 'text'}
-            disabled={!activeTab?.view.canAnnotate}
-            onClick={() => onAnnotationToolChange(annotationTool === 'text' ? 'none' : 'text')}
-          >
-            <Type />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Add text</TooltipContent>
-      </Tooltip>
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept={imageAccept}
-        multiple
-        hidden
-        aria-label="Choose images"
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? [])
-          event.target.value = ''
-          onAddImages(files)
-        }}
+      <AnnotationToolbar
+        annotationTool={annotationTool}
+        highlightColor={highlightColor}
+        canAnnotate={activeTab?.view.canAnnotate ?? false}
+        signed={activeTab?.view.signed ?? false}
+        onAnnotationToolChange={onAnnotationToolChange}
+        onHighlightColorChange={onHighlightColorChange}
+        onAddImages={onAddImages}
       />
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Add image"
-            disabled={!activeTab?.view.canAnnotate}
-            onClick={() => imageInputRef.current?.click()}
-          >
-            <ImagePlus />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Add image (or paste with ⌘V)</TooltipContent>
-      </Tooltip>
     </div>
   )
 }

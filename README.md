@@ -57,22 +57,23 @@ pnpm build:mac
 - `src/main/pdf-files.ts`, `session.ts`, and `atomic-write.ts`: PDF file access, backups, session persistence, and atomic writes. These modules do not depend on Electron.
 - `src/preload`: narrow IPC API exposed to the renderer and checked against the shared `LepisApi` contract.
 - `src/renderer`: React interface, shadcn components, Tailwind theme, and PDF.js viewer/editor.
-- `src/renderer/src/App.tsx`: interface composition, preferences, and input handling.
+- `src/renderer/src/App.tsx`: interface composition, preferences, and PDF file drops.
 - `src/renderer/src/features/documents/documentsReducer.ts`: atomic tab and selection transitions, including merging session restore with documents opened during startup.
 - `src/renderer/src/features/documents/useDocuments.ts`: document operations, viewer handles, save/close/conflict workflows, and external file checks.
 - `src/renderer/src/features/session/useDocumentSession.ts`: session restore, debounced persistence, and the explicit write awaited before window closure.
 - `src/renderer/src/features/documents/components`: tab bar, toolbar, document workspace, and close/conflict dialogs. Components receive state and callbacks.
 - `src/renderer/src/features/documents/types.ts`: renderer tab and close request types.
-- `src/renderer/src/features/pdf/createPdfViewer.ts`: PDF.js loading, events, permissions, annotation commands, and resource cleanup. Undo and redo use the viewer's event bus.
+- `src/renderer/src/features/pdf/createPdfViewer.ts`: PDF.js document loading, navigation, permissions, saving, and resource cleanup. Annotation commands are delegated to the annotation controller.
 - `src/renderer/src/features/pdf/usePdfViewer.ts`: React lifecycle integration and the document command handle.
 - `src/renderer/src/features/pdf/PdfDocumentView.tsx` and `PasswordDialog.tsx`: viewer containers, loading indicator, and password form.
-- `src/renderer/src/features/pdf/types.ts` and `highlightColors.ts`: viewer contracts and the palette shared with the toolbar.
-- `src/renderer/src/features/pdf/imageFiles.ts` and `signatures.ts`: image decoding and conservative signature marker detection.
+- `src/renderer/src/features/pdf/types.ts` and `signatures.ts`: viewer contracts and conservative signature marker detection.
+- `src/renderer/src/features/pdf/annotations`: shared PDF.js editor events and annotation lifecycle, with separate `highlight`, `images`, and `text` modules. Each module owns its editor behavior and interface; image input, paste, and drop handling live in `images`. See [the annotation architecture](src/renderer/src/features/pdf/annotations/README.md) for the extension points.
 
 Lepis uses the official `pdfjs-dist` package directly. The renderer has no Node.js access and runs
 with Electron context isolation and sandboxing enabled.
 
-`pnpm test` covers shortcuts, document state transitions, and filesystem behavior, including
+`pnpm test` covers annotation event commands, mode confirmation/interruption, subscription cleanup,
+viewer isolation, shortcuts, document state transitions, and filesystem behavior, including
 backups, save conflicts, copy saves, failed atomic writes, and session persistence.
 `pnpm test:text` checks multiline text insertion, formatting, consecutive saves, saving with the
 formatting menu open, undo/redo, empty text boxes, tab isolation, and editing text after reopening.

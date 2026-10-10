@@ -1,3 +1,5 @@
+import type { AnnotationOptions } from './annotations/types'
+
 export type ViewerSnapshot = {
   page: number
   pages: number
@@ -22,15 +24,7 @@ export type PdfDocumentHandle = {
   redo(): void
 }
 
-export type AnnotationTool = 'none' | 'highlight' | 'text'
-
-export type PdfAnnotationOptions = {
-  active: boolean
-  annotationTool: AnnotationTool
-  highlightColor: string
-}
-
-export type PdfDocumentViewProps = PdfAnnotationOptions & {
+export type PdfDocumentViewProps = AnnotationOptions & {
   sidebarOpen: boolean
   data: ArrayBuffer
   initialPage: number
@@ -44,12 +38,4 @@ export type PdfDocumentViewProps = PdfAnnotationOptions & {
 export type PasswordRequest = {
   incorrect: boolean
   submit(password: string): void
-}
-
-export type TextEditorSettings = {
-  element: HTMLDivElement
-  color: string
-  size: number
-  setColor(color: string): void
-  setSize(size: number): void
 }

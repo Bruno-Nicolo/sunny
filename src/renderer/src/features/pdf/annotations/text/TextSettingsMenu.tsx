@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import './text.css'
 import { Check, SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {

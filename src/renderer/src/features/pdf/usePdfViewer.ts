@@ -1,11 +1,7 @@
+import type { TextEditorSettings } from './annotations/text/types'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPdfViewer, type PdfViewerController } from './createPdfViewer'
-import type {
-  PasswordRequest,
-  PdfDocumentHandle,
-  PdfDocumentViewProps,
-  TextEditorSettings
-} from './types'
+import type { PasswordRequest, PdfDocumentHandle, PdfDocumentViewProps } from './types'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 type PdfViewerState = {

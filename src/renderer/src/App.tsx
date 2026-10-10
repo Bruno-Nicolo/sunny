@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
 import type { ShortcutHandlers } from '../../shared/shortcuts'
 import type { SessionState } from '../../shared/contracts'
-import type { AnnotationTool, PdfDocumentHandle } from '@/features/pdf/types'
+import type { PdfDocumentHandle } from '@/features/pdf/types'
 import type { DocumentsState } from '@/features/documents/documentsReducer'
 import { useDocuments } from '@/features/documents/useDocuments'
 import { persistDocumentSession, useDocumentSession } from '@/features/session/useDocumentSession'
@@ -11,8 +12,8 @@ import { DocumentToolbar } from '@/features/documents/components/DocumentToolbar
 import { DocumentWorkspace } from '@/features/documents/components/DocumentWorkspace'
 import { CloseDocumentsDialog } from '@/features/documents/components/CloseDocumentsDialog'
 import { FileConflictDialog } from '@/features/documents/components/FileConflictDialog'
-import { supportedImageMimeTypes } from '@/features/pdf/imageFiles'
-import { defaultHighlightColor } from '@/features/pdf/highlightColors'
+import { useImageInsertion } from '@/features/pdf/annotations/images/useImageInsertion'
+import { defaultHighlightColor } from '@/features/pdf/annotations/highlight/colors'
 
 function App(): React.JSX.Element {
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('none')
@@ -81,40 +82,12 @@ function App(): React.JSX.Element {
     showMessage
   })
 
-  const addImages = useCallback(
-    async (files: File[]): Promise<void> => {
-      const viewer = getActiveViewer()
-      if (!viewer) return
-      setAnnotationTool('none')
-      try {
-        for (const file of files) await viewer.addImage(file)
-      } catch (error) {
-        showMessage(error instanceof Error ? error.message : 'The image could not be added.')
-      }
-    },
-    [getActiveViewer, showMessage]
-  )
-
-  useEffect(() => {
-    const onPaste = (event: ClipboardEvent): void => {
-      const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
-        supportedImageMimeTypes.includes(file.type)
-      )
-      if (!files.length) return
-      // Capture image pastes before PDF.js's document listeners in the other tabs.
-      event.stopImmediatePropagation()
-      if (
-        event.target instanceof Element &&
-        event.target.closest('input, textarea, select, [contenteditable], [role="dialog"]')
-      )
-        return
-      event.preventDefault()
-      if (closeRequest || conflictId || !activeTab?.view.canAnnotate) return
-      void addImages(files)
-    }
-    window.addEventListener('paste', onPaste, true)
-    return () => window.removeEventListener('paste', onPaste, true)
-  }, [activeTab?.view.canAnnotate, addImages, closeRequest, conflictId])
+  const { addImages, onImageDrop } = useImageInsertion({
+    enabled: !!activeTab?.view.canAnnotate && !closeRequest && !conflictId,
+    getActiveViewer,
+    onToolChange: setAnnotationTool,
+    onError: showMessage
+  })
 
   useEffect(() => {
     window.lepis.setTheme(theme)
@@ -191,15 +164,7 @@ function App(): React.JSX.Element {
     <main
       className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
       onDragOver={(event) => event.preventDefault()}
-      onDropCapture={(event) => {
-        const images = Array.from(event.dataTransfer.files).filter((file) =>
-          supportedImageMimeTypes.includes(file.type)
-        )
-        if (!images.length) return
-        event.preventDefault()
-        event.stopPropagation()
-        if (activeTab?.view.canAnnotate && !closeRequest && !conflictId) void addImages(images)
-      }}
+      onDropCapture={onImageDrop}
       onDrop={(event) => {
         event.preventDefault()
         const paths = Array.from(event.dataTransfer.files)
@@ -228,7 +193,6 @@ function App(): React.JSX.Element {
           activeTab={activeTab}
           annotationTool={annotationTool}
           highlightColor={highlightColor}
-          imageAccept={supportedImageMimeTypes.join(',')}
           onAnnotationToolChange={setAnnotationTool}
           onHighlightColorChange={setHighlightColor}
           onAddImages={(files) => void addImages(files)}

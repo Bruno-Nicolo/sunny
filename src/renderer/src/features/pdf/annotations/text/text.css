@@ -1,0 +1,29 @@
+.pdf-viewer-container .freeTextEditor .text-settings-anchor {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: calc(100% + 8px);
+  z-index: 1;
+  font-size: 14px;
+  cursor: default;
+}
+
+.pdf-viewer-container .annotationEditorLayer .freeTextEditor {
+  --editor-selection-outline: solid var(--outline-width) var(--ring);
+  --focus-outline-around: solid var(--outline-around-width) transparent;
+  --hover-outline: solid var(--outline-width) color-mix(in oklab, var(--ring) 50%, transparent);
+  --hover-outline-around: solid var(--outline-around-width) transparent;
+  border-radius: 4px;
+}
+
+.pdf-viewer-container .annotationEditorLayer .freeTextEditor::before {
+  border-radius: inherit;
+}
+
+.pdf-viewer-container .annotationEditorLayer .freeTextEditor.selectedEditor {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+html:root {
+  --freetext-padding: 4px;
+}
