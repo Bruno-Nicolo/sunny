@@ -118,7 +118,7 @@ async function waitUntil(check) {
 const waitFor = (code) => waitUntil(() => evaluate(code))
 const hasTab = (name) => `document.querySelector('header button[title="${name}"]') !== null`
 const activeTab = (name) =>
-  `document.querySelector('header button[title="${name}"]')?.className.includes('bg-background text-foreground')`
+  `document.querySelector('header button[title="${name}"]')?.classList.contains('document-tab-active')`
 const clickButton = (label) =>
   evaluate(
     `Array.from(document.querySelectorAll('[role="dialog"][data-state="open"] button')).find(button => button.textContent === '${label}')?.click()`
@@ -136,7 +136,7 @@ app
   .whenReady()
   .then(async () => {
     win = new BrowserWindow({
-      show: false,
+      show: true,
       width: 1180,
       height: 780,
       webPreferences: { preload, sandbox: true, contextIsolation: true }
@@ -145,6 +145,8 @@ app
       if (details.level === 'error') rendererErrors.push(details.message)
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
+    win.focus()
+    await waitFor('document.hasFocus()')
     await waitFor('window.testCommands.listening()')
     await evaluate("window.testCommands.open('startup.pdf')")
     await waitFor(hasTab('startup.pdf'))
@@ -173,12 +175,18 @@ app
         'Array.from(document.querySelectorAll("header button[title]")).map(tab => tab.title)'
       )
     const dragTab = async (name, target) => {
+      // Let the previous drop animation settle before measuring the next drag.
+      await new Promise((resolve) => setTimeout(resolve, 400))
       const points = await evaluate(`(() => {
         const center = name => {
           const rect = document.querySelector('header button[title="' + name + '"]').getBoundingClientRect();
           return {x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2)};
         };
-        return [center(${JSON.stringify(name)}), center(${JSON.stringify(target)})];
+        const start = center(${JSON.stringify(name)});
+        const end = center(${JSON.stringify(target)});
+        const rect = document.querySelector('header button[title="' + ${JSON.stringify(target)} + '"]').getBoundingClientRect();
+        end.x = Math.round(start.x < end.x ? rect.right - 8 : rect.left + 8);
+        return [start, end];
       })()`)
       const [start, end] = points
       win.webContents.sendInputEvent({ type: 'mouseMove', ...start })
@@ -199,6 +207,7 @@ app
     assert.equal(await evaluate(activeTab('startup.pdf')), true)
     await dragTab('startup.pdf', 'restored.pdf')
     await waitUntil(() => persistedSessions.at(-1)?.tabs[0]?.path === 'restored.pdf')
+    await waitUntil(async () => (await tabOrder()).length === 2)
     assert.deepEqual(await tabOrder(), ['restored.pdf', 'startup.pdf'])
     console.log('PASS: dragging tabs in both directions preserves selection and persists the order')
 

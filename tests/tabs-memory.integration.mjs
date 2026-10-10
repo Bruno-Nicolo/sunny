@@ -119,7 +119,7 @@ async function run() {
     }
     for (let i = 0; i < 3; i++) {
       const closedPath = await evaluate(
-        "Array.from(document.querySelectorAll('header button[title]')).find(button=>button.className.includes('bg-background text-foreground')).title"
+        "Array.from(document.querySelectorAll('header button[title]')).find(button=>button.classList.contains('document-tab-active')).title"
       )
       win.webContents.send('menu:close-tab')
       await waitFor("document.querySelectorAll('header button[title]').length === 1")

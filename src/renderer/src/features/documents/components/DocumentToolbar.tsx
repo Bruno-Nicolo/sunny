@@ -1,18 +1,19 @@
 import { useRef } from 'react'
-import { Check, ChevronDown, Highlighter, ImagePlus, Minus, Plus } from 'lucide-react'
+import { Check, ChevronDown, Highlighter, ImagePlus, Minus, Plus, Type } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { AnnotationTool } from '@/features/pdf/types'
 import type { Tab } from '../types'
 import { highlightColors } from '@/features/pdf/highlightColors'
 
 type Props = {
   activeTab: Pick<Tab, 'view'> | null
-  highlightEnabled: boolean
+  annotationTool: AnnotationTool
   highlightColor: string
   imageAccept: string
-  onToggleHighlight(): void
+  onAnnotationToolChange(tool: AnnotationTool): void
   onHighlightColorChange(color: string): void
   onAddImages(files: File[]): void
   onPageChange(page: number): void
@@ -23,10 +24,10 @@ type Props = {
 
 export function DocumentToolbar({
   activeTab,
-  highlightEnabled,
+  annotationTool,
   highlightColor,
   imageAccept,
-  onToggleHighlight,
+  onAnnotationToolChange,
   onHighlightColorChange,
   onAddImages,
   onPageChange,
@@ -96,10 +97,14 @@ export function DocumentToolbar({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant={highlightEnabled ? 'secondary' : 'ghost'}
+            variant={annotationTool === 'highlight' ? 'secondary' : 'ghost'}
+            aria-label="Highlight text"
+            aria-pressed={annotationTool === 'highlight'}
             size="icon-sm"
             disabled={!activeTab?.view.canAnnotate}
-            onClick={onToggleHighlight}
+            onClick={() =>
+              onAnnotationToolChange(annotationTool === 'highlight' ? 'none' : 'highlight')
+            }
           >
             <Highlighter />
           </Button>
@@ -146,6 +151,21 @@ export function DocumentToolbar({
         </PopoverContent>
       </Popover>
 
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={annotationTool === 'text' ? 'secondary' : 'ghost'}
+            size="icon-sm"
+            aria-label="Add text"
+            aria-pressed={annotationTool === 'text'}
+            disabled={!activeTab?.view.canAnnotate}
+            onClick={() => onAnnotationToolChange(annotationTool === 'text' ? 'none' : 'text')}
+          >
+            <Type />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Add text</TooltipContent>
+      </Tooltip>
       <input
         ref={imageInputRef}
         type="file"

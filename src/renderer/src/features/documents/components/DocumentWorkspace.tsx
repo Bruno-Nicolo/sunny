@@ -1,7 +1,7 @@
 import { FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PdfDocumentView } from '@/features/pdf/PdfDocumentView'
-import type { PdfDocumentHandle, ViewerSnapshot } from '@/features/pdf/types'
+import type { AnnotationTool, PdfDocumentHandle, ViewerSnapshot } from '@/features/pdf/types'
 import { cn } from '@/lib/utils'
 import type { Tab } from '../types'
 
@@ -10,7 +10,7 @@ type Props = {
   activeId: string | null
   ready: boolean
   sidebarOpen: boolean
-  highlightEnabled: boolean
+  annotationTool: AnnotationTool
   highlightColor: string
   onOpen(): void
   onViewerHandle(id: string, handle: PdfDocumentHandle | null): void
@@ -24,7 +24,7 @@ export function DocumentWorkspace({
   activeId,
   ready,
   sidebarOpen,
-  highlightEnabled,
+  annotationTool,
   highlightColor,
   onOpen,
   onViewerHandle,
@@ -59,7 +59,7 @@ export function DocumentWorkspace({
             initialPage={tab.view.page}
             initialScale={tab.view.scale}
             initialScrollTop={tab.view.scrollTop}
-            highlightEnabled={tab.id === activeId && highlightEnabled}
+            annotationTool={annotationTool}
             highlightColor={highlightColor}
             active={tab.id === activeId}
             sidebarOpen={sidebarOpen}

@@ -4,6 +4,7 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 import { PasswordDialog } from './PasswordDialog'
 import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
+import { TextSettingsMenu } from './TextSettingsMenu'
 import { PdfSidebar } from './PdfSidebar'
 
 export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProps>(
@@ -13,6 +14,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
       viewerElementRef,
       handle,
       loading,
+      textEditor,
       document,
       page,
       navigateToDestination,
@@ -48,6 +50,9 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
             </div>
           </div>
         </div>
+        {props.active && textEditor && (
+          <TextSettingsMenu key={textEditor.element.id} settings={textEditor} />
+        )}
         <PasswordDialog
           open={props.active && passwordRequest !== null}
           incorrect={passwordRequest?.incorrect ?? false}

@@ -9,6 +9,8 @@ Documents never leave the computer.
 - Keep documents in tabs and restore the last session.
 - Scroll pages vertically, jump to a page, zoom, fit width, and fit page.
 - Highlight selectable text with a small color palette.
+- Add editable text boxes by choosing Add text and clicking on a page; open Text settings next to the selected box to choose a preset color and size.
+- Type multiple lines, move text boxes, and edit saved text by selecting it and pressing Enter.
 - Add images from the toolbar, paste them with Command-V, or drop image files into the active PDF.
 - Move and resize inserted images; delete them with Backspace and save them with Command-S.
 - Undo and redo annotations with the standard macOS shortcuts.
@@ -34,6 +36,7 @@ pnpm lint
 pnpm test
 pnpm build
 pnpm test:images
+pnpm test:text
 pnpm test:documents
 pnpm test:memory
 ```
@@ -71,8 +74,10 @@ with Electron context isolation and sandboxing enabled.
 
 `pnpm test` covers shortcuts, document state transitions, and filesystem behavior, including
 backups, save conflicts, copy saves, failed atomic writes, and session persistence.
-`pnpm test:images` checks image editing in Electron. `pnpm test:documents` checks concurrent
-startup and close operations, partial open failures, and save/close/conflict workflows.
+`pnpm test:text` checks multiline text insertion, formatting, consecutive saves, saving with the
+formatting menu open, undo/redo, empty text boxes, tab isolation, and editing text after reopening.
+`pnpm test:images` checks image editing in Electron. `pnpm test:documents` checks concurrent startup
+and close operations, partial open failures, and save/close/conflict workflows.
 It also checks page and zoom retention on reload, password retries, active-tab password prompts,
 external changes to edited PDFs, close failures, and session persistence before window closure.
 Session writes are serialized in the main process so earlier writes cannot overwrite newer state.

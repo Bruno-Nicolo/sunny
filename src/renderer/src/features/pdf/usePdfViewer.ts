@@ -1,12 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPdfViewer, type PdfViewerController } from './createPdfViewer'
-import type { PasswordRequest, PdfDocumentHandle, PdfDocumentViewProps } from './types'
+import type {
+  PasswordRequest,
+  PdfDocumentHandle,
+  PdfDocumentViewProps,
+  TextEditorSettings
+} from './types'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 type PdfViewerState = {
   containerRef: RefObject<HTMLDivElement | null>
   viewerElementRef: RefObject<HTMLDivElement | null>
   handle: PdfDocumentHandle
+  textEditor: TextEditorSettings | null
   loading: boolean
   document: PDFDocumentProxy | null
   page: number
@@ -20,6 +26,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
   const viewerElementRef = useRef<HTMLDivElement>(null)
   const controllerRef = useRef<PdfViewerController | null>(null)
   const propsRef = useRef(props)
+  const [textEditor, setTextEditor] = useState<TextEditorSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null)
   const [page, setPage] = useState(props.initialPage)
@@ -34,6 +41,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     if (!container || !viewerElement) return
     const initial = propsRef.current
     setDocument(null)
+    setTextEditor(null)
     const controller = createPdfViewer({
       container,
       viewerElement,
@@ -49,6 +57,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         propsRef.current.onSnapshot(snapshot)
       },
       onDocumentReady: setDocument,
+      onTextEditorChange: setTextEditor,
       onDirtyChange: (dirty) => propsRef.current.onDirtyChange(dirty),
       onError: (message) => propsRef.current.onError(message),
       onLoadingChange: setLoading,
@@ -66,10 +75,10 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
   useEffect(() => {
     controllerRef.current?.setAnnotationOptions({
       active: props.active,
-      highlightEnabled: props.highlightEnabled,
+      annotationTool: props.annotationTool,
       highlightColor: props.highlightColor
     })
-  }, [props.active, props.highlightEnabled, props.highlightColor])
+  }, [props.active, props.annotationTool, props.highlightColor])
 
   const handle = useMemo<PdfDocumentHandle>(
     () => ({
@@ -96,6 +105,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     containerRef,
     viewerElementRef,
     handle,
+    textEditor,
     loading,
     document,
     page,

@@ -8,6 +8,8 @@ import {
   type PDFDocumentProxy
 } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
+import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
+import type { AnnotationEditorUIManager } from 'pdfjs-dist/types/src/display/editor/tools'
 import { highlightColors } from './highlightColors'
 import { validateImage } from './imageFiles'
 import { containsDigitalSignature } from './signatures'
@@ -16,7 +18,8 @@ import type {
   PdfAnnotationOptions,
   PdfDocumentHandle,
   PdfViewPosition,
-  ViewerSnapshot
+  ViewerSnapshot,
+  TextEditorSettings
 } from './types'
 
 GlobalWorkerOptions.workerSrc = new URL(
@@ -36,6 +39,7 @@ type Options = {
   onPasswordRequest(request: PasswordRequest | null): void
   onError(message: string): void
   onDocumentReady(document: PDFDocumentProxy): void
+  onTextEditorChange(settings: TextEditorSettings | null): void
 }
 
 export type PdfViewerController = PdfDocumentHandle & {
@@ -56,7 +60,8 @@ export function createPdfViewer({
   onLoadingChange,
   onPasswordRequest,
   onError,
-  onDocumentReady
+  onDocumentReady,
+  onTextEditorChange
 }: Options): PdfViewerController {
   const lifetime = new AbortController()
   const eventBus = new EventBus()
@@ -104,19 +109,122 @@ export function createPdfViewer({
       value: annotationOptions.highlightColor
     })
   }
-  const setHighlightMode = (): void => {
+  const setTextParams = (): void => {
+    eventBus.dispatch('switchannotationeditorparams', {
+      source: null,
+      type: AnnotationEditorParamsType.FREETEXT_COLOR,
+      value: '#000000'
+    })
+    eventBus.dispatch('switchannotationeditorparams', {
+      source: null,
+      type: AnnotationEditorParamsType.FREETEXT_SIZE,
+      value: 16
+    })
+  }
+  let editorManager: AnnotationEditorUIManager | null = null
+  let textSettings: TextEditorSettings | null = null
+  let textPosition = ''
+  let textUpdateQueued = false
+  eventBus.on(
+    'annotationeditoruimanager',
+    ({ uiManager }: { uiManager: AnnotationEditorUIManager }) => {
+      editorManager = uiManager
+    },
+    { signal: lifetime.signal }
+  )
+  const updateTextEditor = (): void => {
+    if (textUpdateQueued) return
+    textUpdateQueued = true
+    // PDF.js emits selection updates before it finishes changing the editor DOM.
+    queueMicrotask(() => {
+      textUpdateQueued = false
+      if (destroyed) return
+      const editor: AnnotationEditor | null =
+        editorManager?.firstSelectedEditor ?? editorManager?.getActive() ?? null
+      const element = editor?.div
+      if (!editor || !element?.isConnected || editor.editorType !== 'freetext') {
+        if (textSettings) {
+          textSettings = null
+          onTextEditorChange(null)
+        }
+        return
+      }
+      const params = new Map<number, string | number>(editor.propertiesToUpdate)
+      const color = params.get(AnnotationEditorParamsType.FREETEXT_COLOR) as string
+      const size = params.get(AnnotationEditorParamsType.FREETEXT_SIZE) as number
+      const position = `${editor.pageIndex}:${editor.x}:${editor.y}`
+      if (textSettings?.element === element) {
+        const sameParams = textSettings.color === color && textSettings.size === size
+        // PDF.js stores mutable editors without notifying storage on formatting or movement.
+        if (!editor.isEmpty() && (!sameParams || textPosition !== position)) onDirtyChange(true)
+        textPosition = position
+        if (sameParams) return
+      }
+      textPosition = position
+      const setParam = (type: number, value: string | number): void => {
+        if (destroyed || !annotationOptions.active || !element.isConnected) return
+        const current = new Map(editor.propertiesToUpdate).get(type)
+        if (
+          current === value ||
+          (typeof current === 'string' &&
+            typeof value === 'string' &&
+            current.toLowerCase() === value.toLowerCase())
+        )
+          return
+        editor.updateParams(type, value)
+        updateTextEditor()
+      }
+      textSettings = {
+        element,
+        color,
+        size,
+        setColor: (color) => setParam(AnnotationEditorParamsType.FREETEXT_COLOR, color),
+        setSize: (size) => setParam(AnnotationEditorParamsType.FREETEXT_SIZE, size)
+      }
+      onTextEditorChange(textSettings)
+    })
+  }
+  eventBus.on('annotationeditorparamschanged', updateTextEditor, { signal: lifetime.signal })
+  eventBus.on('editingstateschanged', updateTextEditor, { signal: lifetime.signal })
+  for (const type of ['pointerup', 'keyup']) {
+    window.addEventListener(
+      type,
+      () => {
+        if (annotationOptions.active && textSettings) updateTextEditor()
+      },
+      { signal: lifetime.signal }
+    )
+  }
+  container.addEventListener(
+    'focusout',
+    (event) => {
+      // The local formatting menu keeps an empty text box alive while its controls have focus.
+      if (
+        event.target instanceof Element &&
+        event.target.closest('.freeTextEditor') &&
+        event.relatedTarget instanceof Element &&
+        event.relatedTarget.closest('[data-text-settings]')
+      )
+        event.stopPropagation()
+    },
+    { capture: true, signal: lifetime.signal }
+  )
+  const setAnnotationMode = (): void => {
     if (!snapshot.canAnnotate || loading || destroyed) return
+    const modes = {
+      none: AnnotationEditorType.NONE,
+      highlight: AnnotationEditorType.HIGHLIGHT,
+      text: AnnotationEditorType.FREETEXT
+    }
     viewer.annotationEditorMode = {
-      mode:
-        annotationOptions.active && annotationOptions.highlightEnabled
-          ? AnnotationEditorType.HIGHLIGHT
-          : AnnotationEditorType.NONE
+      mode: modes[annotationOptions.active ? annotationOptions.annotationTool : 'none']
     }
   }
   eventBus.on(
     'annotationeditormodechanged',
     ({ mode }: { mode: number }) => {
       editorMode = mode
+      if (mode === AnnotationEditorType.FREETEXT && !editorManager?.hasSelection) setTextParams()
     },
     { signal: lifetime.signal }
   )
@@ -144,7 +252,7 @@ export function createPdfViewer({
         zoomPercent: Math.round(viewer.currentScale * 100)
       })
       loading = false
-      setHighlightMode()
+      setAnnotationMode()
       setHighlightColor()
       onLoadingChange(false)
     },
@@ -166,6 +274,14 @@ export function createPdfViewer({
   )
   const handleScroll = (): void => emitSnapshot({ scrollTop: container.scrollTop })
   container.addEventListener('scroll', handleScroll, { passive: true, signal: lifetime.signal })
+  container.addEventListener(
+    'input',
+    (event) => {
+      if (event.target instanceof Element && event.target.closest('.freeTextEditor'))
+        onDirtyChange(true)
+    },
+    { signal: lifetime.signal }
+  )
   let containerSize = container.getBoundingClientRect()
   const resizeObserver = new ResizeObserver(() => {
     const size = container.getBoundingClientRect()
@@ -264,6 +380,9 @@ export function createPdfViewer({
     },
     async saveDocument() {
       if (destroyed || !document) throw new Error('The PDF is not ready.')
+      const editor: AnnotationEditor | null =
+        editorManager?.getActive() ?? editorManager?.firstSelectedEditor ?? null
+      editor?.commitOrRemove()
       return document.saveDocument()
     },
     setPage(page) {
@@ -304,18 +423,22 @@ export function createPdfViewer({
       })
     },
     undo() {
-      if (!destroyed) eventBus.dispatch('editingaction', { source: null, name: 'undo' })
+      if (destroyed) return
+      eventBus.dispatch('editingaction', { source: null, name: 'undo' })
+      updateTextEditor()
     },
     redo() {
-      if (!destroyed) eventBus.dispatch('editingaction', { source: null, name: 'redo' })
+      if (destroyed) return
+      eventBus.dispatch('editingaction', { source: null, name: 'redo' })
+      updateTextEditor()
     },
     setAnnotationOptions(options) {
       const modeChanged =
         annotationOptions.active !== options.active ||
-        annotationOptions.highlightEnabled !== options.highlightEnabled
+        annotationOptions.annotationTool !== options.annotationTool
       const colorChanged = annotationOptions.highlightColor !== options.highlightColor
       annotationOptions = options
-      if (modeChanged) setHighlightMode()
+      if (modeChanged) setAnnotationMode()
       if (colorChanged && !destroyed && !loading) setHighlightColor()
     },
     async destroy() {
@@ -329,6 +452,8 @@ export function createPdfViewer({
       viewer.setDocument(null)
       linkService.setDocument(null)
       document = null
+      editorManager = null
+      textSettings = null
       await loadingTask.destroy()
     }
   }

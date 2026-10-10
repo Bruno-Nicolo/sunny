@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
 import type { ShortcutHandlers } from '../../shared/shortcuts'
 import type { SessionState } from '../../shared/contracts'
-import type { PdfDocumentHandle } from '@/features/pdf/types'
+import type { AnnotationTool, PdfDocumentHandle } from '@/features/pdf/types'
 import type { DocumentsState } from '@/features/documents/documentsReducer'
 import { useDocuments } from '@/features/documents/useDocuments'
 import { persistDocumentSession, useDocumentSession } from '@/features/session/useDocumentSession'
@@ -15,7 +15,7 @@ import { supportedImageMimeTypes } from '@/features/pdf/imageFiles'
 import { defaultHighlightColor } from '@/features/pdf/highlightColors'
 
 function App(): React.JSX.Element {
-  const [highlightEnabled, setHighlightEnabled] = useState(false)
+  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('none')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
   const [theme, setTheme] = useState<SessionState['theme']>('system')
@@ -85,7 +85,7 @@ function App(): React.JSX.Element {
     async (files: File[]): Promise<void> => {
       const viewer = getActiveViewer()
       if (!viewer) return
-      setHighlightEnabled(false)
+      setAnnotationTool('none')
       try {
         for (const file of files) await viewer.addImage(file)
       } catch (error) {
@@ -226,10 +226,10 @@ function App(): React.JSX.Element {
         />
         <DocumentToolbar
           activeTab={activeTab}
-          highlightEnabled={highlightEnabled}
+          annotationTool={annotationTool}
           highlightColor={highlightColor}
           imageAccept={supportedImageMimeTypes.join(',')}
-          onToggleHighlight={() => setHighlightEnabled((value) => !value)}
+          onAnnotationToolChange={setAnnotationTool}
           onHighlightColorChange={setHighlightColor}
           onAddImages={(files) => void addImages(files)}
           onPageChange={(page) => getActiveViewer()?.setPage(page)}
@@ -244,7 +244,7 @@ function App(): React.JSX.Element {
         activeId={activeId}
         ready={ready}
         sidebarOpen={sidebarOpen}
-        highlightEnabled={highlightEnabled}
+        annotationTool={annotationTool}
         highlightColor={highlightColor}
         onOpen={() => void openDialog()}
         onViewerHandle={registerViewer}
