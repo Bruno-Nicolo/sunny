@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from 'electron'
+import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerIpc } from './ipc'
 import { createMenu } from './menu'
@@ -7,6 +8,9 @@ import { createWindow, getMainWindow, sendToRenderer } from './window'
 const pendingFiles: string[] = []
 
 app.setName('Lepis')
+if (!app.isPackaged) {
+  app.setPath('userData', join(app.getPath('appData'), 'Lepis Development'))
+}
 
 const hasLock = app.requestSingleInstanceLock()
 if (!hasLock) app.quit()

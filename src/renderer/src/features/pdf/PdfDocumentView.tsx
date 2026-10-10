@@ -7,6 +7,7 @@ import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
 import { TextSettingsMenu } from './annotations/text/TextSettingsMenu'
 import { PdfSidebar } from './PdfSidebar'
+import { PdfSearchInput } from './PdfSearchInput'
 
 export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProps>(
   function PdfDocumentView(props, ref) {
@@ -18,6 +19,10 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
       textEditor,
       document,
       page,
+      searchSnapshot,
+      searchRequest,
+      search,
+      closeSearch,
       navigateToDestination,
       passwordRequest,
       submitPassword
@@ -42,6 +47,13 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
             />
           )}
           <div className="relative min-w-0 flex-1">
+            <PdfSearchInput
+              active={props.active}
+              request={searchRequest}
+              snapshot={searchSnapshot}
+              onSearch={search}
+              onClose={closeSearch}
+            />
             <div
               ref={containerRef}
               tabIndex={-1}

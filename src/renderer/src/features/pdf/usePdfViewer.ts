@@ -1,7 +1,20 @@
 import type { TextEditorSettings } from './annotations/text/types'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject
+} from 'react'
 import { createPdfViewer, type PdfViewerController } from './createPdfViewer'
-import type { PasswordRequest, PdfDocumentHandle, PdfDocumentViewProps } from './types'
+import type {
+  PasswordRequest,
+  PdfDocumentHandle,
+  PdfDocumentViewProps,
+  PdfSearchSnapshot
+} from './types'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 type PdfViewerState = {
@@ -12,6 +25,10 @@ type PdfViewerState = {
   loading: boolean
   document: PDFDocumentProxy | null
   page: number
+  searchSnapshot: PdfSearchSnapshot
+  searchRequest: number | null
+  search(query: string, previous?: boolean): void
+  closeSearch(): void
   navigateToDestination(destination: string | unknown[]): Promise<void>
   passwordRequest: PasswordRequest | null
   submitPassword(password: string): void
@@ -26,6 +43,12 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
   const [loading, setLoading] = useState(true)
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null)
   const [page, setPage] = useState(props.initialPage)
+  const [searchSnapshot, setSearchSnapshot] = useState<PdfSearchSnapshot>({
+    current: 0,
+    total: 0,
+    pending: false
+  })
+  const [searchRequest, setSearchRequest] = useState<number | null>(null)
   const [passwordRequest, setPasswordRequest] = useState<PasswordRequest | null>(null)
   useLayoutEffect(() => {
     propsRef.current = props
@@ -38,6 +61,8 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     const initial = propsRef.current
     setDocument(null)
     setTextEditor(null)
+    setSearchRequest(null)
+    setSearchSnapshot({ current: 0, total: 0, pending: false })
     const controller = createPdfViewer({
       container,
       viewerElement,
@@ -54,6 +79,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       },
       onDocumentReady: setDocument,
       onTextEditorChange: setTextEditor,
+      onSearchChange: setSearchSnapshot,
       onDirtyChange: (dirty) => propsRef.current.onDirtyChange(dirty),
       onError: (message) => propsRef.current.onError(message),
       onLoadingChange: setLoading,
@@ -78,6 +104,9 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
 
   const handle = useMemo<PdfDocumentHandle>(
     () => ({
+      openSearch() {
+        setSearchRequest((request) => (request ?? 0) + 1)
+      },
       async saveDocument() {
         if (!controllerRef.current) throw new Error('The PDF is not ready.')
         return controllerRef.current.saveDocument()
@@ -97,6 +126,15 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     []
   )
 
+  const search = useCallback((query: string, previous?: boolean): void => {
+    controllerRef.current?.search(query, previous)
+  }, [])
+  const closeSearch = useCallback((): void => {
+    controllerRef.current?.closeSearch()
+    setSearchRequest(null)
+    containerRef.current?.focus({ preventScroll: true })
+  }, [])
+
   return {
     containerRef,
     viewerElementRef,
@@ -105,6 +143,10 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     loading,
     document,
     page,
+    searchSnapshot,
+    searchRequest,
+    search,
+    closeSearch,
     async navigateToDestination(destination) {
       await controllerRef.current?.navigateToDestination(destination)
     },

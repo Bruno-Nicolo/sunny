@@ -129,6 +129,7 @@ function App(): React.JSX.Element {
       },
       undo: () => withViewer((viewer) => viewer.undo()),
       redo: () => withViewer((viewer) => viewer.redo()),
+      find: () => withViewer((viewer) => viewer.openSearch()),
       'toggle-sidebar': () => {
         if (activeTab) setSidebarOpen((open) => !open)
       },

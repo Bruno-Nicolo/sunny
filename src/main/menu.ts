@@ -43,7 +43,9 @@ export function createMenu(): void {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { role: 'selectAll' }
+        { role: 'selectAll' },
+        { type: 'separator' },
+        shortcutMenuItem('find')
       ]
     },
     {

@@ -19,6 +19,12 @@ export const shortcuts = [
   { id: 'undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z' },
   { id: 'redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z' },
   {
+    id: 'find',
+    label: 'Find…',
+    accelerator: 'CmdOrCtrl+F',
+    keys: [{ key: 'f', modifier: 'command' }]
+  },
+  {
     id: 'toggle-sidebar',
     label: 'Toggle Sidebar',
     accelerator: 'CmdOrCtrl+\\',

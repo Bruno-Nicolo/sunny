@@ -13,6 +13,7 @@ export type ViewerSnapshot = {
 export type PdfViewPosition = Pick<ViewerSnapshot, 'page' | 'scale' | 'scrollTop'>
 
 export type PdfDocumentHandle = {
+  openSearch(): void
   saveDocument(): Promise<Uint8Array>
   setPage(page: number): void
   setScale(scale: string): void
@@ -22,6 +23,12 @@ export type PdfDocumentHandle = {
   addImage(file: File): Promise<void>
   undo(): void
   redo(): void
+}
+
+export type PdfSearchSnapshot = {
+  current: number
+  total: number
+  pending: boolean
 }
 
 export type PdfDocumentViewProps = AnnotationOptions & {

@@ -6,13 +6,25 @@ import {
   getDocument,
   type PDFDocumentProxy
 } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
+import {
+  EventBus,
+  FindState,
+  PDFFindController,
+  PDFLinkService,
+  PDFViewer
+} from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import { pdfHighlightColors } from './annotations/highlight/highlightEditor'
 import { createAnnotationController } from './annotations/createAnnotationController'
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 import { containsDigitalSignature } from './signatures'
-import type { PasswordRequest, PdfDocumentHandle, PdfViewPosition, ViewerSnapshot } from './types'
+import type {
+  PasswordRequest,
+  PdfDocumentHandle,
+  PdfSearchSnapshot,
+  PdfViewPosition,
+  ViewerSnapshot
+} from './types'
 
 GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
@@ -32,9 +44,12 @@ type Options = {
   onError(message: string): void
   onDocumentReady(document: PDFDocumentProxy): void
   onTextEditorChange(settings: TextEditorSettings | null): void
+  onSearchChange(snapshot: PdfSearchSnapshot): void
 }
 
-export type PdfViewerController = PdfDocumentHandle & {
+export type PdfViewerController = Omit<PdfDocumentHandle, 'openSearch'> & {
+  search(query: string, previous?: boolean): void
+  closeSearch(): void
   navigateToDestination(destination: string | unknown[]): Promise<void>
   setAnnotationOptions(options: AnnotationOptions): void
   destroy(): Promise<void>
@@ -53,16 +68,19 @@ export function createPdfViewer({
   onPasswordRequest,
   onError,
   onDocumentReady,
-  onTextEditorChange
+  onTextEditorChange,
+  onSearchChange
 }: Options): PdfViewerController {
   const lifetime = new AbortController()
   const eventBus = new EventBus()
   const linkService = new PDFLinkService({ eventBus })
+  const findController = new PDFFindController({ linkService, eventBus })
   const viewer = new PDFViewer({
     container,
     viewer: viewerElement,
     eventBus,
     linkService,
+    findController,
     annotationEditorMode: AnnotationEditorType.NONE,
     annotationEditorHighlightColors: pdfHighlightColors,
     enablePermissions: true,
@@ -99,6 +117,27 @@ export function createPdfViewer({
     onDirtyChange,
     onTextEditorChange
   })
+  let searchSnapshot: PdfSearchSnapshot = { current: 0, total: 0, pending: false }
+  const updateSearch = ({
+    state,
+    matchesCount: { current, total }
+  }: {
+    state?: number
+    matchesCount: Pick<PdfSearchSnapshot, 'current' | 'total'>
+  }): void => {
+    const pending = state === FindState.PENDING
+    if (
+      destroyed ||
+      (current === searchSnapshot.current &&
+        total === searchSnapshot.total &&
+        pending === searchSnapshot.pending)
+    )
+      return
+    searchSnapshot = { current, total, pending }
+    onSearchChange(searchSnapshot)
+  }
+  eventBus.on('updatefindcontrolstate', updateSearch, { signal: lifetime.signal })
+  eventBus.on('updatefindmatchescount', updateSearch, { signal: lifetime.signal })
   eventBus.on(
     'pagesinit',
     () => {
@@ -185,6 +224,22 @@ export function createPdfViewer({
     })
 
   return {
+    search(query, previous) {
+      if (destroyed) return
+      eventBus.dispatch('find', {
+        source: findController,
+        type: previous === undefined ? '' : 'again',
+        query,
+        caseSensitive: false,
+        entireWord: false,
+        highlightAll: true,
+        findPrevious: previous ?? false,
+        matchDiacritics: false
+      })
+    },
+    closeSearch() {
+      if (!destroyed) eventBus.dispatch('findbarclose', { source: findController })
+    },
     async navigateToDestination(destination) {
       if (destroyed || !document) return
       const request = ++destinationRequest

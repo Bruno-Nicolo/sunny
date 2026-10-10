@@ -105,3 +105,8 @@
 .pdf-viewer-container .annotationEditorLayer {
   user-select: text;
 }
+
+.pdf-viewer-container .textLayer .highlight {
+  --highlight-bg-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  --highlight-selected-bg-color: color-mix(in oklab, var(--primary) 45%, transparent);
+}

@@ -1,7 +1,13 @@
-import { useEffect } from 'react'
-import { matchesKeyBinding, shortcuts, type ShortcutHandlers } from '../../../../shared/shortcuts'
+import { useEffect, useEffectEvent } from 'react'
+import {
+  matchesKeyBinding,
+  shortcuts,
+  type ShortcutCommand,
+  type ShortcutHandlers
+} from '../../../../shared/shortcuts'
 
 export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): void {
+  const dispatch = useEffectEvent((id: ShortcutCommand) => handlers[id]())
   useEffect(() => {
     if (!enabled) {
       // Capture editor commands before PDF.js document listeners while a modal is open.
@@ -22,26 +28,28 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
       return () => window.removeEventListener('keydown', blockEditorKeys, true)
     }
 
-    const cleanups = shortcuts.map(({ id }) => window.lepis.onCommand(id, handlers[id]))
+    const cleanups = shortcuts.map(({ id }) => window.lepis.onCommand(id, () => dispatch(id)))
     const isMac = navigator.platform.startsWith('Mac')
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.isComposing) return
       const target = event.target
       if (
         target instanceof HTMLElement &&
-        target.closest(
-          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="menu"], [data-slot="popover-content"]'
-        )
+        target.closest('[role="dialog"], [role="menu"], [data-slot="popover-content"]')
       )
         return
 
+      const editing =
+        target instanceof HTMLElement &&
+        target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
       for (const shortcut of shortcuts) {
         if (
+          (!editing || shortcut.id === 'find') &&
           'keys' in shortcut &&
           shortcut.keys.some((binding) => matchesKeyBinding(event, binding, isMac))
         ) {
           event.preventDefault()
-          handlers[shortcut.id]()
+          dispatch(shortcut.id)
           return
         }
       }
@@ -51,5 +59,5 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
       cleanups.forEach((cleanup) => cleanup())
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [enabled, handlers])
+  }, [enabled])
 }

@@ -73,6 +73,15 @@ test('sidebar toggle matches command-backslash and rejects other modifiers', () 
   assert.equal(matches('toggle-sidebar', '\\', { ctrlKey: true }, false), true)
 })
 
+test('find uses the platform command key and rejects extra modifiers', () => {
+  assert.equal(matches('find', 'f', { metaKey: true }), true)
+  assert.equal(matches('find', 'f', { ctrlKey: true }, false), true)
+  assert.equal(matches('find', 'f'), false)
+  assert.equal(matches('find', 'f', { metaKey: true, shiftKey: true }), false)
+  assert.equal(matches('find', 'f', { metaKey: true, altKey: true }), false)
+  assert.equal(shortcuts.find(({ id }) => id === 'find').accelerator, 'CmdOrCtrl+F')
+})
+
 test('native accelerators cover zoom, closing, and all nine tab positions', () => {
   const accelerator = (id) => shortcuts.find((shortcut) => shortcut.id === id).accelerator
   assert.equal(accelerator('zoom-in'), 'CmdOrCtrl+Plus')
