@@ -2,15 +2,7 @@ import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from '@dn
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  ComputerIcon,
-  Moon02Icon,
-  SidebarLeft01Icon,
-  Add01Icon,
-  Sun03Icon,
-  Cancel01Icon
-} from '@hugeicons/core-free-icons'
+import { Monitor, Moon, PanelLeft, Plus, Sun, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -55,7 +47,7 @@ export function TabBar({
   onOpen,
   onCycleTheme
 }: Props): React.JSX.Element {
-  const themeIcon = theme === 'light' ? Sun03Icon : theme === 'dark' ? Moon02Icon : ComputerIcon
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor
 
   return (
     <DragDropProvider
@@ -78,7 +70,7 @@ export function TabBar({
               aria-expanded={sidebarOpen}
               onClick={onToggleSidebar}
             >
-              <HugeiconsIcon icon={SidebarLeft01Icon} />
+              <PanelLeft />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} (⌘\)</TooltipContent>
@@ -97,7 +89,7 @@ export function TabBar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" onClick={onOpen}>
-                <HugeiconsIcon icon={Add01Icon} />
+                <Plus />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Open PDF (⌘O)</TooltipContent>
@@ -112,7 +104,7 @@ export function TabBar({
               aria-label={`Change theme: ${theme}`}
               onClick={onCycleTheme}
             >
-              <HugeiconsIcon icon={themeIcon} />
+              <ThemeIcon />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Theme: {theme}</TooltipContent>
@@ -178,7 +170,7 @@ function SortableTab({
         }}
         className="ml-auto grid size-5 place-items-center rounded opacity-0 hover:bg-muted group-hover:opacity-100"
       >
-        <HugeiconsIcon icon={Cancel01Icon} className="size-3.5" />
+        <X className="size-3.5" />
       </span>
     </button>
   )

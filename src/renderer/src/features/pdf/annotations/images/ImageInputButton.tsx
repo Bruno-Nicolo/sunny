@@ -1,6 +1,5 @@
 import { useRef } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { ImageAdd01Icon } from '@hugeicons/core-free-icons'
+import { ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { supportedImageMimeTypes } from './imageFiles'
@@ -32,7 +31,7 @@ export function ImageInputButton({ disabled, onAddImages }: Props): React.JSX.El
             disabled={disabled}
             onClick={() => imageInputRef.current?.click()}
           >
-            <HugeiconsIcon icon={ImageAdd01Icon} />
+            <ImagePlus />
           </Button>
         </TooltipTrigger>
         <TooltipContent>Add image (or paste with ⌘V)</TooltipContent>

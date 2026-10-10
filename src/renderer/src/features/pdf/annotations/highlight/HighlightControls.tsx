@@ -1,5 +1,4 @@
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Tick02Icon, ArrowDown01Icon, HighlighterIcon } from '@hugeicons/core-free-icons'
+import { Check, ChevronDown, Highlighter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AnnotationToolButton } from '../AnnotationToolButton'
@@ -29,7 +28,7 @@ export function HighlightControls({
         activeTool={annotationTool}
         label="Highlight text"
         tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text'}
-        icon={HighlighterIcon}
+        icon={Highlighter}
         disabled={disabled}
         onChange={onToolChange}
       />
@@ -40,7 +39,7 @@ export function HighlightControls({
               className="size-4 rounded-full border border-black/10"
               style={{ backgroundColor: highlightColor }}
             />
-            <HugeiconsIcon icon={ArrowDown01Icon} className="size-3" />
+            <ChevronDown className="size-3" />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-2">
@@ -58,7 +57,7 @@ export function HighlightControls({
                   style={{ backgroundColor: color.value }}
                 />
                 {highlightColor === color.value && (
-                  <HugeiconsIcon icon={Tick02Icon} className="absolute size-3 text-black/70" />
+                  <Check className="absolute size-3 text-black/70" />
                 )}
               </button>
             ))}

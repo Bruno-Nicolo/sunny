@@ -1,4 +1,4 @@
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
+import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { AnnotationTool } from './types'
@@ -8,7 +8,7 @@ type Props = {
   activeTool: AnnotationTool
   label: string
   tooltip?: string
-  icon: IconSvgElement
+  icon: LucideIcon
   disabled: boolean
   onChange(tool: AnnotationTool): void
 }
@@ -18,7 +18,7 @@ export function AnnotationToolButton({
   activeTool,
   label,
   tooltip = label,
-  icon,
+  icon: Icon,
   disabled,
   onChange
 }: Props): React.JSX.Element {
@@ -34,7 +34,7 @@ export function AnnotationToolButton({
           disabled={disabled}
           onClick={() => onChange(selected ? 'none' : tool)}
         >
-          <HugeiconsIcon icon={icon} />
+          <Icon />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{tooltip}</TooltipContent>

@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Cancel01Icon, Search01Icon } from '@hugeicons/core-free-icons'
+import { X, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { PdfSearchSnapshot } from './types'
@@ -61,10 +60,7 @@ export function PdfSearchInput({
         }
       }}
     >
-      <HugeiconsIcon
-        icon={Search01Icon}
-        className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground"
-      />
+      <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
       <Input
         ref={inputRef}
         aria-label="Find in PDF"
@@ -89,7 +85,7 @@ export function PdfSearchInput({
         className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground"
         onClick={onClose}
       >
-        <HugeiconsIcon icon={Cancel01Icon} />
+        <X />
       </Button>
       <span id={hintId} className="sr-only">
         Enter for next result, Shift+Enter for previous result, Escape to close.

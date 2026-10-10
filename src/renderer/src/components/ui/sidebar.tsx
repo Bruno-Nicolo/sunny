@@ -4,8 +4,7 @@ import * as React from 'react'
 import { Slot as SlotPrimitive } from 'radix-ui'
 const Slot = SlotPrimitive.Root
 import { cva, type VariantProps } from 'class-variance-authority'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { SidebarLeft01Icon } from '@hugeicons/core-free-icons'
+import { PanelLeft } from 'lucide-react'
 
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -261,7 +260,7 @@ const SidebarTrigger = React.forwardRef<
       }}
       {...props}
     >
-      <HugeiconsIcon icon={SidebarLeft01Icon} />
+      <PanelLeft />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
