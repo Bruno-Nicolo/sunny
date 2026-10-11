@@ -1,9 +1,17 @@
 import { join } from 'path'
-import { BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { is } from '@electron-toolkit/utils'
 
 let mainWindow: BrowserWindow | null = null
 let allowWindowClose = false
+let quitRequested = false
+
+app.on('before-quit', (event) => {
+  if (!mainWindow || allowWindowClose) return
+  event.preventDefault()
+  quitRequested = true
+  sendToRenderer('window:close-requested')
+})
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow
@@ -15,11 +23,13 @@ export function sendToRenderer(channel: string, ...args: unknown[]): void {
 
 export function confirmWindowClose(): void {
   allowWindowClose = true
-  mainWindow?.close()
+  if (quitRequested) app.quit()
+  else mainWindow?.close()
 }
 
 export function createWindow(): BrowserWindow {
   allowWindowClose = false
+  quitRequested = false
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 780,
@@ -42,6 +52,7 @@ export function createWindow(): BrowserWindow {
   mainWindow.on('close', (event) => {
     if (allowWindowClose) return
     event.preventDefault()
+    quitRequested = false
     sendToRenderer('window:close-requested')
   })
   mainWindow.on('closed', () => {
