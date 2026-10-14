@@ -1,5 +1,5 @@
-import { Type } from 'lucide-react'
-import { ToolbarButton } from '@/components/ToolbarButton'
+import { TextControls } from './text/TextControls'
+import type { TextEditorSettings } from './text/types'
 import { HighlightControls } from './highlight/HighlightControls'
 import { ImageInputButton } from './images/ImageInputButton'
 import type { AnnotationOptions, AnnotationTool } from './types'
@@ -7,6 +7,7 @@ import type { AnnotationOptions, AnnotationTool } from './types'
 type Props = Pick<AnnotationOptions, 'annotationTool' | 'highlightColor'> & {
   canAnnotate: boolean
   signed: boolean
+  textSettings: TextEditorSettings | null
   onAnnotationToolChange(tool: AnnotationTool): void
   onHighlightColorChange(color: string): void
   onAddImages(files: File[]): void
@@ -17,6 +18,7 @@ export function AnnotationToolbar({
   highlightColor,
   canAnnotate,
   signed,
+  textSettings,
   onAnnotationToolChange,
   onHighlightColorChange,
   onAddImages
@@ -31,14 +33,12 @@ export function AnnotationToolbar({
         onToolChange={onAnnotationToolChange}
         onColorChange={onHighlightColorChange}
       />
-      <ToolbarButton
-        label="Add text"
-        pressed={annotationTool === 'text'}
+      <TextControls
+        annotationTool={annotationTool}
+        settings={textSettings}
         disabled={!canAnnotate}
-        onClick={() => onAnnotationToolChange(annotationTool === 'text' ? 'none' : 'text')}
-      >
-        <Type />
-      </ToolbarButton>
+        onToolChange={onAnnotationToolChange}
+      />
       <ImageInputButton disabled={!canAnnotate} onAddImages={onAddImages} />
     </>
   )

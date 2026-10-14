@@ -64,6 +64,7 @@ export function createAnnotationController({
       permitted = canAnnotate
       applyMode()
       highlight.setColor(options.highlightColor)
+      text.refresh()
     },
     setOptions(next: AnnotationOptions): void {
       const modeChanged =

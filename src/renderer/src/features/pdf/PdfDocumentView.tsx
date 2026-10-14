@@ -5,7 +5,7 @@ import './annotations/annotations.css'
 import { PasswordDialog } from './PasswordDialog'
 import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
-import { TextSettingsMenu } from './annotations/text/TextSettingsMenu'
+import './annotations/text/text.css'
 import { PdfSidebar } from './PdfSidebar'
 import { PdfSearchInput } from './PdfSearchInput'
 
@@ -16,7 +16,6 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
       viewerElementRef,
       handle,
       loading,
-      textEditor,
       document,
       page,
       searchSnapshot,
@@ -57,15 +56,12 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
             <div
               ref={containerRef}
               tabIndex={-1}
-              className="pdf-viewer-container absolute inset-0 overflow-auto"
+              className="pdf-viewer-container absolute inset-0 isolate overflow-auto"
             >
               <div ref={viewerElementRef} className="pdfViewer" />
             </div>
           </div>
         </div>
-        {props.active && textEditor && (
-          <TextSettingsMenu key={textEditor.element.id} settings={textEditor} />
-        )}
         <PasswordDialog
           open={props.active && passwordRequest !== null}
           incorrect={passwordRequest?.incorrect ?? false}

@@ -21,7 +21,6 @@ type PdfViewerState = {
   containerRef: RefObject<HTMLDivElement | null>
   viewerElementRef: RefObject<HTMLDivElement | null>
   handle: PdfDocumentHandle
-  textEditor: TextEditorSettings | null
   loading: boolean
   document: PDFDocumentProxy | null
   page: number
@@ -89,6 +88,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     })
     controllerRef.current = controller
     return () => {
+      propsRef.current.onTextEditorChange(null)
       controllerRef.current = null
       void controller.destroy().catch((error: unknown) => {
         console.error('The PDF viewer could not be released.', error)
@@ -103,6 +103,10 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       highlightColor: props.highlightColor
     })
   }, [props.active, props.annotationTool, props.highlightColor])
+
+  useEffect(() => {
+    if (props.active) propsRef.current.onTextEditorChange(textEditor)
+  }, [props.active, textEditor])
 
   const handle = useMemo<PdfDocumentHandle>(
     () => ({
@@ -147,7 +151,6 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     containerRef,
     viewerElementRef,
     handle,
-    textEditor,
     loading,
     document,
     page,

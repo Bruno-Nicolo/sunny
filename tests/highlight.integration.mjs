@@ -189,6 +189,9 @@ app
     await waitFor(
       `document.querySelector('.visible .annotationEditorLayer.freetextEditing') !== null`
     )
+    await evaluate(
+      'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+    )
     const point = await evaluate(`(() => {
       const rect = document.querySelector('.visible .annotationEditorLayer').getBoundingClientRect();
       return {x: Math.round(rect.left + 100), y: Math.round(rect.top + 200)};

@@ -18,6 +18,7 @@ export function createTextEditor({
   onTextEditorChange
 }: Options): { refresh(): void } {
   let textSettings: TextEditorSettings | null = null
+  const defaults = { color: '#000000', size: 16 }
   let textPosition = ''
   let textUpdateQueued = false
   const updateTextEditor = (): void => {
@@ -30,10 +31,26 @@ export function createTextEditor({
       const editor = events.getSelectedEditor() ?? events.getActiveEditor()
       const element = editor?.div
       if (!editor || !element?.isConnected || editor.editorType !== 'freetext') {
-        if (textSettings) {
-          textSettings = null
-          onTextEditorChange(null)
+        if (
+          textSettings?.element === null &&
+          textSettings.color === defaults.color &&
+          textSettings.size === defaults.size
+        )
+          return
+        const setDefault = (type: number, value: string | number): void => {
+          if (events.signal.aborted || !isActive()) return
+          if (type === AnnotationEditorParamsType.FREETEXT_COLOR) defaults.color = value as string
+          else defaults.size = value as number
+          if (!events.hasSelection()) events.setParam(type, value)
+          updateTextEditor()
         }
+        textSettings = {
+          element: null,
+          ...defaults,
+          setColor: (color) => setDefault(AnnotationEditorParamsType.FREETEXT_COLOR, color),
+          setSize: (size) => setDefault(AnnotationEditorParamsType.FREETEXT_SIZE, size)
+        }
+        onTextEditorChange(textSettings)
         return
       }
       const params = new Map<number, string | number>(editor.propertiesToUpdate)
@@ -77,7 +94,7 @@ export function createTextEditor({
     window.addEventListener(
       type,
       () => {
-        if (isActive() && textSettings) updateTextEditor()
+        if (isActive() && textSettings?.element) updateTextEditor()
       },
       { signal: events.signal }
     )
@@ -85,7 +102,7 @@ export function createTextEditor({
   container.addEventListener(
     'focusout',
     (event) => {
-      // The local formatting menu keeps an empty text box alive while its controls have focus.
+      // Toolbar formatting controls keep an empty text box alive while they have focus.
       if (
         event.target instanceof Element &&
         event.target.closest('.freeTextEditor') &&
@@ -98,9 +115,10 @@ export function createTextEditor({
   )
   events.on('annotationeditormodechanged', ({ mode }) => {
     if (mode === AnnotationEditorType.FREETEXT && !events.hasSelection()) {
-      events.setParam(AnnotationEditorParamsType.FREETEXT_COLOR, '#000000')
-      events.setParam(AnnotationEditorParamsType.FREETEXT_SIZE, 16)
+      events.setParam(AnnotationEditorParamsType.FREETEXT_COLOR, defaults.color)
+      events.setParam(AnnotationEditorParamsType.FREETEXT_SIZE, defaults.size)
     }
+    updateTextEditor()
   })
   events.signal.addEventListener(
     'abort',

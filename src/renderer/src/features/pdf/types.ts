@@ -1,4 +1,5 @@
 import type { AnnotationOptions } from './annotations/types'
+import type { TextEditorSettings } from './annotations/text/types'
 
 export type ViewerSnapshot = {
   page: number
@@ -57,6 +58,7 @@ export type PdfDocumentViewProps = AnnotationOptions & {
   onDirtyChange(dirty: boolean): void
   onSnapshot(snapshot: ViewerSnapshot): void
   onError(message: string): void
+  onTextEditorChange(settings: TextEditorSettings | null): void
 }
 
 export type PasswordRequest = {

@@ -5,12 +5,14 @@ import { Separator } from '@/components/ui/separator'
 import { ViewControls } from '@/features/pdf/controls/ViewControls'
 import { AnnotationToolbar } from '@/features/pdf/annotations/AnnotationToolbar'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
+import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import type { Tab } from '../types'
 
 type Props = {
-  activeTab: Pick<Tab, 'view'> | null
+  activeTab: Pick<Tab, 'id' | 'view'> | null
   annotationTool: AnnotationTool
   highlightColor: string
+  textSettings: TextEditorSettings | null
   onAnnotationToolChange(tool: AnnotationTool): void
   onHighlightColorChange(color: string): void
   onAddImages(files: File[]): void
@@ -26,6 +28,7 @@ export function DocumentToolbar({
   activeTab,
   annotationTool,
   highlightColor,
+  textSettings,
   onAnnotationToolChange,
   onHighlightColorChange,
   onAddImages,
@@ -97,8 +100,10 @@ export function DocumentToolbar({
         </>
       )}
       <AnnotationToolbar
+        key={activeTab?.id}
         annotationTool={annotationTool}
         highlightColor={highlightColor}
+        textSettings={textSettings}
         canAnnotate={activeTab?.view.canAnnotate ?? false}
         signed={activeTab?.view.signed ?? false}
         onAnnotationToolChange={onAnnotationToolChange}

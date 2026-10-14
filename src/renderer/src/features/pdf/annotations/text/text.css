@@ -1,13 +1,3 @@
-.pdf-viewer-container .freeTextEditor .text-settings-anchor {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  left: calc(100% + 8px);
-  z-index: 1;
-  font-size: 14px;
-  cursor: default;
-}
-
 .pdf-viewer-container .annotationEditorLayer .freeTextEditor {
   --editor-selection-outline: solid var(--outline-width) var(--ring);
   --focus-outline-around: solid var(--outline-around-width) transparent;

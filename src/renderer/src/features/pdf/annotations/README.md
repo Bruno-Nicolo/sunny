@@ -18,11 +18,14 @@ The tool directories own their behavior and presentation:
 
 - `highlight/`: PDF.js palette configuration, color commands, and toolbar controls.
 - `images/`: file validation, image insertion, file input, clipboard, and drop routing.
-- `text/`: editor selection, formatting, dirty tracking, focus handling, settings menu, and styles.
+- `text/`: editor selection, default and selected-text formatting, dirty tracking, toolbar controls,
+  focus handling, and styles.
 
 `AnnotationToolbar.tsx` composes these controls. `ToolbarButton.tsx` shares accessibility attributes,
 toggle styling, and tooltips with the view controls. The document toolbar handles page and zoom controls;
 `App.tsx` owns preferences and passes active-document access to `useImageInsertion`.
+The active viewer publishes text settings to the toolbar. Formatting without a selected text box
+updates that document's insertion defaults; formatting a selected text box edits only that annotation.
 
 ## Adding a tool
 

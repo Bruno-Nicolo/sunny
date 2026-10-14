@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
+import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
 import type { ShortcutHandlers } from '../../shared/shortcuts'
 import type { SessionState } from '../../shared/contracts'
@@ -18,6 +19,10 @@ import { defaultHighlightColor } from '@/features/pdf/annotations/highlight/colo
 
 function App(): React.JSX.Element {
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('none')
+  const [textEditor, setTextEditor] = useState<{
+    id: string
+    settings: TextEditorSettings | null
+  } | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
   const [theme, setTheme] = useState<SessionState['theme']>('system')
@@ -70,6 +75,13 @@ function App(): React.JSX.Element {
     saveConflictCopy,
     reloadConflict
   } = useDocuments(showMessage, persistSession)
+
+  const onTextEditorChange = useCallback(
+    (id: string, settings: TextEditorSettings | null): void => {
+      if (id === activeId) setTextEditor({ id, settings })
+    },
+    [activeId]
+  )
 
   const restorePreferences = useCallback((session: SessionState): void => {
     setHighlightColor(session.highlightColor || defaultHighlightColor)
@@ -205,6 +217,7 @@ function App(): React.JSX.Element {
           activeTab={activeTab}
           annotationTool={annotationTool}
           highlightColor={highlightColor}
+          textSettings={textEditor?.id === activeId ? textEditor.settings : null}
           onAnnotationToolChange={setAnnotationTool}
           onHighlightColorChange={setHighlightColor}
           onAddImages={(files) => void addImages(files)}
@@ -229,6 +242,7 @@ function App(): React.JSX.Element {
         onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
         onSnapshot={(id, view) => updateTab(id, { view })}
         onError={(id, error) => updateTab(id, { error })}
+        onTextEditorChange={onTextEditorChange}
       />
 
       {message && (

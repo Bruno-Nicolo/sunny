@@ -44,11 +44,20 @@ contextBridge.exposeInMainWorld('testCommands', {run: name => handlers.get(name)
 let win
 const evaluate = (code) => win.webContents.executeJavaScript(code)
 async function click(code) {
+  app.focus({ steal: true })
+  win.focus()
+  win.webContents.focus()
+  await waitFor(`document.hasFocus()`)
   // Popover entry animations must settle before computing native mouse coordinates.
   await new Promise((resolve) => setTimeout(resolve, 200))
   const { x, y } = await evaluate(`(() => {
-    const rect = (${code}).getBoundingClientRect();
-    return {x:Math.round(rect.left + rect.width / 2), y:Math.round(rect.top + rect.height / 2)};
+    const target = (${code});
+    if (!target) throw new Error('Missing click target: ' + ${JSON.stringify(code)});
+    const rect = target.getBoundingClientRect();
+    const point = {x:Math.round(rect.left + rect.width / 2), y:Math.round(rect.top + rect.height / 2)};
+    if (!target.contains(document.elementFromPoint(point.x, point.y)))
+      throw new Error('Click target is covered: ' + ${JSON.stringify(code)});
+    return point;
   })()`)
   win.webContents.sendInputEvent({ type: 'mouseMove', x, y })
   win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x, y, clickCount: 1 })
@@ -101,13 +110,41 @@ app
     await waitFor(
       `document.querySelector('[aria-label="Add text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
     )
-    await evaluate(`document.querySelector('[aria-label="Add text"]').click()`)
+    await waitFor(
+      `document.querySelector('header [aria-label="Text settings"]')?.disabled === false`
+    )
+    await click(`document.querySelector('header [aria-label="Text settings"]')`)
+    await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
+    await click(
+      `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '24 pt')`
+    )
+    await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
+    await waitFor(
+      `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
+    )
+    assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 0)
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="second.pdf"] > .rounded-full')`),
+      null
+    )
+    await click(`document.querySelector('header [aria-label="Text settings"]')`)
+    await waitFor(`document.querySelector('[aria-label="Text size"]') === null`)
     await addText()
     await waitFor(
-      `document.querySelector('.visible .freeTextEditor [aria-label="Text settings"]') !== null`
+      `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).color === 'rgb(255, 0, 0)'`
     )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('.visible .freeTextEditor [aria-label="Text settings"]')`
+      ),
+      null
+    )
+    console.log(
+      'PASS: toolbar defaults configure new text without dirtying the PDF or adding local controls'
+    )
+    await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
     assert.equal(await evaluate(`document.querySelector('header [aria-label="Text size"]')`), null)
-    await evaluate(`document.querySelector('.visible [aria-label="Text settings"]').click()`)
+    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
     assert.equal(
       await evaluate(`document.querySelector('[data-text-settings] input[type="color"]')`),
@@ -127,12 +164,13 @@ app
     )
     await new Promise((resolve) => setTimeout(resolve, 100))
     assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 1)
-    await evaluate(`document.querySelector('.visible [aria-label="Text settings"]').click()`)
+    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Text size"]') === null`)
-    console.log('PASS: formatting opens beside the new text box and preserves it while empty')
+    console.log('PASS: formatting opens from the toolbar and preserves the empty text box')
     await new Promise((resolve) => setTimeout(resolve, 100))
     await evaluate(`(() => {
       const text = document.querySelector('.visible .freeTextEditor .internal');
+      text.focus();
       text.innerText = 'Testo aggiunto\\nSeconda riga con accenti: città, perché';
       text.dispatchEvent(new InputEvent('input', {bubbles:true, inputType:'insertText'}));
     })()`)
@@ -195,8 +233,8 @@ app
       /città, perché/
     )
     await evaluate(`document.querySelector('.visible .freeTextEditor').focus()`)
-    await waitFor(`document.querySelector('.visible [aria-label="Text settings"]') !== null`)
-    await evaluate(`document.querySelector('.visible [aria-label="Text settings"]').click()`)
+    await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
+    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
     await waitFor(
       `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '24 pt'`
     )
@@ -241,8 +279,8 @@ app
       `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
     )
     console.log('PASS: real mouse clicks and undo keep the open formatting menu in sync')
-    await evaluate(`document.querySelector('.visible [aria-label="Text settings"]').click()`)
-    console.log('PASS: local menu reflects the saved text formatting after reopening')
+    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
+    console.log('PASS: toolbar menu reflects the saved text formatting after reopening')
     await evaluate(
       `document.querySelector('.visible .freeTextEditor').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))`
     )
@@ -254,7 +292,7 @@ app
       text.innerText = 'Testo modificato';
       text.dispatchEvent(new InputEvent('input', {bubbles:true}));
     })()`)
-    await click(`document.querySelector('.visible [aria-label="Text settings"]')`)
+    await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(`document.querySelector('[aria-label="Text color"]') !== null`)
     for (const color of ['Blue', 'Green', 'Red']) {
       await click(`document.querySelector('[aria-label="Text color"] [aria-label="${color}"]')`)
@@ -290,13 +328,13 @@ app
         `document.querySelector('[data-slot="popover-content"][data-state="open"] [aria-label="Text color"]') !== null`
       )
     )
-      await evaluate(`document.querySelector('.visible [aria-label="Text settings"]').click()`)
+      await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Text color"]') === null`)
     console.log(
       'PASS: saved text retains accented characters and can be edited and saved after reopening'
     )
     await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
-    await click(`document.querySelector('.visible [aria-label="Text settings"]')`)
+    await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(`document.querySelector('[aria-label="Text color"]') !== null`)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Blue"]')`)
     await waitFor(
@@ -340,6 +378,9 @@ app
       true,
       'Choosing the current formatting must not dirty the document'
     )
+    // Separate this size-only undo step from PDF.js's earlier grouped size commands.
+    await click(`document.querySelector('[aria-label="Text color"] [aria-label="Gray"]')`)
+    await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
     await click(
       `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '32 pt')`
     )
@@ -368,8 +409,8 @@ app
     await waitFor(`document.querySelector('[aria-label="Text color"]') === null`)
     assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 0)
     await addText()
-    await waitFor(`document.querySelector('.visible [aria-label="Text settings"]') !== null`)
-    await click(`document.querySelector('.visible [aria-label="Text settings"]')`)
+    await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
+    await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(
       `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '16 pt'`
     )
@@ -379,12 +420,16 @@ app
       ),
       'true'
     )
-    await click(`document.querySelector('.visible [aria-label="Text settings"]')`)
+    await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(`document.querySelector('[aria-label="Text color"]') === null`)
     await evaluate(`document.querySelector('.visible .freeTextEditor .internal').focus()`)
     await waitFor(
       `document.activeElement === document.querySelector('.visible .freeTextEditor .internal')`
     )
+    app.focus({ steal: true })
+    win.focus()
+    win.webContents.focus()
+    await waitFor(`document.hasFocus()`)
     await win.webContents.insertText('   ')
     await waitFor(`document.querySelector('[aria-label="first.pdf"] > .rounded-full') !== null`)
     await save()

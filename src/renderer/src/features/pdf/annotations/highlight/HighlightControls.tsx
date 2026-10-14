@@ -1,10 +1,11 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Check, ChevronDown, Highlighter } from 'lucide-react'
+import { ChevronDown, Highlighter } from 'lucide-react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ColorOptions } from '../ColorOptions'
 import type { AnnotationTool } from '../types'
 import { highlightColors } from './colors'
 
@@ -73,31 +74,22 @@ export function HighlightControls({
             <ChevronDown className="size-3" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto p-2">
-          <div className="flex gap-1">
-            {highlightColors.map((color) => (
-              <button
-                key={color.value}
-                type="button"
-                aria-label={color.name}
-                aria-pressed={highlightColor === color.value}
-                onClick={() => {
-                  onColorChange(color.value)
-                  onToolChange('highlight')
-                  setOpen(false)
-                }}
-                className="relative grid size-8 place-items-center rounded-md hover:bg-muted"
-              >
-                <span
-                  className="size-5 rounded-full border border-black/10"
-                  style={{ backgroundColor: color.value }}
-                />
-                {highlightColor === color.value && (
-                  <Check className="absolute size-3 text-black/70" />
-                )}
-              </button>
-            ))}
-          </div>
+        <PopoverContent
+          align="start"
+          className="w-auto space-y-1 p-2"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          <div className="text-sm">Colors</div>
+          <ColorOptions
+            label="Highlight color"
+            colors={highlightColors}
+            value={highlightColor}
+            onChange={(color) => {
+              onColorChange(color)
+              onToolChange('highlight')
+              setOpen(false)
+            }}
+          />
         </PopoverContent>
       </Popover>
     </ButtonGroup>

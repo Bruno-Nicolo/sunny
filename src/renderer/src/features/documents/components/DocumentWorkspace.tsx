@@ -1,5 +1,6 @@
 import { File } from 'lucide-react'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
+import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import { Button } from '@/components/ui/button'
 import { PdfDocumentView } from '@/features/pdf/PdfDocumentView'
 import type { PdfDocumentHandle, ViewerSnapshot } from '@/features/pdf/types'
@@ -18,6 +19,7 @@ type Props = {
   onDirtyChange(id: string, dirty: boolean): void
   onSnapshot(id: string, view: ViewerSnapshot): void
   onError(id: string, error: string): void
+  onTextEditorChange(id: string, settings: TextEditorSettings | null): void
 }
 
 export function DocumentWorkspace({
@@ -31,7 +33,8 @@ export function DocumentWorkspace({
   onViewerHandle,
   onDirtyChange,
   onSnapshot,
-  onError
+  onError,
+  onTextEditorChange
 }: Props): React.JSX.Element {
   return (
     <section className="relative min-h-0 flex-1 bg-muted/45">
@@ -69,6 +72,7 @@ export function DocumentWorkspace({
             onDirtyChange={(dirty) => onDirtyChange(tab.id, dirty)}
             onSnapshot={(view) => onSnapshot(tab.id, view)}
             onError={(error) => onError(tab.id, error)}
+            onTextEditorChange={(settings) => onTextEditorChange(tab.id, settings)}
           />
         </div>
       ))}
