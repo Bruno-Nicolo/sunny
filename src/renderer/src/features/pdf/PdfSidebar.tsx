@@ -116,13 +116,18 @@ function PageThumbnail({
 
 function OutlineItems({
   items,
+  prefix = '',
   onDestination,
   onError
-}: Pick<Props, 'onDestination' | 'onError'> & { items: Outline }): React.JSX.Element {
+}: Pick<Props, 'onDestination' | 'onError'> & {
+  items: Outline
+  prefix?: string
+}): React.JSX.Element {
   return (
     <ul className="space-y-1">
       {items.map((item, index) => {
         const destination = item.dest
+        const number = `${prefix}${index + 1}`
         return (
           <Collapsible.Root key={index} asChild>
             <li>
@@ -143,14 +148,16 @@ function OutlineItems({
                 {destination ? (
                   <button
                     type="button"
-                    className="min-w-0 flex-1 rounded-md px-1 py-1.5 text-left text-sm break-words hover:bg-sidebar-accent focus-visible:outline-sidebar-ring"
+                    className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1 py-1.5 text-left text-sm break-words hover:bg-sidebar-accent focus-visible:outline-sidebar-ring"
                     onClick={() =>
                       void onDestination(destination).catch(() =>
                         onError('The outline destination could not be opened.')
                       )
                     }
                   >
+                    <span className="shrink-0 text-muted-foreground tabular-nums">{number}</span>
                     <span
+                      className="min-w-0"
                       style={{
                         fontWeight: item.bold ? 600 : undefined,
                         fontStyle: item.italic ? 'italic' : undefined
@@ -160,8 +167,9 @@ function OutlineItems({
                     </span>
                   </button>
                 ) : (
-                  <span className="min-w-0 flex-1 px-1 py-1.5 text-sm break-words text-muted-foreground">
-                    {item.title}
+                  <span className="flex min-w-0 flex-1 items-start gap-2 px-1 py-1.5 text-sm break-words text-muted-foreground">
+                    <span className="shrink-0 tabular-nums">{number}</span>
+                    <span className="min-w-0">{item.title}</span>
                   </span>
                 )}
               </div>
@@ -169,6 +177,7 @@ function OutlineItems({
                 <Collapsible.Content className="ml-3 border-l pl-2">
                   <OutlineItems
                     items={item.items}
+                    prefix={`${number}.`}
                     onDestination={onDestination}
                     onError={onError}
                   />
