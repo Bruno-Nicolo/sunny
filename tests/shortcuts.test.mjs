@@ -65,6 +65,15 @@ test('additional modifiers do not trigger a shortcut', () => {
   assert.equal(matches('zoom-in', '+', { ctrlKey: true, metaKey: true }), false)
 })
 
+test('rotation accepts an unmodified r on each platform', () => {
+  for (const isMac of [true, false]) {
+    assert.equal(matches('rotate-clockwise', 'r', {}, isMac), true)
+    for (const modifier of ['ctrlKey', 'metaKey', 'shiftKey', 'altKey']) {
+      assert.equal(matches('rotate-clockwise', 'r', { [modifier]: true }, isMac), false)
+    }
+  }
+})
+
 test('sidebar toggle matches command-backslash and rejects other modifiers', () => {
   assert.equal(matches('toggle-sidebar', '\\', { metaKey: true }), true)
   assert.equal(matches('toggle-sidebar', '\\'), false)

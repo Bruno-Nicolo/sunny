@@ -151,6 +151,8 @@ function App(): React.JSX.Element {
       },
       'zoom-in': () => withViewer((viewer) => viewer.zoomIn()),
       'zoom-out': () => withViewer((viewer) => viewer.zoomOut()),
+      'rotate-clockwise': () => withViewer((viewer) => viewer.rotateClockwise()),
+      'toggle-two-page-view': () => withViewer((viewer) => viewer.toggleTwoPageView()),
       'next-tab': () => cycleTab(1),
       'previous-tab': () => cycleTab(-1),
       'tab-1': () => selectTabAtIndex(0),
@@ -225,8 +227,6 @@ function App(): React.JSX.Element {
           onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
           onZoomIn={() => getActiveViewer()?.zoomIn()}
           onZoomOut={() => getActiveViewer()?.zoomOut()}
-          onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
-          onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
         />
       </header>
 

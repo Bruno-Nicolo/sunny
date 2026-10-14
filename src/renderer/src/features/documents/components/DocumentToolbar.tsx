@@ -2,7 +2,6 @@ import { Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
-import { ViewControls } from '@/features/pdf/controls/ViewControls'
 import { AnnotationToolbar } from '@/features/pdf/annotations/AnnotationToolbar'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
@@ -20,8 +19,6 @@ type Props = {
   onScaleChange(scale: string): void
   onZoomIn(): void
   onZoomOut(): void
-  onRotateClockwise(): void
-  onToggleTwoPageView(): void
 }
 
 export function DocumentToolbar({
@@ -35,9 +32,7 @@ export function DocumentToolbar({
   onPageChange,
   onScaleChange,
   onZoomIn,
-  onZoomOut,
-  onRotateClockwise,
-  onToggleTwoPageView
+  onZoomOut
 }: Props): React.JSX.Element {
   return (
     <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 border-t px-3">
@@ -89,13 +84,6 @@ export function DocumentToolbar({
               <Plus />
             </Button>
           </div>
-          <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
-          <ViewControls
-            disabled={!activeTab.view.pages}
-            twoPageView={activeTab.view.twoPageView}
-            onRotateClockwise={onRotateClockwise}
-            onToggleTwoPageView={onToggleTwoPageView}
-          />
           <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
         </>
       )}
