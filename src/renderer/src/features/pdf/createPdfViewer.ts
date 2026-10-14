@@ -94,6 +94,7 @@ export function createPdfViewer({
   let document: PDFDocumentProxy | null = null
   let destroyed = false
   let loading = true
+  let composing = false
   // Chromium reports trackpad pinches as wheel events with ctrlKey set.
   container.addEventListener(
     'wheel',
@@ -107,6 +108,20 @@ export function createPdfViewer({
       })
     },
     { passive: false, signal: lifetime.signal }
+  )
+  container.addEventListener(
+    'compositionstart',
+    () => {
+      composing = true
+    },
+    { signal: lifetime.signal }
+  )
+  container.addEventListener(
+    'compositionend',
+    () => {
+      composing = false
+    },
+    { signal: lifetime.signal }
   )
   let scrollFrame: number | null = null
   let destinationRequest = 0
@@ -267,6 +282,16 @@ export function createPdfViewer({
           : await document.getPageIndex(reference as { num: number; gen: number })
       if (destroyed || request !== destinationRequest) return
       viewer.scrollPageIntoView({ pageNumber: pageIndex + 1, destArray: target })
+    },
+    async snapshotDocument(previousHash) {
+      if (destroyed || !document || loading) throw new Error('The PDF is not ready.')
+      if (composing) return null
+      annotations.commitDraft()
+      const { hash, transfer } = document.annotationStorage.serializable
+      // This inspection creates image copies. Only saveDocument transfers its own copies.
+      for (const bitmap of transfer ?? []) bitmap.close()
+      if (hash === previousHash) return null
+      return { hash, data: await document.saveDocument() }
     },
     async saveDocument() {
       if (destroyed || !document) throw new Error('The PDF is not ready.')

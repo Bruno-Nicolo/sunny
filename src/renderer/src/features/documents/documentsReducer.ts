@@ -11,6 +11,7 @@ export type TabChanges = Partial<Pick<Tab, 'dirty' | 'unavailable' | 'error' | '
 
 export type DocumentsAction =
   | { type: 'open'; tabs: Tab[] }
+  | { type: 'recover'; tabs: Tab[] }
   | { type: 'select'; id: string }
   | { type: 'reorder'; id: string; index: number }
   | { type: 'update'; id: string; changes: TabChanges }
@@ -42,6 +43,19 @@ export function createTab(pdf: OpenedPdf, restored?: SessionTab): Tab {
 
 export function documentsReducer(state: DocumentsState, action: DocumentsAction): DocumentsState {
   switch (action.type) {
+    case 'recover': {
+      const tabs = [...state.tabs]
+      for (const recovered of action.tabs) {
+        const index = tabs.findIndex((tab) => tab.path === recovered.path)
+        if (index === -1) tabs.push(recovered)
+        else tabs[index] = { ...recovered, id: tabs[index].id, view: tabs[index].view }
+      }
+      return {
+        ...state,
+        tabs,
+        activeId: tabs.find((tab) => tab.path === action.tabs[0]?.path)?.id ?? state.activeId
+      }
+    }
     case 'open': {
       const tabs = [...state.tabs]
       let activeId = state.activeId

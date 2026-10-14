@@ -7,6 +7,7 @@ Documents never leave the computer.
 
 - Open one or more PDFs through the file dialog, Finder, or drag and drop.
 - Keep documents in tabs and restore the last session.
+- Keep local recovery copies of unsaved annotations and offer recovery after an interrupted session.
 - Scroll pages vertically, jump to a page, zoom, fit width, and fit page.
 - Highlight selectable text with a small color palette.
 - Add editable text boxes by choosing Add text and clicking on a page; open Text settings next to the selected box to choose a preset color and size.
@@ -38,6 +39,7 @@ pnpm build
 pnpm test:images
 pnpm test:text
 pnpm test:documents
+pnpm test:recovery
 pnpm test:memory
 ```
 
@@ -54,6 +56,7 @@ pnpm build:mac
 - `src/main/index.ts`: Electron startup and application lifecycle.
 - `src/main/window.ts` and `menu.ts`: native window and application menus.
 - `src/main/ipc.ts` and `pdf-dialogs.ts`: IPC handlers and native file dialogs.
+- `src/main/drafts.ts`: atomic recovery copies with original-file metadata and serialized writes/deletion.
 - `src/main/pdf-files.ts`, `session.ts`, and `atomic-write.ts`: PDF file access, backups, session persistence, and atomic writes. These modules do not depend on Electron.
 - `src/preload`: narrow IPC API exposed to the renderer and checked against the shared `LepisApi` contract.
 - `src/renderer`: React interface, shadcn components, Tailwind theme, and PDF.js viewer/editor.
@@ -91,6 +94,29 @@ Opened PDF bytes use `ArrayBuffer` across IPC and React props. React's developme
 tracing enumerates typed-array entries when describing props; exposing a large `Uint8Array`
 there can exhaust the renderer heap. PDF.js accepts the opaque buffer directly, and receives
 a copy because it transfers ownership to its worker. Saved PDF output remains `Uint8Array`.
+
+## Recovery copies
+
+While edited documents are open, Lepis checks for changes every three seconds and writes a
+local recovery copy when the annotations have changed. PDF.js supplies the annotation hash,
+so unchanged annotations do not trigger a full PDF export. Recovery copies store PDF bytes
+and metadata in one binary file without Base64 encoding. Recovery does not overwrite the original
+PDF. Live text is included while retaining editing focus and the caret; snapshots wait until
+IME composition ends. The latest changes since the last completed snapshot may be lost if the
+application crashes.
+
+At startup, choose **Recover changes** to reopen recovery copies as unsaved documents, or
+**Discard recovery copies** to delete them. Copies remain available until changes are saved
+or explicitly discarded. Recovery also works when the original file is missing; save the
+recovered document as a copy. If the original has changed, the existing conflict workflow
+prevents overwriting it silently.
+
+Recovery copies are distinct from the previous-version backups created by manual saves.
+Saving, closing without saving, or reloading and discarding removes the corresponding recovery
+copy. Pending snapshots are drained before deletion so they cannot recreate a discarded copy.
+
+`pnpm test:recovery` checks focused text and caret retention, renderer termination and recovery,
+failed saves, external-file conflicts, explicit discard, and closure during a pending draft write.
 
 ## Keyboard shortcuts
 

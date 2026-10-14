@@ -87,6 +87,7 @@ fs.writeFileSync(
 const commands = new Map()
 const openListeners = new Set()
 contextBridge.exposeInMainWorld('lepis', {
+  loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: () => ipcRenderer.invoke('test:session'),
   readPdf: path => ipcRenderer.invoke('test:read', path),
@@ -264,7 +265,9 @@ app
 
     saveMode = 'conflict'
     await clickButton('Save and close')
-    await waitFor("document.body.textContent.includes('The file changed on disk')")
+    await waitFor(
+      "document.body.textContent.includes('The original file is unavailable or changed')"
+    )
     assert.equal(
       await evaluate('document.querySelectorAll("[role=dialog][data-state=open]").length'),
       1
@@ -275,7 +278,9 @@ app
     console.log('PASS: canceling a save conflict returns to the pending close request')
 
     await clickButton('Save and close')
-    await waitFor("document.body.textContent.includes('The file changed on disk')")
+    await waitFor(
+      "document.body.textContent.includes('The original file is unavailable or changed')"
+    )
     copyCanceled = true
     await clickButton('Save as copy')
     await new Promise((resolve) => setTimeout(resolve, 200))
@@ -392,7 +397,7 @@ app
       "window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('focus'))"
     )
     await waitFor(
-      "document.querySelector('[role=dialog][data-state=open]')?.textContent.includes('The file changed on disk')"
+      "document.querySelector('[role=dialog][data-state=open]')?.textContent.includes('The original file is unavailable or changed')"
     )
     assert.equal(reads.get('two-pages.pdf'), readsBeforeConflict)
     await clickButton('Cancel')

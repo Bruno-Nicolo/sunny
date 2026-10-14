@@ -107,6 +107,10 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       openSearch() {
         setSearchRequest((request) => (request ?? 0) + 1)
       },
+      async snapshotDocument(previousHash) {
+        if (!controllerRef.current) throw new Error('The PDF is not ready.')
+        return controllerRef.current.snapshotDocument(previousHash)
+      },
       async saveDocument() {
         if (!controllerRef.current) throw new Error('The PDF is not ready.')
         return controllerRef.current.saveDocument()

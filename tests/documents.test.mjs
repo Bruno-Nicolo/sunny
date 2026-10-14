@@ -154,3 +154,25 @@ test('reordering preserves document identity, edits, position, and active select
   assert.equal(reduce(moved, { type: 'reorder', id: tabs[0].id, index: -1 }), moved)
   assert.equal(reduce(moved, { type: 'reorder', id: tabs[0].id, index: 3 }), moved)
 })
+
+test('recovery replaces a clean startup tab, remains dirty, and survives a late session restore', () => {
+  const startup = tab('first.pdf')
+  const recovered = {
+    ...tab('first.pdf'),
+    data: new Uint8Array([9]).buffer,
+    dirty: true,
+    mtimeMs: 42
+  }
+  let state = reduce(initialDocumentsState, { type: 'open', tabs: [startup] })
+  state = reduce(state, {
+    type: 'recover',
+    tabs: [recovered, { ...tab('missing.pdf'), dirty: true, unavailable: true }]
+  })
+  state = reduce(state, { type: 'restore', tabs: [tab('first.pdf')], activePath: 'first.pdf' })
+  assert.equal(state.tabs.length, 2)
+  assert.equal(state.tabs[0].id, startup.id)
+  assert.equal(state.tabs[0].dirty, true)
+  assert.equal(state.tabs[0].mtimeMs, 42)
+  assert.deepEqual(new Uint8Array(state.tabs[0].data), new Uint8Array([9]))
+  assert.equal(state.tabs[1].unavailable, true)
+})

@@ -25,7 +25,8 @@
     "build": "pnpm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "pnpm run build && electron-builder --dir",
-    "build:mac": "pnpm run build && electron-builder --mac"
+    "build:mac": "pnpm run build && electron-builder --mac",
+    "test:recovery": "pnpm build && electron tests/recovery.integration.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

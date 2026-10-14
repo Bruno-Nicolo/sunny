@@ -1,5 +1,6 @@
 import { AnnotationEditorType } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { EventBus, PDFViewer } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
+import { commitDraft } from './commitDraft'
 import { createEditorEvents } from './editorEvents'
 import { createHighlightEditor } from './highlight/highlightEditor'
 import { createImageEditor } from './images/imageEditor'
@@ -21,6 +22,7 @@ type Options = {
 type AnnotationController = Pick<PdfDocumentHandle, 'addImage' | 'undo' | 'redo'> & {
   initialize(canAnnotate: boolean): void
   setOptions(options: AnnotationOptions): void
+  commitDraft(): void
   commit(): void
 }
 
@@ -73,6 +75,7 @@ export function createAnnotationController({
     },
     addImage: images.add,
     commit: events.commit,
+    commitDraft: () => commitDraft(events),
     undo(): void {
       events.runHistoryAction('undo')
       text.refresh()

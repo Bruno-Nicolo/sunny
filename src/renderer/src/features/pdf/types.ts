@@ -12,8 +12,11 @@ export type ViewerSnapshot = {
 
 export type PdfViewPosition = Pick<ViewerSnapshot, 'page' | 'scale' | 'scrollTop'>
 
+export type PdfSnapshot = { hash: string; data: Uint8Array }
+
 export type PdfDocumentHandle = {
   openSearch(): void
+  snapshotDocument(previousHash?: string): Promise<PdfSnapshot | null>
   saveDocument(): Promise<Uint8Array>
   setPage(page: number): void
   setScale(scale: string): void

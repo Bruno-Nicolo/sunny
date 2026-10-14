@@ -11,6 +11,7 @@ import { TabBar } from '@/features/documents/components/TabBar'
 import { DocumentToolbar } from '@/features/documents/components/DocumentToolbar'
 import { DocumentWorkspace } from '@/features/documents/components/DocumentWorkspace'
 import { CloseDocumentsDialog } from '@/features/documents/components/CloseDocumentsDialog'
+import { RecoveryDialog } from '@/features/documents/components/RecoveryDialog'
 import { FileConflictDialog } from '@/features/documents/components/FileConflictDialog'
 import { useImageInsertion } from '@/features/pdf/annotations/images/useImageInsertion'
 import { defaultHighlightColor } from '@/features/pdf/annotations/highlight/colors'
@@ -49,6 +50,9 @@ function App(): React.JSX.Element {
     ready,
     closeRequest,
     conflictId,
+    recoveryDrafts,
+    recoverDrafts,
+    discardDrafts,
     selectTab,
     reorderTab,
     updateTab,
@@ -153,7 +157,14 @@ function App(): React.JSX.Element {
     }
   }, [activeId, activeTab, closeTab, getActiveViewer, openDialog, saveTab, selectTab, tabs])
 
-  useAppShortcuts(shortcutHandlers, ready && closeRequest === null && conflictId === null)
+  useAppShortcuts(
+    shortcutHandlers,
+    ready &&
+      recoveryDrafts !== null &&
+      recoveryDrafts.length === 0 &&
+      closeRequest === null &&
+      conflictId === null
+  )
 
   const cycleTheme = (): void => {
     setTheme((current) =>
@@ -224,6 +235,11 @@ function App(): React.JSX.Element {
         </div>
       )}
 
+      <RecoveryDialog
+        drafts={recoveryDrafts ?? []}
+        onRecover={recoverDrafts}
+        onDiscard={discardDrafts}
+      />
       <CloseDocumentsDialog
         open={closeRequest !== null && conflictId === null}
         closingWindow={closeRequest?.type === 'window'}

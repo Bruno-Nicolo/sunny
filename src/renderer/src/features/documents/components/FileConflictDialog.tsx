@@ -25,10 +25,10 @@ export function FileConflictDialog({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>The file changed on disk</DialogTitle>
+          <DialogTitle>The original file is unavailable or changed</DialogTitle>
           <DialogDescription>
-            Another application modified this PDF. Reloading discards the unsaved highlights in
-            Lepis. You can also preserve the Lepis version as a separate PDF.
+            The original PDF could not be overwritten safely. Reloading discards your unsaved
+            changes. You can also preserve the Lepis version as a separate PDF.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

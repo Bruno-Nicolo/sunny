@@ -2,6 +2,9 @@ import type { LepisApi } from '../shared/contracts'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 const api: LepisApi = {
+  saveDraft: (draft) => ipcRenderer.invoke('draft:save', draft),
+  loadDrafts: () => ipcRenderer.invoke('draft:load'),
+  deleteDraft: (path) => ipcRenderer.invoke('draft:delete', path),
   openPdfDialog: () => ipcRenderer.invoke('pdf:open-dialog'),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   readPdf: (path: string) => ipcRenderer.invoke('pdf:read', path),

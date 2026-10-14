@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
-import type { OpenedPdf } from '../../../../shared/contracts'
+import type { OpenedPdf, PdfDraft } from '../../../../shared/contracts'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
+import { createDraftAutosave } from './draftAutosave'
 import {
   createTab,
   documentsReducer,
@@ -15,6 +16,9 @@ type DocumentsController = DocumentsState & {
   dirtyTabs: Tab[]
   closeRequest: CloseRequest
   conflictId: string | null
+  recoveryDrafts: PdfDraft[] | null
+  recoverDrafts(): Promise<void>
+  discardDrafts(): Promise<void>
   selectTab(id: string): void
   reorderTab(id: string, index: number): void
   updateTab(id: string, changes: TabChanges): void
@@ -40,8 +44,76 @@ export function useDocuments(
   const [state, dispatch] = useReducer(documentsReducer, initialDocumentsState)
   const [closeRequest, setCloseRequest] = useState<CloseRequest>(null)
   const [conflictId, setConflictId] = useState<string | null>(null)
+  const [recoveryDrafts, setRecoveryDrafts] = useState<PdfDraft[] | null>(null)
   const stateRef = useRef(state)
   const viewers = useRef(new Map<string, PdfDocumentHandle>())
+
+  const [draftAutosave] = useState(createDraftAutosave)
+
+  useEffect(() => {
+    let cancelled = false
+    void window.lepis
+      .loadDrafts()
+      .then((drafts) => {
+        if (!cancelled) setRecoveryDrafts(drafts)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRecoveryDrafts([])
+          showMessage('Recovery copies could not be loaded.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showMessage])
+
+  useEffect(() => {
+    if (!state.ready || recoveryDrafts === null || recoveryDrafts.length) return
+    const timer = setInterval(
+      () =>
+        void draftAutosave.tick({
+          getTabs: () => stateRef.current.tabs,
+          getViewer: (id) => viewers.current.get(id),
+          save: (draft) => window.lepis.saveDraft(draft),
+          onError: showMessage
+        }),
+      3000
+    )
+    return () => clearInterval(timer)
+  }, [draftAutosave, recoveryDrafts, showMessage, state.ready])
+
+  const recoverDrafts = useCallback(async (): Promise<void> => {
+    if (!recoveryDrafts) return
+    const recovered: Tab[] = []
+    for (const draft of recoveryDrafts) {
+      const current = stateRef.current.tabs.find((tab) => tab.path === draft.path)
+      if (current?.dirty) {
+        showMessage('Save or close the edited document before recovering its previous changes.')
+        return
+      }
+      const tab = createTab(draft)
+      tab.dirty = true
+      try {
+        await window.lepis.statPdf(draft.path)
+      } catch {
+        tab.unavailable = true
+      }
+      recovered.push(tab)
+    }
+    dispatch({ type: 'recover', tabs: recovered })
+    setRecoveryDrafts([])
+    showMessage('Unsaved changes recovered. Save to keep them in the original PDF.')
+  }, [recoveryDrafts, showMessage])
+
+  const discardDrafts = useCallback(async (): Promise<void> => {
+    try {
+      for (const draft of recoveryDrafts ?? []) await window.lepis.deleteDraft(draft.path)
+      setRecoveryDrafts([])
+    } catch {
+      showMessage('Recovery copies could not be discarded. Try again.')
+    }
+  }, [recoveryDrafts, showMessage])
 
   useLayoutEffect(() => {
     stateRef.current = state
@@ -109,27 +181,34 @@ export function useDocuments(
         showMessage('The PDF is not ready for saving.')
         return false
       }
-      try {
-        const data = await viewer.saveDocument()
-        const stats = await window.lepis.savePdf({
-          tabId: id,
-          filePath: tab.path,
-          data,
-          expectedMtimeMs: tab.mtimeMs
-        })
-        dispatch({ type: 'saved', id, stats })
-        showMessage('Saved')
-        return true
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('FILE_CHANGED_EXTERNALLY')) {
-          setConflictId(id)
-        } else {
-          showMessage(error instanceof Error ? error.message : 'The PDF could not be saved.')
-        }
+      if (tab.unavailable) {
+        setConflictId(id)
         return false
       }
+      return draftAutosave.withPaused([id], async () => {
+        try {
+          const data = await viewer.saveDocument()
+          const stats = await window.lepis.savePdf({
+            tabId: id,
+            filePath: tab.path,
+            data,
+            expectedMtimeMs: tab.mtimeMs
+          })
+          dispatch({ type: 'saved', id, stats })
+          await window.lepis.deleteDraft(tab.path)
+          showMessage('Saved')
+          return true
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('FILE_CHANGED_EXTERNALLY')) {
+            setConflictId(id)
+          } else {
+            showMessage(error instanceof Error ? error.message : 'The PDF could not be saved.')
+          }
+          return false
+        }
+      })
     },
-    [showMessage]
+    [draftAutosave, showMessage]
   )
 
   const closeTab = useCallback(
@@ -140,44 +219,55 @@ export function useDocuments(
         setCloseRequest({ type: 'tab', id })
         return false
       }
-      try {
-        await window.lepis.closePdf(id)
-        const current = stateRef.current.tabs.find((candidate) => candidate.id === id)
-        if (current?.dirty && !discard) {
-          setCloseRequest({ type: 'tab', id })
+      return draftAutosave.withPaused([id], async () => {
+        try {
+          await window.lepis.closePdf(id)
+          const current = stateRef.current.tabs.find((candidate) => candidate.id === id)
+          if (current?.dirty && !discard) {
+            setCloseRequest({ type: 'tab', id })
+            return false
+          }
+          await window.lepis.deleteDraft(tab.path)
+          viewers.current.delete(id)
+          dispatch({ type: 'close', id })
+          return true
+        } catch (error) {
+          showMessage(error instanceof Error ? error.message : 'The PDF could not be closed.')
           return false
         }
-        viewers.current.delete(id)
-        dispatch({ type: 'close', id })
-        return true
-      } catch (error) {
-        showMessage(error instanceof Error ? error.message : 'The PDF could not be closed.')
-        return false
-      }
+      })
     },
-    [showMessage]
+    [draftAutosave, showMessage]
   )
 
   const finishWindowClose = useCallback(
     async (discard = false): Promise<void> => {
-      try {
-        await Promise.all(stateRef.current.tabs.map((tab) => window.lepis.closePdf(tab.id)))
-        if (!discard && stateRef.current.tabs.some((tab) => tab.dirty)) {
-          setCloseRequest({ type: 'window' })
-          return
+      const closing = stateRef.current.tabs
+      return draftAutosave.withPaused(
+        closing.map((tab) => tab.id),
+        async () => {
+          try {
+            await Promise.all(stateRef.current.tabs.map((tab) => window.lepis.closePdf(tab.id)))
+            if (!discard && stateRef.current.tabs.some((tab) => tab.dirty)) {
+              setCloseRequest({ type: 'window' })
+              return
+            }
+            await persistSession(stateRef.current)
+            if (!discard && stateRef.current.tabs.some((tab) => tab.dirty)) {
+              setCloseRequest({ type: 'window' })
+              return
+            }
+            if (recoveryDrafts !== null && recoveryDrafts.length === 0)
+              await Promise.all(closing.map((tab) => window.lepis.deleteDraft(tab.path)))
+            setCloseRequest(null)
+            window.lepis.confirmWindowClose()
+          } catch (error) {
+            showMessage(error instanceof Error ? error.message : 'The window could not be closed.')
+          }
         }
-        await persistSession(stateRef.current)
-        if (!discard && stateRef.current.tabs.some((tab) => tab.dirty)) {
-          setCloseRequest({ type: 'window' })
-          return
-        }
-        setCloseRequest(null)
-        window.lepis.confirmWindowClose()
-      } catch (error) {
-        showMessage(error instanceof Error ? error.message : 'The window could not be closed.')
-      }
+      )
     },
-    [persistSession, showMessage]
+    [draftAutosave, persistSession, recoveryDrafts, showMessage]
   )
 
   const requestWindowClose = useCallback((): void => {
@@ -211,34 +301,42 @@ export function useDocuments(
     const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
     const viewer = id ? viewers.current.get(id) : undefined
     if (!id || !tab || !viewer) return
-    try {
-      const data = await viewer.saveDocument()
-      const saved = await window.lepis.savePdfAs({
-        data,
-        suggestedName: tab.name.replace(/\.pdf$/i, ' - Lepis.pdf')
-      })
-      if (!saved) return
-      await window.lepis.closePdf(id)
-      dispatch({ type: 'replace', id, pdf: saved })
-      setConflictId(null)
-      showMessage('Saved as a copy')
-    } catch (error) {
-      showMessage(error instanceof Error ? error.message : 'The PDF could not be saved as a copy.')
-    }
-  }, [conflictId, showMessage])
+    return draftAutosave.withPaused([id], async () => {
+      try {
+        const data = await viewer.saveDocument()
+        const saved = await window.lepis.savePdfAs({
+          data,
+          suggestedName: tab.name.replace(/\.pdf$/i, ' - Lepis.pdf')
+        })
+        if (!saved) return
+        await window.lepis.closePdf(id)
+        await window.lepis.deleteDraft(tab.path)
+        dispatch({ type: 'replace', id, pdf: saved })
+        setConflictId(null)
+        showMessage('Saved as a copy')
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : 'The PDF could not be saved as a copy.'
+        )
+      }
+    })
+  }, [conflictId, draftAutosave, showMessage])
 
   const reloadConflict = useCallback(async (): Promise<void> => {
     const id = conflictId
     const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
     if (!id || !tab) return
-    try {
-      const fresh = await window.lepis.readPdf(tab.path)
-      dispatch({ type: 'replace', id, pdf: fresh })
-      setConflictId(null)
-    } catch (error) {
-      showMessage(error instanceof Error ? error.message : 'The PDF could not be reloaded.')
-    }
-  }, [conflictId, showMessage])
+    return draftAutosave.withPaused([id], async () => {
+      try {
+        const fresh = await window.lepis.readPdf(tab.path)
+        await window.lepis.deleteDraft(tab.path)
+        dispatch({ type: 'replace', id, pdf: fresh })
+        setConflictId(null)
+      } catch (error) {
+        showMessage(error instanceof Error ? error.message : 'The PDF could not be reloaded.')
+      }
+    })
+  }, [conflictId, draftAutosave, showMessage])
 
   useEffect(() => {
     const cleanups = [
@@ -297,6 +395,9 @@ export function useDocuments(
 
   return {
     ...state,
+    recoveryDrafts,
+    recoverDrafts,
+    discardDrafts,
     activeTab: state.tabs.find((tab) => tab.id === state.activeId) ?? null,
     dirtyTabs: state.tabs.filter((tab) => tab.dirty),
     closeRequest,

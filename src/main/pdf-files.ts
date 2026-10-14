@@ -9,7 +9,7 @@ function backupPath(userDataPath: string, tabId: string): string {
   return join(userDataPath, 'backups', `${id}.pdf`)
 }
 
-function hasPdfHeader(data: Uint8Array): boolean {
+export function hasPdfHeader(data: Uint8Array): boolean {
   return Buffer.from(data.subarray(0, 1024)).toString('latin1').includes('%PDF-')
 }
 

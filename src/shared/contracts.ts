@@ -39,7 +39,17 @@ export type SavePdfAsRequest = {
   suggestedName: string
 }
 
+export type SavePdfDraftRequest = PdfFileStats & {
+  path: string
+  data: Uint8Array
+}
+
+export type PdfDraft = OpenedPdf & { savedAt: number }
+
 export interface LepisApi {
+  saveDraft(draft: SavePdfDraftRequest): Promise<void>
+  loadDrafts(): Promise<PdfDraft[]>
+  deleteDraft(path: string): Promise<void>
   openPdfDialog(): Promise<OpenedPdf[]>
   getPathForFile(file: File): string
   readPdf(path: string): Promise<OpenedPdf>
