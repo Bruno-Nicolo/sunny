@@ -1,7 +1,10 @@
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Check, ChevronDown, Highlighter } from 'lucide-react'
+import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
+import { ToolbarButton } from '@/components/ToolbarButton'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { AnnotationToolButton } from '../AnnotationToolButton'
 import type { AnnotationTool } from '../types'
 import { highlightColors } from './colors'
 
@@ -21,24 +24,52 @@ export function HighlightControls({
   onToolChange,
   onColorChange
 }: Props): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const selected = annotationTool === 'highlight'
+  const colorName = highlightColors.find((color) => color.value === highlightColor)?.name
+
+  useEffect(() => {
+    if (!selected || open || disabled) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !event.defaultPrevented) onToolChange('none')
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [selected, open, disabled, onToolChange])
+
   return (
-    <>
-      <AnnotationToolButton
-        tool="highlight"
-        activeTool={annotationTool}
+    <ButtonGroup
+      aria-label="Highlight controls"
+      className={cn(
+        'rounded-md transition-colors [&>button:hover]:bg-transparent [&>button:hover]:text-inherit dark:[&>button:hover]:bg-transparent',
+        selected
+          ? 'bg-secondary text-secondary-foreground'
+          : !disabled && 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
+        open && !disabled && !selected && 'bg-accent text-accent-foreground dark:bg-accent/50'
+      )}
+    >
+      <ToolbarButton
         label="Highlight text"
         tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text'}
-        icon={Highlighter}
+        variant="ghost"
+        pressed={selected}
         disabled={disabled}
-        onChange={onToolChange}
-      />
-      <Popover>
+        onClick={() => onToolChange(selected ? 'none' : 'highlight')}
+      >
+        <Highlighter
+          className="[&_path:first-child]:fill-(--highlight-color)"
+          style={{ '--highlight-color': highlightColor } as CSSProperties}
+        />
+      </ToolbarButton>
+      <Popover open={open && !disabled} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" disabled={disabled} className="gap-1.5 px-2">
-            <span
-              className="size-4 rounded-full border border-black/10"
-              style={{ backgroundColor: highlightColor }}
-            />
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            aria-label={`Highlight color: ${colorName ?? highlightColor}`}
+            className="w-5 px-0 has-[>svg]:px-0"
+          >
             <ChevronDown className="size-3" />
           </Button>
         </PopoverTrigger>
@@ -49,7 +80,12 @@ export function HighlightControls({
                 key={color.value}
                 type="button"
                 aria-label={color.name}
-                onClick={() => onColorChange(color.value)}
+                aria-pressed={highlightColor === color.value}
+                onClick={() => {
+                  onColorChange(color.value)
+                  onToolChange('highlight')
+                  setOpen(false)
+                }}
                 className="relative grid size-8 place-items-center rounded-md hover:bg-muted"
               >
                 <span
@@ -64,6 +100,6 @@ export function HighlightControls({
           </div>
         </PopoverContent>
       </Popover>
-    </>
+    </ButtonGroup>
   )
 }

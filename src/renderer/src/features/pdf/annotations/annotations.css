@@ -1,7 +1,6 @@
-.pdf-viewer-container .annotationEditorLayer :is(.stampEditor, .freeTextEditor) .editToolbar {
+.pdf-viewer-container
+  .annotationEditorLayer
+  :is(.stampEditor, .freeTextEditor, .highlightEditor)
+  .editToolbar {
   display: none;
-}
-
-.pdf-viewer-container .editToolbar .buttons .basic {
-  display: flex;
 }

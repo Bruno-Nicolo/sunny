@@ -70,7 +70,9 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       initialView: {
         page: initial.initialPage,
         scale: initial.initialScale,
-        scrollTop: initial.initialScrollTop
+        scrollTop: initial.initialScrollTop,
+        rotation: initial.initialRotation,
+        twoPageView: initial.initialTwoPageView
       },
       annotationOptions: initial,
       onSnapshot: (snapshot) => {
@@ -119,6 +121,8 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       setScale: (scale) => controllerRef.current?.setScale(scale),
       zoomIn: () => controllerRef.current?.zoomIn(),
       zoomOut: () => controllerRef.current?.zoomOut(),
+      rotateClockwise: () => controllerRef.current?.rotateClockwise(),
+      toggleTwoPageView: () => controllerRef.current?.toggleTwoPageView(),
       navigateHorizontally: (direction) => controllerRef.current?.navigateHorizontally(direction),
       async addImage(file) {
         if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')

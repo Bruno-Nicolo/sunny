@@ -34,6 +34,9 @@ for (const filePath of paths) await fs.writeFile(filePath, bytes)
 ipcMain.handle('pdf:read', (_, filePath) => readPdf(filePath))
 ipcMain.handle('pdf:stat', (_, filePath) => statPdf(filePath))
 ipcMain.handle('pdf:close', () => {})
+ipcMain.handle('draft:load', () => [])
+ipcMain.handle('draft:save', () => {})
+ipcMain.handle('draft:delete', () => {})
 ipcMain.handle('session:save', () => {})
 ipcMain.handle('session:load', () => ({
   tabs: paths.map((filePath) => ({ path: filePath, page: 1, scale: 'page-fit', scrollTop: 0 })),

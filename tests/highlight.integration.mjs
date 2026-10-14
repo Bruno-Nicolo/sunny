@@ -1,5 +1,5 @@
 import electron from 'electron'
-import { blankPdf } from './fixtures/pdf.mjs'
+import { textPdf } from './fixtures/pdf.mjs'
 const { app, BrowserWindow, ipcMain } = electron
 import fs from 'node:fs'
 import path from 'node:path'
@@ -8,7 +8,7 @@ import os from 'node:os'
 const root = path.resolve(import.meta.dirname, '..')
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lepis-highlight-'))
 app.setPath('userData', temp)
-const pdf = Buffer.from(blankPdf)
+const pdf = Buffer.from(textPdf)
 const saved = new Map()
 ipcMain.handle('test:read', (_, name) => ({
   path: name,
@@ -30,7 +30,7 @@ const handlers = new Map()
 contextBridge.exposeInMainWorld('lepis', {
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
-  loadSession: async () => ({ tabs: [{path:'first.pdf',page:1,scale:'page-fit',scrollTop:0},{path:'second.pdf',page:1,scale:'page-fit',scrollTop:0}], activePath:'second.pdf', highlightColor:'#FDE047', theme:'light' }),
+  loadSession: async () => ({ tabs: [{path:'second.pdf',page:1,scale:'page-fit',scrollTop:0}], activePath:'second.pdf', highlightColor:'#FDE047', theme:'light' }),
   readPdf: path => ipcRenderer.invoke('test:read', path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),
   statPdf: async () => ({mtimeMs:1,size:1}), saveSession: async () => {},
@@ -42,12 +42,36 @@ contextBridge.exposeInMainWorld('testCommands', {run: name => handlers.get(name)
 let win
 const evaluate = (code) => win.webContents.executeJavaScript(code)
 async function waitFor(code) {
+  const check = typeof code === 'function' ? code : () => evaluate(code)
   const start = Date.now()
-  while (!(await evaluate(code))) {
+  while (!(await check())) {
     if (Date.now() - start > 15000) throw new Error(`Timed out: ${code}`)
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
 }
+async function chooseColor(current, next) {
+  await evaluate(`document.querySelector('[aria-label="Highlight color: ${current}"]').click()`)
+  await waitFor(`document.querySelector('[aria-label="${next}"]') !== null`)
+  await evaluate(`document.querySelector('[aria-label="${next}"]').click()`)
+  await waitFor(
+    `document.querySelector('[aria-label="Highlight color: ${next}"]') !== null && !document.querySelector('[aria-label="${next}"]')`
+  )
+}
+
+async function highlightText(text, count) {
+  await evaluate(`(() => {
+    const span = [...document.querySelectorAll('.visible .textLayer span')].find(s => s.textContent === ${JSON.stringify(text)});
+    const range = document.createRange(); range.selectNodeContents(span);
+    window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+  })()`)
+  await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === ${count}`)
+}
+
+function pressKey(keyCode) {
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode })
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode })
+}
+
 app
   .whenReady()
   .then(async () => {
@@ -58,69 +82,138 @@ app
       webPreferences: { preload, sandbox: true, contextIsolation: true }
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
+    await evaluate(`(() => {
+      window.annotationErrors = [];
+      window.addEventListener('error', event => window.annotationErrors.push(event.message));
+      window.addEventListener('unhandledrejection', event => window.annotationErrors.push(String(event.reason)));
+    })()`)
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
     )
+    await chooseColor('Yellow', 'Pink')
+    await waitFor(
+      `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[aria-label="Highlight color: Pink"]') !== null && !document.querySelector('[aria-label="Pink"]')`
+    )
+    assert.equal(
+      await evaluate(
+        `getComputedStyle(document.querySelector('[aria-label="Highlight text"] svg path')).fill`
+      ),
+      'rgb(249, 168, 212)',
+      'The highlighter tip must display the selected color'
+    )
+    await evaluate(`document.querySelector('[aria-label="Highlight color: Pink"]').click()`)
+    await waitFor(`document.querySelector('[aria-label="Yellow"]') !== null`)
+    pressKey('Escape')
+    await waitFor(`!document.querySelector('[aria-label="Yellow"]')`)
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed')`
+      ),
+      'true',
+      'Escape in the palette must close it without deactivating the tool'
+    )
+    pressKey('Escape')
+    await waitFor(
+      `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'false'`
+    )
     await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    await waitFor(
+      `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true'`
+    )
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    await waitFor(
+      `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'false'`
+    )
+    console.log(
+      'PASS: split highlight control selects colors, updates its tip, toggles, and handles Escape'
+    )
+    await chooseColor('Pink', 'Yellow')
     await waitFor(
       `document.querySelector('.visible .annotationEditorLayer.highlightEditing') !== null`
     )
-    const { x, y } = await evaluate(
-      `(() => { const rect = document.querySelector('.visible .textLayer').getBoundingClientRect(); return {x: Math.round(rect.left+100),y: Math.round(rect.top+100)} })()`
+    await waitFor(`document.querySelector('.visible .textLayer span') !== null`)
+    await highlightText('First highlight', 1)
+    await waitFor(`document.querySelector('.visible .highlightEditor.selectedEditor') !== null`)
+    await evaluate(`document.querySelector('[aria-label="Highlight color: Yellow"]').click()`)
+    await waitFor(`document.querySelector('[aria-label="Green"]') !== null`)
+    assert.equal(
+      await evaluate(`document.querySelector('.visible .highlightEditor.selectedEditor') !== null`),
+      true
     )
-    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x, y, clickCount: 1 })
-    for (let i = 1; i <= 10; i++)
-      win.webContents.sendInputEvent({ type: 'mouseMove', x: x + i * 8, y })
-    win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x: x + 80, y, clickCount: 1 })
-    await waitFor(
-      `document.querySelector('.visible .highlightEditor .editToolbar:not(.hidden) .deleteButton') !== null`
+    await evaluate(`document.querySelector('[aria-label="Green"]').click()`)
+    assert.deepEqual(
+      await evaluate('window.annotationErrors'),
+      [],
+      'Creating and recoloring a highlight must not throw or interrupt annotation editing'
     )
-    const geometry = await evaluate(`(() => {
-    const toolbar = document.querySelector('.visible .highlightEditor .editToolbar:not(.hidden)');
-    const button = toolbar.querySelector('.deleteButton');
-    const icon = getComputedStyle(button,'::before');
-    const rect = element => {const {x,y,width,height} = element.getBoundingClientRect(); return {x,y,width,height}};
-    return {toolbar:rect(toolbar),button:rect(button),icon:{display:icon.display,height:icon.height,top:icon.top,position:icon.position}};
-  })()`)
-    // Measure the pseudo-element itself: the button can fit while its icon overflows.
-    win.webContents.debugger.attach('1.3')
-    const { root: dom } = await win.webContents.debugger.sendCommand('DOM.getDocument', {
-      depth: -1,
-      pierce: true
-    })
-    const findIcon = (node) => {
-      if (node.attributes?.includes('basic deleteButton'))
-        return node.pseudoElements?.find((pseudo) => pseudo.pseudoType === 'before')
-      for (const child of node.children ?? []) {
-        const found = findIcon(child)
-        if (found) return found
-      }
+    await waitFor(`document.querySelector('[aria-label="Highlight color: Green"]') !== null`)
+    await waitFor(`document.querySelector('.visible .highlightEditor .editToolbar') !== null`)
+    assert.equal(
+      await evaluate(
+        `document.querySelector('.visible .highlightEditor .editToolbar').checkVisibility()`
+      ),
+      false,
+      'Selected highlights must not show a local toolbar'
+    )
+    await highlightText('Second highlight', 2)
+    await evaluate(`void window.testCommands.run('save')`)
+    await waitFor(() => saved.has('second.pdf'))
+    const colors = [
+      ...saved
+        .get('second.pdf')
+        .toString('latin1')
+        .matchAll(/\/C\s*\[([^\]]+)\]/g)
+    ].map((match) => match[1].trim().split(/\s+/).map(Number))
+    assert.equal(colors.length, 2, 'Both highlights must be saved')
+    for (const color of colors) {
+      assert.ok(
+        color.every(
+          (value, index) => Math.abs(value - [134 / 255, 239 / 255, 172 / 255][index]) < 0.001
+        ),
+        `Selected and new highlights must both be green, got ${color}`
+      )
     }
-    const iconNode = findIcon(dom)
-    const { model } = await win.webContents.debugger.sendCommand('DOM.getBoxModel', {
-      backendNodeId: iconNode.backendNodeId
-    })
-    win.webContents.debugger.detach()
-    assert.ok(
-      Math.min(model.border[1], model.border[3], model.border[5], model.border[7]) >=
-        geometry.toolbar.y &&
-        Math.max(model.border[1], model.border[3], model.border[5], model.border[7]) <=
-          geometry.toolbar.y + geometry.toolbar.height,
-      'Delete icon must be drawn inside the highlight toolbar'
+    console.log('PASS: recoloring yellow to green also sets green for the next highlight')
+    win.focus()
+    await evaluate(`document.querySelector('.visible .highlightEditor.selectedEditor').focus()`)
+    await waitFor(`document.hasFocus() && document.activeElement.matches('.highlightEditor')`)
+    pressKey('Backspace')
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 1`)
+    await evaluate(`void window.testCommands.run('undo')`)
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 2`)
+    await evaluate(`document.querySelector('.visible .highlightEditor.selectedEditor').focus()`)
+    pressKey('Delete')
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 1`)
+    console.log('PASS: highlights have no local toolbar and support Backspace, Delete, and undo')
+    await evaluate(`document.querySelector('[aria-label="Add text"]').click()`)
+    await waitFor(
+      `document.querySelector('.visible .annotationEditorLayer.freetextEditing') !== null`
     )
-    assert.ok(
-      geometry.button.y >= geometry.toolbar.y &&
-        geometry.button.y + geometry.button.height <= geometry.toolbar.y + geometry.toolbar.height,
-      'Delete button must remain inside highlight toolbar'
+    const point = await evaluate(`(() => {
+      const rect = document.querySelector('.visible .annotationEditorLayer').getBoundingClientRect();
+      return {x: Math.round(rect.left + 100), y: Math.round(rect.top + 200)};
+    })()`)
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...point })
+    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...point, clickCount: 1 })
+    win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', ...point, clickCount: 1 })
+    await waitFor(
+      `document.querySelector('.visible .freeTextEditor .internal[contenteditable="true"]') !== null`
     )
-    assert.ok(
-      parseFloat(geometry.icon.height) <= geometry.button.height,
-      'Delete icon must fit inside its button'
+    await evaluate(`(() => {
+      const text = document.querySelector('.visible .freeTextEditor .internal');
+      text.innerText = 'Text after recoloring a highlight';
+      text.dispatchEvent(new InputEvent('input', {bubbles:true, inputType:'insertText'}));
+    })()`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await evaluate(`void window.testCommands.run('save')`)
+    await waitFor(() =>
+      saved.get('second.pdf')?.toString('latin1').includes('Text after recoloring a highlight')
     )
-    console.log('PASS: highlight delete button and icon remain inside toolbar')
-    await evaluate(`document.querySelector('.visible .highlightEditor .deleteButton').click()`)
-    await waitFor(`document.querySelector('.visible .highlightEditor') === null`)
-    console.log('PASS: toolbar delete button removes the highlight')
+    assert.match(saved.get('second.pdf').toString('latin1'), /Text after recoloring a highlight/)
+    assert.deepEqual(await evaluate('window.annotationErrors'), [])
+    console.log(
+      'PASS: text can be created and saved after recoloring a highlight without renderer errors'
+    )
   })
   .then(() => finish(0))
   .catch((error) => {

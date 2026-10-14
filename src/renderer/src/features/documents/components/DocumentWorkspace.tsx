@@ -60,6 +60,8 @@ export function DocumentWorkspace({
             initialPage={tab.view.page}
             initialScale={tab.view.scale}
             initialScrollTop={tab.view.scrollTop}
+            initialRotation={tab.view.rotation}
+            initialTwoPageView={tab.view.twoPageView}
             annotationTool={annotationTool}
             highlightColor={highlightColor}
             active={tab.id === activeId}

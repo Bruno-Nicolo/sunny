@@ -16,6 +16,7 @@
     "test:documents": "pnpm build && electron tests/documents.integration.mjs",
     "test:sidebar": "pnpm build && electron tests/sidebar.integration.mjs",
     "test:search": "pnpm build && electron tests/search.integration.mjs",
+    "test:view-layout": "pnpm build && electron tests/view-layout.integration.mjs",
     "test:zoom": "pnpm build && electron tests/zoom.integration.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",

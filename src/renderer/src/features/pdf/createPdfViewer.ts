@@ -11,10 +11,11 @@ import {
   FindState,
   PDFFindController,
   PDFLinkService,
-  PDFViewer
+  PDFViewer,
+  SpreadMode
 } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
-import { pdfHighlightColors } from './annotations/highlight/highlightEditor'
 import { createAnnotationController } from './annotations/createAnnotationController'
+import { pdfHighlightColors } from './annotations/highlight/highlightEditor'
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 import { containsDigitalSignature } from './signatures'
@@ -86,7 +87,6 @@ export function createPdfViewer({
     annotationEditorHighlightColors: pdfHighlightColors,
     enablePermissions: true,
     supportsPinchToZoom: true,
-    removePageBorders: true,
     // @ts-expect-error PDF.js uses abortSignal to release observers, but its declaration omits it.
     abortSignal: lifetime.signal
   })
@@ -134,7 +134,13 @@ export function createPdfViewer({
   }
 
   const emitSnapshot = (changes: Partial<ViewerSnapshot>): void => {
-    if (destroyed) return
+    if (
+      destroyed ||
+      Object.entries(changes).every(
+        ([key, value]) => snapshot[key as keyof ViewerSnapshot] === value
+      )
+    )
+      return
     snapshot = { ...snapshot, ...changes }
     onSnapshot(snapshot)
   }
@@ -171,9 +177,12 @@ export function createPdfViewer({
   eventBus.on(
     'pagesinit',
     () => {
+      viewer.pagesRotation = initialView.rotation
+      viewer.spreadMode = initialView.twoPageView ? SpreadMode.ODD : SpreadMode.NONE
       viewer.currentPageNumber = Math.max(1, Math.min(initialView.page, viewer.pagesCount))
       viewer.currentScaleValue = initialView.scale || 'page-fit'
       scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = null
         container.scrollTop = initialView.scrollTop
       })
       emitSnapshot({
@@ -202,7 +211,23 @@ export function createPdfViewer({
     },
     { signal: lifetime.signal }
   )
-  const handleScroll = (): void => emitSnapshot({ scrollTop: container.scrollTop })
+  eventBus.on(
+    'rotationchanging',
+    ({ pagesRotation }: { pagesRotation: number }) => emitSnapshot({ rotation: pagesRotation }),
+    { signal: lifetime.signal }
+  )
+  eventBus.on(
+    'spreadmodechanged',
+    ({ mode }: { mode: number }) => emitSnapshot({ twoPageView: mode === SpreadMode.ODD }),
+    { signal: lifetime.signal }
+  )
+  const handleScroll = (): void => {
+    if (scrollFrame !== null) return
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = null
+      emitSnapshot({ scrollTop: container.scrollTop })
+    })
+  }
   container.addEventListener('scroll', handleScroll, { passive: true, signal: lifetime.signal })
   let containerSize = container.getBoundingClientRect()
   const resizeObserver = new ResizeObserver(() => {
@@ -309,6 +334,16 @@ export function createPdfViewer({
     },
     zoomOut() {
       if (!destroyed) viewer.decreaseScale()
+    },
+    rotateClockwise() {
+      if (destroyed || loading) return
+      annotations.commit()
+      viewer.pagesRotation = (viewer.pagesRotation + 90) % 360
+    },
+    toggleTwoPageView() {
+      if (destroyed || loading) return
+      annotations.commit()
+      viewer.spreadMode = viewer.spreadMode === SpreadMode.NONE ? SpreadMode.ODD : SpreadMode.NONE
     },
     navigateHorizontally(direction) {
       if (destroyed || !viewer.pagesCount) return

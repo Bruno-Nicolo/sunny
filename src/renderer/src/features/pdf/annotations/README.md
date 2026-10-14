@@ -20,8 +20,8 @@ The tool directories own their behavior and presentation:
 - `images/`: file validation, image insertion, file input, clipboard, and drop routing.
 - `text/`: editor selection, formatting, dirty tracking, focus handling, settings menu, and styles.
 
-`AnnotationToolbar.tsx` composes these controls. `AnnotationToolButton.tsx` shares toggle behavior,
-accessibility attributes and tooltips. The document toolbar handles page and zoom controls;
+`AnnotationToolbar.tsx` composes these controls. `ToolbarButton.tsx` shares accessibility attributes,
+toggle styling, and tooltips with the view controls. The document toolbar handles page and zoom controls;
 `App.tsx` owns preferences and passes active-document access to `useImageInsertion`.
 
 ## Adding a tool

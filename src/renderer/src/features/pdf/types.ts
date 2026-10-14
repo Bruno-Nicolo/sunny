@@ -6,11 +6,16 @@ export type ViewerSnapshot = {
   scale: string
   zoomPercent: number
   scrollTop: number
+  rotation: number
+  twoPageView: boolean
   canAnnotate: boolean
   signed: boolean
 }
 
-export type PdfViewPosition = Pick<ViewerSnapshot, 'page' | 'scale' | 'scrollTop'>
+export type PdfViewPosition = Pick<
+  ViewerSnapshot,
+  'page' | 'scale' | 'scrollTop' | 'rotation' | 'twoPageView'
+>
 
 export type PdfSnapshot = { hash: string; data: Uint8Array }
 
@@ -22,6 +27,8 @@ export type PdfDocumentHandle = {
   setScale(scale: string): void
   zoomIn(): void
   zoomOut(): void
+  rotateClockwise(): void
+  toggleTwoPageView(): void
   navigateHorizontally(direction: -1 | 1): void
   addImage(file: File): Promise<void>
   undo(): void
@@ -45,6 +52,8 @@ export type PdfDocumentViewProps = AnnotationOptions & {
   initialPage: number
   initialScale: string
   initialScrollTop: number
+  initialRotation: number
+  initialTwoPageView: boolean
   onDirtyChange(dirty: boolean): void
   onSnapshot(snapshot: ViewerSnapshot): void
   onError(message: string): void
