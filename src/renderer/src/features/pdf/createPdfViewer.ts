@@ -94,6 +94,20 @@ export function createPdfViewer({
   let document: PDFDocumentProxy | null = null
   let destroyed = false
   let loading = true
+  // Chromium reports trackpad pinches as wheel events with ctrlKey set.
+  container.addEventListener(
+    'wheel',
+    (event) => {
+      if (!event.ctrlKey) return
+      event.preventDefault()
+      viewer.updateScale({
+        scaleFactor: Math.exp(-event.deltaY / 100),
+        origin: [event.clientX, event.clientY],
+        drawingDelay: 100
+      })
+    },
+    { passive: false, signal: lifetime.signal }
+  )
   let scrollFrame: number | null = null
   let destinationRequest = 0
   let snapshot: ViewerSnapshot = {
