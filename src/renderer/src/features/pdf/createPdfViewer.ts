@@ -345,6 +345,10 @@ export function createPdfViewer({
       annotations.commit()
       viewer.spreadMode = viewer.spreadMode === SpreadMode.NONE ? SpreadMode.ODD : SpreadMode.NONE
     },
+    scrollVertically(direction) {
+      if (destroyed || !viewer.pagesCount) return
+      container.scrollBy({ top: direction * 40, behavior: 'smooth' })
+    },
     navigateHorizontally(direction) {
       if (destroyed || !viewer.pagesCount) return
       if (container.scrollWidth > container.clientWidth) {

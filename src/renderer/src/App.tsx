@@ -167,7 +167,9 @@ function App(): React.JSX.Element {
       'previous-page': () => turnPage(-1),
       'next-page': () => turnPage(1),
       'navigate-left': () => withViewer((viewer) => viewer.navigateHorizontally(-1)),
-      'navigate-right': () => withViewer((viewer) => viewer.navigateHorizontally(1))
+      'navigate-right': () => withViewer((viewer) => viewer.navigateHorizontally(1)),
+      'navigate-up': () => withViewer((viewer) => viewer.scrollVertically(-1)),
+      'navigate-down': () => withViewer((viewer) => viewer.scrollVertically(1))
     }
   }, [activeId, activeTab, closeTab, getActiveViewer, openDialog, saveTab, selectTab, tabs])
 

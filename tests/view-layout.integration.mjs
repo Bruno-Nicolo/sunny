@@ -47,8 +47,8 @@ contextBridge.exposeInMainWorld('lepis', {
 )
 let win
 const evaluate = (code) => win.webContents.executeJavaScript(code)
-async function waitFor(code) {
-  const deadline = Date.now() + 15000
+async function waitFor(code, timeout = 15000) {
+  const deadline = Date.now() + timeout
   while (!(await evaluate(code))) {
     if (Date.now() > deadline) throw new Error(`Timed out: ${code}`)
     await new Promise((resolve) => setTimeout(resolve, 50))
@@ -71,6 +71,46 @@ app
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
     await waitFor(`document.querySelector('.visible .pdfViewer .page canvas')?.width > 0`)
+    for (const selector of [
+      '[aria-label="Toggle PDF sidebar"]',
+      '[aria-label="layout.pdf"]',
+      '.visible .pdf-viewer-container'
+    ]) {
+      await evaluate(`document.querySelector('${selector}').focus()`)
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Down' })
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Down' })
+      await waitFor(`document.querySelector('.visible .pdf-viewer-container').scrollTop > 0`, 1500)
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      assert.equal(
+        await evaluate(`document.activeElement === document.querySelector('${selector}')`),
+        true,
+        'Scrolling must preserve keyboard focus'
+      )
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Up' })
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Up' })
+      await waitFor(
+        `document.querySelector('.visible .pdf-viewer-container').scrollTop === 0`,
+        1500
+      )
+    }
+    assert.equal(
+      await evaluate(`document.querySelector('.invisible .pdf-viewer-container')?.scrollTop ?? 0`),
+      0,
+      'Scrolling must only affect the active PDF'
+    )
+    for (const key of ['ArrowUp', 'ArrowDown']) {
+      assert.equal(
+        await evaluate(`(() => {
+          const input = document.querySelector('[aria-label="Current page"]')
+          input.focus()
+          const event = new KeyboardEvent('keydown', { key: '${key}', bubbles: true, cancelable: true })
+          input.dispatchEvent(event)
+          return event.defaultPrevented
+        })()`),
+        false,
+        'Arrow keys must retain their normal behavior in text inputs'
+      )
+    }
     assert.equal(await orientation(), 'portrait')
     assert.equal(
       await evaluate(
@@ -145,7 +185,7 @@ app
     )
 
     console.log(
-      'PASS: rotation, paired pages, odd final page, fit scale, toggling, and tab isolation'
+      'PASS: vertical scrolling without viewer focus, input guards, rotation, paired pages, fit scale, and tab isolation'
     )
   })
   .then(() => finish(0))

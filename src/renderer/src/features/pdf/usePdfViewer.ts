@@ -128,6 +128,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       rotateClockwise: () => controllerRef.current?.rotateClockwise(),
       toggleTwoPageView: () => controllerRef.current?.toggleTwoPageView(),
       navigateHorizontally: (direction) => controllerRef.current?.navigateHorizontally(direction),
+      scrollVertically: (direction) => controllerRef.current?.scrollVertically(direction),
       async addImage(file) {
         if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')
         await controllerRef.current.addImage(file)

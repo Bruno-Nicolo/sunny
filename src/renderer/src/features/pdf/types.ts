@@ -31,6 +31,7 @@ export type PdfDocumentHandle = {
   rotateClockwise(): void
   toggleTwoPageView(): void
   navigateHorizontally(direction: -1 | 1): void
+  scrollVertically(direction: -1 | 1): void
   addImage(file: File): Promise<void>
   undo(): void
   redo(): void

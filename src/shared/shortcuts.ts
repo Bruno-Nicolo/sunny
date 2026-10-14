@@ -68,7 +68,9 @@ export const shortcuts = [
   { id: 'previous-page', label: 'Previous Page' },
   { id: 'next-page', label: 'Next Page' },
   { id: 'navigate-left', label: 'Navigate Left', keys: [{ key: 'ArrowLeft' }] },
-  { id: 'navigate-right', label: 'Navigate Right', keys: [{ key: 'ArrowRight' }] }
+  { id: 'navigate-right', label: 'Navigate Right', keys: [{ key: 'ArrowRight' }] },
+  { id: 'navigate-up', label: 'Navigate Up', keys: [{ key: 'ArrowUp' }] },
+  { id: 'navigate-down', label: 'Navigate Down', keys: [{ key: 'ArrowDown' }] }
 ] as const satisfies readonly Shortcut[]
 
 export type ShortcutCommand = (typeof shortcuts)[number]['id']

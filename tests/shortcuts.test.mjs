@@ -47,10 +47,12 @@ test('zoom accepts plus and equals with the platform command key', () => {
   }
 })
 
-test('horizontal navigation accepts only unmodified left and right arrows', () => {
+test('navigation accepts only unmodified arrow keys', () => {
   for (const [id, key] of [
     ['navigate-left', 'ArrowLeft'],
-    ['navigate-right', 'ArrowRight']
+    ['navigate-right', 'ArrowRight'],
+    ['navigate-up', 'ArrowUp'],
+    ['navigate-down', 'ArrowDown']
   ]) {
     assert.equal(matches(id, key), true)
     for (const modifier of ['ctrlKey', 'metaKey', 'shiftKey', 'altKey']) {
