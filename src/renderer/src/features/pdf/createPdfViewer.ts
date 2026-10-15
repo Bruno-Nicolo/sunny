@@ -19,6 +19,7 @@ import { pdfHighlightColors } from './annotations/highlight/highlightEditor'
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 import { containsDigitalSignature } from './signatures'
+import { createKeyboardScroll } from './keyboardScroll'
 import type {
   PasswordRequest,
   PdfDocumentHandle,
@@ -74,6 +75,7 @@ export function createPdfViewer({
   onSearchChange
 }: Options): PdfViewerController {
   const lifetime = new AbortController()
+  const scrollKeyboard = createKeyboardScroll(container, lifetime.signal)
   const eventBus = new EventBus()
   const linkService = new PDFLinkService({ eventBus })
   const findController = new PDFFindController({ linkService, eventBus })
@@ -347,12 +349,12 @@ export function createPdfViewer({
     },
     scrollVertically(direction) {
       if (destroyed || !viewer.pagesCount) return
-      container.scrollBy({ top: direction * 40, behavior: 'smooth' })
+      scrollKeyboard(0, direction * 40)
     },
     navigateHorizontally(direction) {
       if (destroyed || !viewer.pagesCount) return
       if (container.scrollWidth > container.clientWidth) {
-        container.scrollBy({ left: direction * 40, behavior: 'smooth' })
+        scrollKeyboard(direction * 40, 0)
       } else {
         viewer.currentPageNumber = Math.min(
           viewer.pagesCount,
