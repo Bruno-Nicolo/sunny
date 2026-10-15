@@ -4,7 +4,7 @@ import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
 import type { ShortcutHandlers } from '../../shared/shortcuts'
 import type { SessionState } from '../../shared/contracts'
-import type { PdfDocumentHandle } from '@/features/pdf/types'
+import type { PdfDocumentHandle, PdfDocumentViewProps } from '@/features/pdf/types'
 import type { DocumentsState } from '@/features/documents/documentsReducer'
 import { useDocuments } from '@/features/documents/useDocuments'
 import { persistDocumentSession, useDocumentSession } from '@/features/session/useDocumentSession'
@@ -24,6 +24,7 @@ function App(): React.JSX.Element {
     settings: TextEditorSettings | null
   } | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarTab, setSidebarTab] = useState<PdfDocumentViewProps['sidebarTab']>('pages')
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
   const [theme, setTheme] = useState<SessionState['theme']>('system')
   const [message, setMessage] = useState<string | null>(null)
@@ -237,6 +238,8 @@ function App(): React.JSX.Element {
         activeId={activeId}
         ready={ready}
         sidebarOpen={sidebarOpen}
+        sidebarTab={sidebarTab}
+        onSidebarTabChange={setSidebarTab}
         annotationTool={annotationTool}
         highlightColor={highlightColor}
         onOpen={() => void openDialog()}

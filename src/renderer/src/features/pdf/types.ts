@@ -50,6 +50,8 @@ export type PdfSearchOptions = {
 
 export type PdfDocumentViewProps = AnnotationOptions & {
   sidebarOpen: boolean
+  sidebarTab: 'pages' | 'outline'
+  onSidebarTabChange(tab: 'pages' | 'outline'): void
   data: ArrayBuffer
   initialPage: number
   initialScale: string

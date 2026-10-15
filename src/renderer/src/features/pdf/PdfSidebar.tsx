@@ -5,10 +5,13 @@ import { Collapsible } from 'radix-ui'
 import { Sidebar, SidebarContent } from '@/components/ui/sidebar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import type { PdfDocumentViewProps } from './types'
 
 type Outline = NonNullable<Awaited<ReturnType<PDFDocumentProxy['getOutline']>>>
 type Props = {
   document: PDFDocumentProxy
+  tab: PdfDocumentViewProps['sidebarTab']
+  onTabChange: PdfDocumentViewProps['onSidebarTabChange']
   page: number
   active: boolean
   onPage(page: number): void
@@ -193,6 +196,8 @@ function OutlineItems({
 
 export function PdfSidebar({
   document,
+  tab,
+  onTabChange,
   page,
   active,
   onPage,
@@ -223,7 +228,13 @@ export function PdfSidebar({
       aria-label="PDF navigation"
     >
       <SidebarContent className="min-h-0 overflow-hidden">
-        <Tabs defaultValue="pages" className="h-full min-h-0 gap-0">
+        <Tabs
+          value={tab}
+          onValueChange={(value) => {
+            if (value === 'pages' || value === 'outline') onTabChange(value)
+          }}
+          className="h-full min-h-0 gap-0"
+        >
           <TabsList className="mx-3 my-3 w-auto shrink-0" aria-label="PDF navigation views">
             <TabsTrigger value="pages">Pages</TabsTrigger>
             <TabsTrigger value="outline">Outline</TabsTrigger>

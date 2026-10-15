@@ -3,7 +3,7 @@ import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import { Button } from '@/components/ui/button'
 import { PdfDocumentView } from '@/features/pdf/PdfDocumentView'
-import type { PdfDocumentHandle, ViewerSnapshot } from '@/features/pdf/types'
+import type { PdfDocumentHandle, PdfDocumentViewProps, ViewerSnapshot } from '@/features/pdf/types'
 import { cn } from '@/lib/utils'
 import type { Tab } from '../types'
 
@@ -12,6 +12,8 @@ type Props = {
   activeId: string | null
   ready: boolean
   sidebarOpen: boolean
+  sidebarTab: PdfDocumentViewProps['sidebarTab']
+  onSidebarTabChange: PdfDocumentViewProps['onSidebarTabChange']
   annotationTool: AnnotationTool
   highlightColor: string
   onOpen(): void
@@ -27,6 +29,8 @@ export function DocumentWorkspace({
   activeId,
   ready,
   sidebarOpen,
+  sidebarTab,
+  onSidebarTabChange,
   annotationTool,
   highlightColor,
   onOpen,
@@ -69,6 +73,8 @@ export function DocumentWorkspace({
             highlightColor={highlightColor}
             active={tab.id === activeId}
             sidebarOpen={sidebarOpen}
+            sidebarTab={sidebarTab}
+            onSidebarTabChange={onSidebarTabChange}
             onDirtyChange={(dirty) => onDirtyChange(tab.id, dirty)}
             onSnapshot={(view) => onSnapshot(tab.id, view)}
             onError={(error) => onError(tab.id, error)}
