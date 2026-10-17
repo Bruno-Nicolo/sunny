@@ -45,14 +45,14 @@ export function useDocumentSession({
     const restore = async (): Promise<void> => {
       try {
         const session = await window.lepis.loadSession()
-        const restored: Tab[] = []
-        for (const saved of session.tabs) {
-          try {
-            restored.push(createTab(await window.lepis.readPdf(saved.path), saved))
-          } catch {
-            // Missing documents are omitted when restoring the session.
-          }
-        }
+        const results = await Promise.allSettled(
+          session.tabs.map(async (saved) =>
+            createTab(await window.lepis.readPdf(saved.path), saved)
+          )
+        )
+        const restored = results.flatMap((result) =>
+          result.status === 'fulfilled' ? [result.value] : []
+        )
         if (cancelled) return
         restorePreferences(session)
         restoreSession(restored, session.activePath)

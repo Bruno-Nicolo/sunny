@@ -5,7 +5,6 @@ import './annotations/annotations.css'
 import { PasswordDialog } from './PasswordDialog'
 import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
-import './annotations/text/text.css'
 import { PdfSidebar } from './PdfSidebar'
 import { PdfSearchInput } from './PdfSearchInput'
 
@@ -22,6 +21,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
       searchRequest,
       search,
       closeSearch,
+      releasePageResources,
       navigateToDestination,
       passwordRequest,
       submitPassword
@@ -29,12 +29,15 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
     useImperativeHandle(ref, () => handle, [handle])
     return (
       <SidebarProvider open={props.sidebarOpen} className="relative h-full min-h-0 flex-col">
-        {loading && (
+        {loading && props.active && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-background text-sm text-muted-foreground">
             Opening document…
           </div>
         )}
         <div className="flex min-h-0 flex-1">
+          {!document && props.sidebarOpen && (
+            <div aria-hidden="true" className="h-full w-60 shrink-0 border-r bg-sidebar" />
+          )}
           {document && props.sidebarOpen && (
             <PdfSidebar
               document={document}
@@ -43,6 +46,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
               page={page}
               active={props.active}
               onPage={handle.setPage}
+              onReleasePage={releasePageResources}
               onDestination={navigateToDestination}
               onError={props.onError}
             />

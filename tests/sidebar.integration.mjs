@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -39,7 +40,7 @@ ipcMain.handle('test:read', (_, name) => {
     path: name,
     name,
     directoryName: 'test',
-    data: new Uint8Array(data).buffer,
+    source: { kind: 'memory', data: new Uint8Array(data).buffer },
     mtimeMs: 1,
     size: data.length
   }
@@ -50,6 +51,7 @@ fs.writeFileSync(
   `const { contextBridge, ipcRenderer } = require('electron')
 const commands = new Map()
 contextBridge.exposeInMainWorld('lepis', {
+  releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: async () => ({ tabs: ['empty.pdf', 'outline.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'outline.pdf', highlightColor:'#FDE047', theme:'light' }),
@@ -61,7 +63,13 @@ contextBridge.exposeInMainWorld('lepis', {
 contextBridge.exposeInMainWorld('testCommands',{run:name => commands.get(name)?.()})`
 )
 let win
-const evaluate = (code) => win.webContents.executeJavaScript(code)
+const evaluate = async (code) => {
+  try {
+    return await win.webContents.executeJavaScript(code)
+  } catch (error) {
+    throw new Error(`${error.message}\n${code}`, { cause: error })
+  }
+}
 async function waitFor(code) {
   const deadline = Date.now() + 15000
   while (!(await evaluate(code))) {
@@ -91,9 +99,15 @@ app
       show: false,
       width: 1180,
       height: 780,
-      webPreferences: { preload, sandbox: true, contextIsolation: true }
+      webPreferences: {
+        backgroundThrottling: false,
+        preload,
+        sandbox: true,
+        contextIsolation: true
+      }
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
+    await enableTestFocus(win)
     await waitFor(
       `document.querySelectorAll('.visible [aria-label^="Go to page"] canvas').length === 2 && Array.from(document.querySelectorAll('.visible [aria-label^="Go to page"] canvas')).every(canvas => canvas.width > 0)`
     )
@@ -173,11 +187,11 @@ app
       'PASS: outline branches collapse independently and the toolbar owns the single sidebar toggle'
     )
     await evaluate(
-      `Array.from(document.querySelectorAll('.visible [role="tabpanel"] button')).find(el => el.textContent === 'Chapter one').click()`
+      `Array.from(document.querySelectorAll('.visible [role="tabpanel"] button')).find(el => el.lastElementChild?.textContent === 'Chapter one').click()`
     )
     await waitFor(`document.querySelector('[aria-label="Current page"]').value === '1'`)
     await evaluate(
-      `Array.from(document.querySelectorAll('.visible [role="tabpanel"] button')).find(el => el.textContent === 'Section two').click()`
+      `Array.from(document.querySelectorAll('.visible [role="tabpanel"] button')).find(el => el.lastElementChild?.textContent === 'Section two').click()`
     )
     await waitFor(`document.querySelector('[aria-label="Current page"]').value === '2'`)
     console.log('PASS: tab panels are separate and nested outline destinations navigate correctly')

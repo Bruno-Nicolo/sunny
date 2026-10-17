@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -20,7 +21,7 @@ ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
   directoryName: 'test',
-  data: new Uint8Array(blankPdf).buffer,
+  source: { kind: 'memory', data: new Uint8Array(blankPdf).buffer },
   mtimeMs: 1,
   size: blankPdf.length
 }))
@@ -30,6 +31,7 @@ fs.writeFileSync(
   `
 const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('lepis', {
+  releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: async () => ({ tabs: ['other.pdf','layout.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'layout.pdf', highlightColor:'#FDE047', theme:'light' }),
@@ -67,9 +69,15 @@ app
       show: false,
       width: 1180,
       height: 780,
-      webPreferences: { preload, sandbox: true, contextIsolation: true }
+      webPreferences: {
+        backgroundThrottling: false,
+        preload,
+        sandbox: true,
+        contextIsolation: true
+      }
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
+    await enableTestFocus(win)
     await waitFor(`document.querySelector('.visible .pdfViewer .page canvas')?.width > 0`)
     for (const selector of [
       '[aria-label="Toggle PDF sidebar"]',
@@ -172,7 +180,9 @@ app
     assert.equal(await orientation(), 'landscape', 'Rotation must also work in two-page view')
 
     await evaluate(`document.querySelector('[aria-label="other.pdf"]').click()`)
-    await waitFor(`document.querySelectorAll('.visible .spread').length === 0`)
+    await waitFor(
+      `document.querySelector('.visible .page canvas')?.width > 0 && document.querySelectorAll('.visible .spread').length === 0`
+    )
     assert.equal(await orientation(), 'portrait', 'Other tabs must keep their own rotation')
     await evaluate(`document.querySelector('[aria-label="layout.pdf"]').click()`)
     await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)

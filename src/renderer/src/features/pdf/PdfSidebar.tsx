@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { ChevronRight } from 'lucide-react'
 import { Collapsible } from 'radix-ui'
 import { Sidebar, SidebarContent } from '@/components/ui/sidebar'
@@ -15,22 +15,29 @@ type Props = {
   page: number
   active: boolean
   onPage(page: number): void
+  onReleasePage(page: PDFPageProxy): void
   onDestination(destination: string | unknown[]): Promise<void>
   onError(message: string): void
 }
 
-function PageThumbnail({
+type ThumbnailQueue = (render: () => Promise<void>) => Promise<void>
+
+const PageThumbnail = memo(function PageThumbnail({
   document,
   number,
   selected,
   active,
-  onPage
+  onPage,
+  onReleasePage,
+  enqueue
 }: {
   document: PDFDocumentProxy
   number: number
   selected: boolean
   active: boolean
   onPage(page: number): void
+  onReleasePage(page: PDFPageProxy): void
+  enqueue: ThumbnailQueue
 }): React.JSX.Element {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -41,6 +48,10 @@ function PageThumbnail({
     const canvas = canvasRef.current
     if (!button || !canvas || !active) return
     let task: RenderTask | null = null
+    const cancel = (): void => {
+      task?.cancel()
+      task = null
+    }
     let generation = 0
     let visible = false
     const observer = new IntersectionObserver(
@@ -48,28 +59,43 @@ function PageThumbnail({
         if (entry.isIntersecting === visible) return
         visible = entry.isIntersecting
         const current = ++generation
-        task?.cancel()
-        task = null
+        cancel()
         canvas.width = canvas.height = 0
         if (!visible) return
-        void document
-          .getPage(number)
-          .then(async (pdfPage) => {
-            if (current !== generation) return
+        void enqueue(async () => {
+          if (current !== generation) return
+          await new Promise<void>((resolve) =>
+            requestIdleCallback(() => resolve(), { timeout: 100 })
+          )
+          if (current !== generation) return
+          const pdfPage = await document.getPage(number)
+          if (current !== generation) {
+            onReleasePage(pdfPage)
+            return
+          }
+          try {
             const size = pdfPage.getViewport({ scale: 1 })
             const viewport = pdfPage.getViewport({ scale: 150 / size.width })
             button.style.setProperty('--page-ratio', `${viewport.width} / ${viewport.height}`)
             const ratio = window.devicePixelRatio || 1
             canvas.width = Math.ceil(viewport.width * ratio)
             canvas.height = Math.ceil(viewport.height * ratio)
-            task = pdfPage.render({ canvas, viewport, transform: [ratio, 0, 0, ratio, 0, 0] })
-            await task.promise
-          })
-          .catch((cause: unknown) => {
-            if (current !== generation) return
-            if (cause instanceof Error && cause.name === 'RenderingCancelledException') return
-            setError(true)
-          })
+            const renderTask = pdfPage.render({
+              canvas,
+              viewport,
+              transform: [ratio, 0, 0, ratio, 0, 0]
+            })
+            task = renderTask
+            await renderTask.promise
+          } finally {
+            task = null
+            onReleasePage(pdfPage)
+          }
+        }).catch((cause: unknown) => {
+          if (current !== generation) return
+          if (cause instanceof Error && cause.name === 'RenderingCancelledException') return
+          setError(true)
+        })
       },
       { root: button.closest('[data-slot="tabs-content"]'), rootMargin: '200px' }
     )
@@ -77,10 +103,10 @@ function PageThumbnail({
     return () => {
       generation++
       observer.disconnect()
-      task?.cancel()
+      cancel()
       canvas.width = canvas.height = 0
     }
-  }, [document, number, active])
+  }, [document, number, active, onReleasePage, enqueue])
 
   useEffect(() => {
     if (selected && active) buttonRef.current?.scrollIntoView({ block: 'nearest' })
@@ -115,7 +141,7 @@ function PageThumbnail({
       <span>{number}</span>
     </button>
   )
-}
+})
 
 function OutlineItems({
   items,
@@ -201,9 +227,16 @@ export function PdfSidebar({
   page,
   active,
   onPage,
+  onReleasePage,
   onDestination,
   onError
 }: Props): React.JSX.Element {
+  const queue = useRef(Promise.resolve())
+  const enqueue = useCallback<ThumbnailQueue>((render) => {
+    const current = queue.current.then(render)
+    queue.current = current.catch(() => {})
+    return current
+  }, [])
   const [outline, setOutline] = useState<Outline | null>(null)
   const [outlineError, setOutlineError] = useState(false)
   useEffect(() => {
@@ -248,6 +281,8 @@ export function PdfSidebar({
                 selected={page === index + 1}
                 active={active}
                 onPage={onPage}
+                onReleasePage={onReleasePage}
+                enqueue={enqueue}
               />
             ))}
           </TabsContent>

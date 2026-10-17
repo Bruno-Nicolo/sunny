@@ -71,7 +71,7 @@ export function createDraftStore(userDataPath: string): DraftStore {
               mtimeMs: stored.mtimeMs,
               size: stored.size,
               savedAt: stored.savedAt,
-              data: new Uint8Array(data).buffer
+              source: { kind: 'memory', data: new Uint8Array(data).buffer }
             })
           } catch {
             // Leave unreadable drafts on disk; other documents can still be recovered.

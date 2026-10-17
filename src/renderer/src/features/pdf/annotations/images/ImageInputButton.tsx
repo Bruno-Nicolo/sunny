@@ -2,7 +2,6 @@ import { useRef } from 'react'
 import { ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { supportedImageMimeTypes } from './imageFiles'
 
 type Props = { disabled: boolean; onAddImages(files: File[]): void }
 export function ImageInputButton({ disabled, onAddImages }: Props): React.JSX.Element {
@@ -12,7 +11,7 @@ export function ImageInputButton({ disabled, onAddImages }: Props): React.JSX.El
       <input
         ref={imageInputRef}
         type="file"
-        accept={supportedImageMimeTypes.join(',')}
+        accept="image/*"
         multiple
         hidden
         aria-label="Choose images"

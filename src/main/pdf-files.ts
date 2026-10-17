@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { promises as fs } from 'fs'
 import { basename, dirname, join } from 'path'
 import type { OpenedPdf, PdfFileStats, SavePdfRequest } from '../shared/contracts'
+import { createPdfSource } from './pdf-sources'
 import { writeFileAtomically } from './atomic-write'
 
 function backupPath(userDataPath: string, tabId: string): string {
@@ -18,14 +19,24 @@ function validatePdfOutput(data: Uint8Array): void {
 }
 
 export async function readPdf(filePath: string): Promise<OpenedPdf> {
-  const [data, stats] = await Promise.all([fs.readFile(filePath), statPdf(filePath)])
-  if (!hasPdfHeader(data)) throw new Error('The selected file is not a valid PDF.')
-  return {
-    path: filePath,
-    name: basename(filePath),
-    directoryName: basename(dirname(filePath)),
-    data: new Uint8Array(data).buffer,
-    ...stats
+  const file = await fs.open(filePath, 'r')
+  try {
+    const [{ mtimeMs, size }, { buffer, bytesRead }] = await Promise.all([
+      file.stat(),
+      file.read({ buffer: Buffer.alloc(1024), length: 1024, position: 0 })
+    ])
+    if (!hasPdfHeader(buffer.subarray(0, bytesRead)))
+      throw new Error('The selected file is not a valid PDF.')
+    const stats = { mtimeMs, size }
+    return {
+      path: filePath,
+      name: basename(filePath),
+      directoryName: basename(dirname(filePath)),
+      source: await createPdfSource(filePath, stats),
+      ...stats
+    }
+  } finally {
+    await file.close()
   }
 }
 

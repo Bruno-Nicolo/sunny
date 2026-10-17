@@ -187,17 +187,20 @@ export function useDocuments(
       }
       return draftAutosave.withPaused([id], async () => {
         try {
-          const data = await viewer.saveDocument()
+          const saving = viewer.saveDocument()
+          const revision = viewer.revision
+          const data = await saving
           const stats = await window.lepis.savePdf({
             tabId: id,
             filePath: tab.path,
             data,
             expectedMtimeMs: tab.mtimeMs
           })
-          dispatch({ type: 'saved', id, stats })
-          await window.lepis.deleteDraft(tab.path)
-          showMessage('Saved')
-          return true
+          const dirty = viewer.revision !== revision
+          dispatch({ type: 'saved', id, stats, dirty })
+          if (!dirty) await window.lepis.deleteDraft(tab.path)
+          showMessage(dirty ? 'Saved. Newer changes are still unsaved.' : 'Saved')
+          return !dirty
         } catch (error) {
           if (error instanceof Error && error.message.includes('FILE_CHANGED_EXTERNALLY')) {
             setConflictId(id)
@@ -358,7 +361,8 @@ export function useDocuments(
             const stats = await window.lepis.statPdf(tab.path)
             if (cancelled) return
             const current = stateRef.current.tabs.find((candidate) => candidate.id === tab.id)
-            if (!current || current.data !== tab.data || current.mtimeMs !== tab.mtimeMs) continue
+            if (!current || current.source !== tab.source || current.mtimeMs !== tab.mtimeMs)
+              continue
             if (Math.abs(stats.mtimeMs - current.mtimeMs) <= 1) {
               if (current.unavailable) updateTab(tab.id, { unavailable: false })
               continue
@@ -371,7 +375,7 @@ export function useDocuments(
               if (
                 cancelled ||
                 !latest ||
-                latest.data !== tab.data ||
+                latest.source !== tab.source ||
                 latest.mtimeMs !== tab.mtimeMs
               )
                 continue

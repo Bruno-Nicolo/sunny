@@ -1,3 +1,4 @@
+import type { PdfSource } from '../../../../shared/contracts'
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 
@@ -21,6 +22,7 @@ export type PdfViewPosition = Pick<
 export type PdfSnapshot = { hash: string; data: Uint8Array }
 
 export type PdfDocumentHandle = {
+  readonly revision: string
   openSearch(): void
   snapshotDocument(previousHash?: string): Promise<PdfSnapshot | null>
   saveDocument(): Promise<Uint8Array>
@@ -32,6 +34,7 @@ export type PdfDocumentHandle = {
   toggleTwoPageView(): void
   navigateHorizontally(direction: -1 | 1): void
   scrollVertically(direction: -1 | 1): void
+  setHighlightColor(color: string): void
   addImage(file: File): Promise<void>
   undo(): void
   redo(): void
@@ -52,7 +55,7 @@ export type PdfDocumentViewProps = AnnotationOptions & {
   sidebarOpen: boolean
   sidebarTab: 'pages' | 'outline'
   onSidebarTabChange(tab: 'pages' | 'outline'): void
-  data: ArrayBuffer
+  source: PdfSource
   initialPage: number
   initialScale: string
   initialScrollTop: number

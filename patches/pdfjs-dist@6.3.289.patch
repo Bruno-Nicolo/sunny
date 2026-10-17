@@ -1,0 +1,415 @@
+diff --git a/legacy/build/pdf.mjs b/legacy/build/pdf.mjs
+index 993f35056cbb76d09d83c25dccd96fe1916ee372..a47ab8e170f9d4023521508b07ab1079121820bb 100644
+--- a/legacy/build/pdf.mjs
++++ b/legacy/build/pdf.mjs
+@@ -13239,6 +13239,13 @@ const SerializableEmpty = Object.freeze({
+   transfer: undefined
+ });
+ class AnnotationStorage {
++  overlayAnnotationIds = new Map();
++  setOverlayAnnotationIds(pageIndex, ids) {
++    const sorted = [...ids].sort();
++    const hash = new MurmurHash3_64();
++    hash.update(sorted.join(","));
++    this.overlayAnnotationIds.set(pageIndex, { ids: new Set(sorted), hash: hash.hexdigest() });
++  }
+   #modified = false;
+   #modifiedIds = null;
+   #editorsMap = null;
+@@ -22406,7 +22413,7 @@ class PDFPageProxy {
+     operationsFilter = null
+   }) {
+     this._stats?.time("Overall");
+-    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode, printAnnotationStorage, isEditing);
++    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode, printAnnotationStorage, isEditing, false, this._pageIndex);
+     const {
+       renderingIntent,
+       cacheKey
+@@ -22531,7 +22538,7 @@ class PDFPageProxy {
+         intentState.renderTasks.delete(opListTask);
+       }
+     }
+-    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode, printAnnotationStorage, isEditing, true);
++    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode, printAnnotationStorage, isEditing, true, this._pageIndex);
+     const intentState = this._intentStates.getOrInsertComputed(intentArgs.cacheKey, makeObj);
+     let opListTask;
+     if (!intentState.opListReadCapability) {
+@@ -22630,6 +22637,9 @@ class PDFPageProxy {
+     }
+     this._intentStates.clear();
+     this.objs.clear();
++    if (!this._transport.destroyed) {
++      this._transport.messageHandler.send("ReleasePageAnnotations", { pageIndex: this._pageIndex });
++    }
+     this.#pendingCleanup = false;
+     return true;
+   }
+@@ -23016,7 +23026,7 @@ class WorkerTransport {
+   get annotationStorage() {
+     return shadow(this, "annotationStorage", new AnnotationStorage());
+   }
+-  getRenderingIntent(intent, annotationMode = AnnotationMode.ENABLE, printAnnotationStorage = null, isEditing = false, isOpList = false) {
++  getRenderingIntent(intent, annotationMode = AnnotationMode.ENABLE, printAnnotationStorage = null, isEditing = false, isOpList = false, pageIndex = undefined) {
+     let renderingIntent = RenderingIntentFlag.DISPLAY;
+     let annotationStorageSerializable = SerializableEmpty;
+     switch (intent) {
+@@ -23054,10 +23064,18 @@ class WorkerTransport {
+     if (isOpList) {
+       renderingIntent += RenderingIntentFlag.OPLIST;
+     }
+-    const {
++    let {
+       ids: modifiedIds,
+       hash: modifiedIdsHash
+     } = annotationStorage.modifiedIds;
++    // Overlay-owned originals are omitted only from display, never from saving or printing.
++    if (renderingIntent & RenderingIntentFlag.DISPLAY) {
++      const overlay = annotationStorage.overlayAnnotationIds.get(pageIndex);
++      if (overlay?.ids.size) {
++        modifiedIds = new Set([...modifiedIds, ...overlay.ids]);
++        modifiedIdsHash += overlay.hash;
++      }
++    }
+     const cacheKeyBuf = [renderingIntent, annotationStorageSerializable.hash, modifiedIdsHash];
+     return {
+       renderingIntent,
+@@ -27479,7 +27497,7 @@ class AnnotationLayer {
+       elements: null
+     };
+     for (const data of annotations) {
+-      if (data.noHTML) {
++      if (data.noHTML || this.#annotationStorage.overlayAnnotationIds.get(this.page.pageNumber - 1)?.ids.has(data.id)) {
+         continue;
+       }
+       const isPopupAnnotation = data.annotationType === AnnotationType.POPUP;
+diff --git a/legacy/build/pdf.worker.mjs b/legacy/build/pdf.worker.mjs
+index c4b622a51f092f4765ffd9dbf2989c2662944f30..7af1bb4a3f6d9f3f67526750e56d315555a896ab 100644
+--- a/legacy/build/pdf.worker.mjs
++++ b/legacy/build/pdf.worker.mjs
+@@ -8653,16 +8653,82 @@ class NullStream extends Stream {
+ 
+ 
+ 
+-class ChunkedStream extends Stream {
++class ChunkedStream extends BaseStream {
+   progressiveDataLength = 0;
+   _lastSuccessfulEnsureByteChunk = -1;
+   _loadedChunks = new Set();
+   constructor(length, chunkSize, manager) {
+-    super(new Uint8Array(length), 0, length, null);
++    super();
++    this.start = this.pos = 0;
++    this.end = length;
++    this.dict = null;
++    this._buffer = { length, chunks: new Map(), bytes: null };
++    this._byteChunkIndex = -1;
++    this._byteChunk = null;
+     this.chunkSize = chunkSize;
+     this.numChunks = Math.ceil(length / chunkSize);
+     this.manager = manager;
+   }
++  get length() { return this.end - this.start; }
++  get isEmpty() { return this.length === 0; }
++  get bytes() {
++    if (!this._buffer.bytes) {
++      this.ensureRange(0, this._buffer.length);
++      this._buffer.bytes = this._rangeBytes(0, this._buffer.length);
++      this._buffer.chunks.clear();
++    }
++    return this._buffer.bytes;
++  }
++  reset() { this.pos = this.start; }
++  moveStart() { this.start = this.pos; }
++  clone() {
++    return new Stream(this.getByteRange(this.start, this.end).slice(), 0, this.length, this.dict?.clone());
++  }
++  // Keep received ranges sparse; materialize only a consumed stream or the saved document.
++  _storeBytes(begin, data) {
++    if (begin < 0 || begin + data.length > this._buffer.length) {
++      throw new RangeError("Received PDF data exceeds the file length.");
++    }
++    if (this._buffer.bytes) {
++      this._buffer.bytes.set(data, begin);
++      return;
++    }
++    for (let offset = 0; offset < data.length;) {
++      const position = begin + offset;
++      const index = Math.floor(position / this.chunkSize);
++      const chunkStart = index * this.chunkSize;
++      let chunk = this._buffer.chunks.get(index);
++      if (!chunk) {
++        chunk = new Uint8Array(Math.min(this.chunkSize, this._buffer.length - chunkStart));
++        this._buffer.chunks.set(index, chunk);
++      }
++      const chunkOffset = position - chunkStart;
++      const count = Math.min(chunk.length - chunkOffset, data.length - offset);
++      chunk.set(data.subarray(offset, offset + count), chunkOffset);
++      offset += count;
++    }
++  }
++  _rangeBytes(begin, end) {
++    if (this._buffer.bytes) return this._buffer.bytes.subarray(begin, end);
++    if (begin >= end) return new Uint8Array(0);
++    const index = Math.floor(begin / this.chunkSize);
++    const chunk = this._buffer.chunks.get(index);
++    const chunkOffset = begin - index * this.chunkSize;
++    if (end <= (index + 1) * this.chunkSize) {
++      return chunk.subarray(chunkOffset, chunkOffset + end - begin);
++    }
++    const result = new Uint8Array(end - begin);
++    for (let offset = 0; offset < result.length;) {
++      const position = begin + offset;
++      const chunkIndex = Math.floor(position / this.chunkSize);
++      const bytes = this._buffer.chunks.get(chunkIndex);
++      const start = position - chunkIndex * this.chunkSize;
++      const count = Math.min(bytes.length - start, result.length - offset);
++      result.set(bytes.subarray(start, start + count), offset);
++      offset += count;
++    }
++    return result;
++  }
+   getMissingChunks() {
+     const chunks = [];
+     for (let chunk = 0, n = this.numChunks; chunk < n; ++chunk) {
+@@ -8684,10 +8750,10 @@ class ChunkedStream extends Stream {
+       throw new Error(`Bad begin offset: ${begin}`);
+     }
+     const end = begin + chunk.byteLength;
+-    if (end % chunkSize !== 0 && end !== this.bytes.length) {
++    if (end % chunkSize !== 0 && end !== this.end) {
+       throw new Error(`Bad end offset: ${end}`);
+     }
+-    this.bytes.set(new Uint8Array(chunk), begin);
++    this._storeBytes(begin, new Uint8Array(chunk));
+     const beginChunk = Math.floor(begin / chunkSize);
+     const endChunk = Math.floor((end - 1) / chunkSize) + 1;
+     for (let curChunk = beginChunk; curChunk < endChunk; ++curChunk) {
+@@ -8697,7 +8763,7 @@ class ChunkedStream extends Stream {
+   onReceiveProgressiveData(data) {
+     let position = this.progressiveDataLength;
+     const beginChunk = Math.floor(position / this.chunkSize);
+-    this.bytes.set(new Uint8Array(data), position);
++    this._storeBytes(position, new Uint8Array(data));
+     position += data.byteLength;
+     this.progressiveDataLength = position;
+     const endChunk = position >= this.end ? this.numChunks : Math.floor(position / this.chunkSize);
+@@ -8760,7 +8826,14 @@ class ChunkedStream extends Stream {
+     if (pos >= this.progressiveDataLength) {
+       this.ensureByte(pos);
+     }
+-    return this.bytes[this.pos++];
++    if (this._buffer.bytes) return this._buffer.bytes[this.pos++];
++    const index = Math.floor(pos / this.chunkSize);
++    if (index !== this._byteChunkIndex) {
++      this._byteChunkIndex = index;
++      this._byteChunk = this._buffer.chunks.get(index);
++    }
++    this.pos++;
++    return this._byteChunk[pos - index * this.chunkSize];
+   }
+   getBytes(length) {
+     const pos = this.pos;
+@@ -8769,7 +8842,7 @@ class ChunkedStream extends Stream {
+       this.ensureRange(pos, endPos);
+     }
+     this.pos = endPos;
+-    return this.bytes.subarray(pos, endPos);
++    return this._rangeBytes(pos, endPos);
+   }
+   getByteRange(begin, end) {
+     if (begin < 0) {
+@@ -8781,7 +8854,7 @@ class ChunkedStream extends Stream {
+     if (end > this.progressiveDataLength) {
+       this.ensureRange(begin, end);
+     }
+-    return this.bytes.subarray(begin, end);
++    return this._rangeBytes(begin, end);
+   }
+   makeSubStream(start, length, dict = null) {
+     if (length) {
+@@ -43209,7 +43282,7 @@ class PartialEvaluator {
+       hash.update(`${firstChar}-${lastChar}`);
+       if (toUnicode instanceof BaseStream) {
+         const stream = toUnicode.stream || toUnicode;
+-        const uint8array = stream.buffer ? new Uint8Array(stream.buffer.buffer, 0, stream.bufferLength) : new Uint8Array(stream.bytes.buffer, stream.start, stream.end - stream.start);
++        const uint8array = stream.buffer ? new Uint8Array(stream.buffer.buffer, 0, stream.bufferLength) : stream.getByteRange(stream.start, stream.end);
+         hash.update(uint8array);
+       } else if (toUnicode instanceof Name) {
+         hash.update(toUnicode.name);
+@@ -59383,6 +59456,9 @@ class AnnotationFactory {
+         continue;
+       }
+       switch (annotation.annotationType) {
++        case "lepis-line":
++          promises.push(LepisLineAnnotation.createNewAnnotation(xref, annotation, changes));
++          break;
+         case AnnotationEditorType.FREETEXT:
+           if (!baseFontRef) {
+             const baseFont = new Dict(xref);
+@@ -62178,6 +62254,46 @@ class LineAnnotation extends MarkupAnnotation {
+     }
+   }
+ }
++// Native line/arrow output for the app-owned editor. The stock reference/update path is reused.
++class LepisLineAnnotation extends LineAnnotation {
++  static createNewDict(annotation, xref, { apRef }) {
++    const { oldAnnotation, rect, line, color, width = 1, arrow = false } = annotation;
++    const dict = oldAnnotation || new Dict(xref);
++    dict.setIfNotExists("Type", Name.get("Annot"));
++    dict.setIfNotExists("Subtype", Name.get("Line"));
++    dict.setIfNotExists("F", 4);
++    dict.set("Rect", rect);
++    dict.set("L", line);
++    dict.set("C", getPdfColorArray(color));
++    dict.set("LE", [Name.get("None"), Name.get(arrow ? "ClosedArrow" : "None")]);
++    const border = new Dict(xref);
++    border.set("W", width);
++    border.setIfName("S", "S");
++    dict.set("BS", border);
++    const appearance = new Dict(xref);
++    appearance.set("N", apRef);
++    dict.set("AP", appearance);
++    return dict;
++  }
++  static async createNewAppearanceStream(annotation, xref) {
++    const { rect, line: [x1, y1, x2, y2], color, width = 1, arrow = false } = annotation;
++    const buffer = ["q", getPdfColor(color, false), getPdfColor(color, true), `${width} w`, `${x1} ${y1} m ${x2} ${y2} l S`];
++    if (arrow) {
++      const angle = Math.atan2(y2 - y1, x2 - x1);
++      const size = Math.max(8, width * 5);
++      const ax = x2 - Math.cos(angle) * size, ay = y2 - Math.sin(angle) * size;
++      const nx = Math.sin(angle) * size / 2, ny = -Math.cos(angle) * size / 2;
++      buffer.push(`${x2} ${y2} m ${ax + nx} ${ay + ny} l ${ax - nx} ${ay - ny} l h f`);
++    }
++    buffer.push("Q");
++    const dict = new Dict(xref);
++    dict.setIfName("Type", "XObject");
++    dict.setIfName("Subtype", "Form");
++    dict.set("FormType", 1);
++    dict.set("BBox", rect);
++    return new StringStream(buffer.join("\n"), dict);
++  }
++}
+ class SquareAnnotation extends MarkupAnnotation {
+   constructor(params) {
+     super(params);
+@@ -66668,6 +66784,14 @@ class PDFDocument {
+     this.#pagePromises.set(pageIndex, promise);
+     return promise;
+   }
++  // Drop synthesized appearances after the main thread releases a page's rendering resources.
++  releasePageAnnotations(pageIndex) {
++    return this.#pagePromises.get(pageIndex)?.then(page => {
++      if (page.annotations.every(ref => ref instanceof Ref)) {
++        delete page._parsedAnnotations;
++      }
++    }, () => {});
++  }
+   async checkFirstPage(recoveryMode = false) {
+     if (recoveryMode) {
+       return;
+@@ -66959,7 +67083,7 @@ class PDFDocument {
+   }
+   get signatures() {
+     const promise = this.pdfManager.ensureDoc("formInfo").then(async formInfo => {
+-      if (!formInfo.hasSignatures || !formInfo.hasFields) {
++      if (!formInfo.hasFields) {
+         return null;
+       }
+       const annotationGlobals = await this.annotationGlobals;
+@@ -70963,7 +71087,7 @@ class WorkerMessageHandler {
+         pdfManager = newPdfManager;
+         pdfManager.requestLoadedStream(true).then(stream => {
+           handler.send("DataLoaded", {
+-            length: stream.bytes.byteLength
++            length: stream.end
+           });
+         }, () => {});
+       }).then(pdfManagerReady, onFailure);
+@@ -71423,6 +71547,9 @@ class WorkerMessageHandler {
+     }) {
+       return pdfManager.fontFallback(id, handler);
+     });
++    handler.on("ReleasePageAnnotations", function ({ pageIndex }) {
++      return pdfManager.pdfDocument.releasePageAnnotations(pageIndex);
++    });
+     handler.on("Cleanup", function () {
+       return pdfManager.cleanup(true);
+     });
+diff --git a/legacy/web/pdf_viewer.mjs b/legacy/web/pdf_viewer.mjs
+index b558cc97b74c125734eb0d2fb8b340765f349992..af15a8d20a0dfb16b8f0cbfdfff23572928889c6 100644
+--- a/legacy/web/pdf_viewer.mjs
++++ b/legacy/web/pdf_viewer.mjs
+@@ -13106,7 +13106,8 @@ class PDFRenderingQueue {
+ 
+ 
+ 
+-const DEFAULT_CACHE_SIZE = 10;
++// Keep one neighboring page per side in the desktop viewer.
++const DEFAULT_CACHE_SIZE = 3;
+ const PagesCountLimit = {
+   FORCE_SCROLL_MODE_PAGE: 10000,
+   FORCE_LAZY_PAGE_INIT: 5000,
+@@ -14362,7 +14363,7 @@ class PDFViewer {
+     if (numVisiblePages === 0) {
+       return;
+     }
+-    const newCacheSize = Math.max(DEFAULT_CACHE_SIZE, 2 * numVisiblePages + 1);
++    const newCacheSize = Math.max(DEFAULT_CACHE_SIZE, numVisiblePages + 2);
+     this.#buffer.resize(newCacheSize, visible.ids);
+     for (const {
+       view,
+@@ -14469,17 +14470,26 @@ class PDFViewer {
+     }
+   }
+   async #ensurePdfPageLoaded(pageView) {
++    const pdfDocument = this.pdfDocument;
++    if (!pdfDocument) {
++      return null;
++    }
+     if (pageView.pdfPage) {
+       return pageView.pdfPage;
+     }
+     try {
+-      const pdfPage = await this.pdfDocument.getPage(pageView.id);
++      const pdfPage = await pdfDocument.getPage(pageView.id);
++      if (this.pdfDocument !== pdfDocument) {
++        return null;
++      }
+       if (!pageView.pdfPage) {
+         pageView.setPdfPage(pdfPage);
+       }
+       return pdfPage;
+     } catch (reason) {
+-      console.error("Unable to get page for page view", reason);
++      if (this.pdfDocument === pdfDocument) {
++        console.error("Unable to get page for page view", reason);
++      }
+       return null;
+     }
+   }
+@@ -14504,8 +14514,10 @@ class PDFViewer {
+     const ignoreDetailViews = this.#scaleTimeoutId !== null || this.#scrollTimeoutId !== null && visiblePages.views.some(page => page.detailView?.renderingCancelled);
+     const pageView = this.renderingQueue.getHighestPriority(visiblePages, this._pages, scrollAhead, preRenderExtra, ignoreDetailViews);
+     if (pageView) {
+-      this.#ensurePdfPageLoaded(pageView).then(() => {
+-        this.renderingQueue.renderView(pageView);
++      this.#ensurePdfPageLoaded(pageView).then(pdfPage => {
++        if (pdfPage) {
++          this.renderingQueue.renderView(pageView);
++        }
+       });
+       return true;
+     }
+diff --git a/types/src/display/annotation_storage.d.ts b/types/src/display/annotation_storage.d.ts
+index e5358207f1156cfadf2238ab785879c044282ebc..a180c1271017a85b5e945a10cab3606a168bbd68 100644
+--- a/types/src/display/annotation_storage.d.ts
++++ b/types/src/display/annotation_storage.d.ts
+@@ -2,6 +2,7 @@
+  * Key/value storage for annotation data in forms.
+  */
+ export class AnnotationStorage {
++    setOverlayAnnotationIds(pageIndex: number, ids: Iterable<string>): void;
+     onSetModified: null;
+     onResetModified: null;
+     onAnnotationEditor: null;

@@ -21,7 +21,7 @@ function pdf(path) {
     path,
     name: path,
     directoryName: 'test',
-    data: new Uint8Array([1]).buffer,
+    source: { kind: 'memory', data: new Uint8Array([1]).buffer },
     mtimeMs: 1,
     size: 1
   }
@@ -110,7 +110,13 @@ test('restore selects the saved document or the first remaining document when it
 
 test('reload and copy replacement retain viewer position and identity and clear stale errors', () => {
   const original = tab('original.pdf')
-  original.view = { ...original.view, page: 3, scrollTop: 400, scale: 'page-fit' }
+  original.view = {
+    ...original.view,
+    page: 3,
+    scrollTop: 400,
+    scale: 'page-fit',
+    canAnnotate: true
+  }
   original.dirty = true
   original.unavailable = true
   original.error = 'Old error'
@@ -122,7 +128,7 @@ test('reload and copy replacement retain viewer position and identity and clear 
   })
   assert.equal(state.activeId, original.id)
   assert.equal(state.tabs[0].id, original.id)
-  assert.deepEqual(state.tabs[0].view, original.view)
+  assert.deepEqual(state.tabs[0].view, { ...original.view, canAnnotate: false, signed: false })
   assert.equal(state.tabs[0].path, copy.path)
   assert.equal(state.tabs[0].dirty, false)
   assert.equal(state.tabs[0].unavailable, false)
@@ -133,7 +139,12 @@ test('late save and update results never resurrect a closed tab', () => {
   const first = tab('first.pdf')
   let state = reduce(initialDocumentsState, { type: 'open', tabs: [first] })
   state = reduce(state, { type: 'close', id: first.id })
-  state = reduce(state, { type: 'saved', id: first.id, stats: { mtimeMs: 2, size: 2 } })
+  state = reduce(state, {
+    type: 'saved',
+    id: first.id,
+    stats: { mtimeMs: 2, size: 2 },
+    dirty: false
+  })
   state = reduce(state, { type: 'update', id: first.id, changes: { dirty: true } })
   assert.deepEqual(state.tabs, [])
   assert.equal(state.activeId, null)
@@ -159,7 +170,7 @@ test('recovery replaces a clean startup tab, remains dirty, and survives a late 
   const startup = tab('first.pdf')
   const recovered = {
     ...tab('first.pdf'),
-    data: new Uint8Array([9]).buffer,
+    source: { kind: 'memory', data: new Uint8Array([9]).buffer },
     dirty: true,
     mtimeMs: 42
   }
@@ -173,6 +184,6 @@ test('recovery replaces a clean startup tab, remains dirty, and survives a late 
   assert.equal(state.tabs[0].id, startup.id)
   assert.equal(state.tabs[0].dirty, true)
   assert.equal(state.tabs[0].mtimeMs, 42)
-  assert.deepEqual(new Uint8Array(state.tabs[0].data), new Uint8Array([9]))
+  assert.deepEqual(new Uint8Array(state.tabs[0].source.data), new Uint8Array([9]))
   assert.equal(state.tabs[1].unavailable, true)
 })

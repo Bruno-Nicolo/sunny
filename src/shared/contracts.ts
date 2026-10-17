@@ -5,12 +5,14 @@ export type PdfFileStats = {
   size: number
 }
 
+export type PdfSource =
+  { kind: 'file'; url: string; length: number } | { kind: 'memory'; data: ArrayBuffer }
+
 export type OpenedPdf = PdfFileStats & {
   path: string
   name: string
   directoryName: string
-  // Keep binary data opaque to React's development prop profiling.
-  data: ArrayBuffer
+  source: PdfSource
 }
 
 export type SessionTab = {
@@ -44,7 +46,10 @@ export type SavePdfDraftRequest = PdfFileStats & {
   data: Uint8Array
 }
 
-export type PdfDraft = OpenedPdf & { savedAt: number }
+export type PdfDraft = Omit<OpenedPdf, 'source'> & {
+  source: { kind: 'memory'; data: ArrayBuffer }
+  savedAt: number
+}
 
 export interface LepisApi {
   saveDraft(draft: SavePdfDraftRequest): Promise<void>
@@ -53,6 +58,7 @@ export interface LepisApi {
   openPdfDialog(): Promise<OpenedPdf[]>
   getPathForFile(file: File): string
   readPdf(path: string): Promise<OpenedPdf>
+  releasePdfSource(source: PdfSource): Promise<void>
   statPdf(path: string): Promise<PdfFileStats>
   savePdf(payload: SavePdfRequest): Promise<PdfFileStats>
   savePdfAs(payload: SavePdfAsRequest): Promise<OpenedPdf | null>

@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -41,7 +42,7 @@ ipcMain.handle('test:read', (_, name) => {
     path: name,
     name,
     directoryName: 'test',
-    data: new Uint8Array(data).buffer,
+    source: { kind: 'memory', data: new Uint8Array(data).buffer },
     mtimeMs: 1,
     size: data.length
   }
@@ -52,6 +53,7 @@ fs.writeFileSync(
   `const { contextBridge, ipcRenderer } = require('electron')
 const commands = new Map()
 contextBridge.exposeInMainWorld('lepis', {
+  releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: async () => ({tabs:['blank.pdf','text.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})),activePath:'text.pdf',highlightColor:'#FDE047',theme:'light'}),
@@ -92,9 +94,15 @@ app
       show: false,
       width: 1180,
       height: 780,
-      webPreferences: { preload, sandbox: true, contextIsolation: true }
+      webPreferences: {
+        backgroundThrottling: false,
+        preload,
+        sandbox: true,
+        contextIsolation: true
+      }
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
+    await enableTestFocus(win)
     await waitFor(`document.querySelector('.visible .textLayer')?.textContent.includes('Hello')`)
     const viewerTop = await evaluate(
       `document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect().top`

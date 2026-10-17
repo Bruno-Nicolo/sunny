@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { blankPdf } from './fixtures/pdf.mjs'
 const { app, BrowserWindow, ipcMain } = electron
@@ -15,7 +16,7 @@ ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
   directoryName: 'test',
-  data: new Uint8Array(saved.get(name) ?? Buffer.from(pdf)).buffer,
+  source: { kind: 'memory', data: new Uint8Array(saved.get(name) ?? Buffer.from(pdf)).buffer },
   mtimeMs: 1,
   size: pdf.length
 }))
@@ -30,6 +31,7 @@ fs.writeFileSync(
   `const { contextBridge, ipcRenderer } = require('electron')
 const handlers = new Map()
 contextBridge.exposeInMainWorld('lepis', {
+  releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: async () => ({ tabs: [{path:'first.pdf',page:1,scale:'page-fit',scrollTop:0},{path:'second.pdf',page:1,scale:'page-fit',scrollTop:0}], activePath:'second.pdf', highlightColor:'#FDE047', theme:'light' }),
@@ -44,8 +46,6 @@ contextBridge.exposeInMainWorld('testCommands', {run: name => handlers.get(name)
 let win
 const evaluate = (code) => win.webContents.executeJavaScript(code)
 async function click(code) {
-  app.focus({ steal: true })
-  win.focus()
   win.webContents.focus()
   await waitFor(`document.hasFocus()`)
   // Popover entry animations must settle before computing native mouse coordinates.
@@ -96,16 +96,22 @@ app
   .whenReady()
   .then(async () => {
     win = new BrowserWindow({
-      show: true,
+      show: false,
       width: 1180,
       height: 780,
-      webPreferences: { preload, sandbox: true, contextIsolation: true }
+      webPreferences: {
+        backgroundThrottling: false,
+        preload,
+        sandbox: true,
+        contextIsolation: true
+      }
     })
     win.webContents.on('console-message', (details) => {
       if (details.level === 'error') process.stderr.write(details.message + '\n')
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
-    win.focus()
+    await enableTestFocus(win)
+    win.webContents.focus()
     await waitFor(`document.hasFocus()`)
     await waitFor(
       `document.querySelector('[aria-label="Add text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
@@ -232,7 +238,10 @@ app
       ),
       /città, perché/
     )
+    win.webContents.focus()
+    await waitFor(`document.hasFocus()`)
     await evaluate(`document.querySelector('.visible .freeTextEditor').focus()`)
+    await waitFor(`document.querySelector('.visible .freeTextEditor.selectedEditor') !== null`)
     await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
     await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
     await waitFor(
@@ -240,16 +249,23 @@ app
     )
     await new Promise((resolve) => setTimeout(resolve, 250))
     assert.equal(
-      await evaluate(
-        `getComputedStyle(document.querySelector('.visible .freeTextEditor .editToolbar')).display`
-      ),
-      'none'
+      await evaluate(`document.querySelector('.visible .freeTextEditor .editToolbar')`),
+      null,
+      'Text annotations have no local toolbar'
     )
     assert.equal(
       await evaluate(
         `document.querySelector('[aria-label="Text color"] [aria-label="Red"]').getAttribute('aria-pressed')`
       ),
       'true'
+    )
+    await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`
+      ),
+      true,
+      'Choosing an imported annotation current color must not add an edit'
     )
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Blue"]')`)
     await waitFor(
@@ -426,8 +442,6 @@ app
     await waitFor(
       `document.activeElement === document.querySelector('.visible .freeTextEditor .internal')`
     )
-    app.focus({ steal: true })
-    win.focus()
     win.webContents.focus()
     await waitFor(`document.hasFocus()`)
     await win.webContents.insertText('   ')
@@ -443,7 +457,6 @@ app
     await waitFor(
       `document.querySelector('.visible .annotationEditorLayer:not(.disabled):not(.nonEditing) .freeTextEditor .internal')?.innerText.includes('Testo modificato')`
     )
-    win.focus()
     win.webContents.focus()
     await click(`document.querySelector('.visible .freeTextEditor')`)
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' })
@@ -469,6 +482,39 @@ app
     await save()
     assert.match(saved.get('second.pdf').toString('latin1'), /Testo da tastiera/)
     console.log('PASS: real keyboard input after switching tabs is saved')
+    await evaluate(`(() => {
+      window.zoomTextInput = document.querySelector('.visible .freeTextEditor .internal');
+      window.zoomTextAnchor = window.getSelection().anchorNode;
+      window.zoomTextOffset = window.getSelection().anchorOffset;
+      window.zoomPageCanvas = document.querySelector('.visible .canvasWrapper canvas');
+      window.testCommands.run('zoom-in');
+    })()`)
+    await waitFor(
+      `document.querySelector('.visible .canvasWrapper canvas') !== window.zoomPageCanvas`
+    )
+    await evaluate(
+      'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('.visible .freeTextEditor .internal') === window.zoomTextInput`
+      ),
+      true
+    )
+    assert.equal(
+      await evaluate(`document.activeElement === window.zoomTextInput`),
+      true,
+      'Page redraw must preserve the focused annotation input'
+    )
+    assert.equal(
+      await evaluate(
+        `window.getSelection().anchorNode === window.zoomTextAnchor && window.getSelection().anchorOffset === window.zoomTextOffset`
+      ),
+      true,
+      'Page redraw must preserve the text caret'
+    )
+    console.log('PASS: zoom preserves annotation DOM, focus and caret')
+
     const previousPdf = saved.get('second.pdf').toString('latin1')
     const previousLeft = await evaluate(
       `document.querySelector('.visible .freeTextEditor').style.left`
@@ -499,6 +545,6 @@ app
   })
 function finish(code) {
   win?.destroy()
-  fs.rmSync(temp, { recursive: true, force: true })
+  fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   app.exit(code)
 }

@@ -1,10 +1,13 @@
+import workerSrc from 'pdfjs-dist/legacy/build/pdf.worker.mjs?worker&url'
+import type { PdfSource } from '../../../../shared/contracts'
 import {
   AnnotationEditorType,
   GlobalWorkerOptions,
   PasswordResponses,
   PermissionFlag,
   getDocument,
-  type PDFDocumentProxy
+  type PDFDocumentProxy,
+  type PDFPageProxy
 } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import {
   EventBus,
@@ -12,13 +15,13 @@ import {
   PDFFindController,
   PDFLinkService,
   PDFViewer,
+  RenderingStates,
   SpreadMode
 } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
+import { FileRangeTransport } from './fileRangeTransport'
 import { createAnnotationController } from './annotations/createAnnotationController'
-import { pdfHighlightColors } from './annotations/highlight/highlightEditor'
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
-import { containsDigitalSignature } from './signatures'
 import { createKeyboardScroll } from './keyboardScroll'
 import type {
   PasswordRequest,
@@ -29,15 +32,12 @@ import type {
   ViewerSnapshot
 } from './types'
 
-GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString()
+GlobalWorkerOptions.workerSrc = workerSrc
 
 type Options = {
   container: HTMLDivElement
   viewerElement: HTMLDivElement
-  data: ArrayBuffer
+  source: PdfSource
   initialView: PdfViewPosition
   annotationOptions: AnnotationOptions
   onSnapshot(snapshot: ViewerSnapshot): void
@@ -55,6 +55,7 @@ export type PdfViewerController = Omit<PdfDocumentHandle, 'openSearch'> & {
   closeSearch(): void
   navigateToDestination(destination: string | unknown[]): Promise<void>
   setAnnotationOptions(options: AnnotationOptions): void
+  releasePageResources(page: PDFPageProxy): void
   destroy(): Promise<void>
 }
 
@@ -62,7 +63,7 @@ export type PdfViewerController = Omit<PdfDocumentHandle, 'openSearch'> & {
 export function createPdfViewer({
   container,
   viewerElement,
-  data,
+  source,
   initialView,
   annotationOptions: initialOptions,
   onSnapshot,
@@ -85,8 +86,7 @@ export function createPdfViewer({
     eventBus,
     linkService,
     findController,
-    annotationEditorMode: AnnotationEditorType.NONE,
-    annotationEditorHighlightColors: pdfHighlightColors,
+    annotationEditorMode: AnnotationEditorType.DISABLE,
     enablePermissions: true,
     supportsPinchToZoom: true,
     // @ts-expect-error PDF.js uses abortSignal to release observers, but its declaration omits it.
@@ -153,7 +153,8 @@ export function createPdfViewer({
     signal: lifetime.signal,
     initialOptions,
     onDirtyChange,
-    onTextEditorChange
+    onTextEditorChange,
+    onError
   })
   let searchSnapshot: PdfSearchSnapshot = { current: 0, total: 0, pending: false }
   const updateSearch = ({
@@ -232,20 +233,42 @@ export function createPdfViewer({
   }
   container.addEventListener('scroll', handleScroll, { passive: true, signal: lifetime.signal })
   let containerSize = container.getBoundingClientRect()
+  let resizeFrame: number | null = null
   const resizeObserver = new ResizeObserver(() => {
-    const size = container.getBoundingClientRect()
-    if (size.width === containerSize.width && size.height === containerSize.height) return
-    containerSize = size
-    if (destroyed || loading || !container.clientWidth || !container.clientHeight) return
-    const scale = viewer.currentScaleValue
-    if (scale && Number.isNaN(Number(scale))) viewer.currentScaleValue = scale
-    viewer.update()
+    if (resizeFrame !== null) return
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null
+      const size = container.getBoundingClientRect()
+      if (size.width === containerSize.width && size.height === containerSize.height) return
+      containerSize = size
+      if (destroyed || loading || !container.clientWidth || !container.clientHeight) return
+      const scale = viewer.currentScaleValue
+      if (scale && Number.isNaN(Number(scale))) viewer.currentScaleValue = scale
+      viewer.update()
+    })
   })
   resizeObserver.observe(container)
 
   onLoadingChange(true)
   onPasswordRequest(null)
-  const loadingTask = getDocument({ data: data.slice() })
+  const input =
+    source.kind === 'memory'
+      ? { data: source.data.slice(0) }
+      : {
+          range: new FileRangeTransport(source, (error) => {
+            if (destroyed) return
+            loading = false
+            onLoadingChange(false)
+            onError(error.message)
+            void loadingTask.destroy().catch(() => {})
+          })
+        }
+  const loadingTask = getDocument({
+    ...input,
+    disableAutoFetch: true,
+    disableStream: true,
+    rangeChunkSize: 16 * 1024
+  })
   loadingTask.onPassword = (submit: (password: string) => void, reason: number): void => {
     if (destroyed) return
     onPasswordRequest({
@@ -259,16 +282,16 @@ export function createPdfViewer({
     .then(async (pdfDocument) => {
       if (destroyed) return
       document = pdfDocument
-      const permissions = await pdfDocument.getPermissions()
+      const [permissions, signatures] = await Promise.all([
+        pdfDocument.getPermissions(),
+        pdfDocument.getSignatures()
+      ])
       if (destroyed) return
-      const signed = containsDigitalSignature(new Uint8Array(data))
+      const signed = Boolean(signatures?.length)
       const canAnnotate =
         !signed && (permissions === null || permissions.has(PermissionFlag.MODIFY_ANNOTATIONS))
       emitSnapshot({ pages: pdfDocument.numPages, canAnnotate, signed })
-      // @ts-expect-error PDF.js calls this hook, but its declaration types it as null.
-      pdfDocument.annotationStorage.onSetModified = () => {
-        if (!destroyed) onDirtyChange(true)
-      }
+      annotations.setDocument(pdfDocument)
       linkService.setDocument(pdfDocument)
       viewer.setDocument(pdfDocument)
       onDocumentReady(pdfDocument)
@@ -281,6 +304,16 @@ export function createPdfViewer({
     })
 
   return {
+    releasePageResources(page) {
+      if (
+        destroyed ||
+        viewer.getPageView(page.pageNumber - 1)?.renderingState === RenderingStates.INITIAL
+      )
+        page.cleanup()
+    },
+    get revision() {
+      return annotations.hash
+    },
     search(query, options, previous) {
       if (destroyed) return
       eventBus.dispatch('find', {
@@ -314,16 +347,14 @@ export function createPdfViewer({
       if (destroyed || !document || loading) throw new Error('The PDF is not ready.')
       if (composing) return null
       annotations.commitDraft()
-      const { hash, transfer } = document.annotationStorage.serializable
-      // This inspection creates image copies. Only saveDocument transfers its own copies.
-      for (const bitmap of transfer ?? []) bitmap.close()
+      const hash = annotations.hash
       if (hash === previousHash) return null
-      return { hash, data: await document.saveDocument() }
+      return { hash, data: await annotations.save() }
     },
     async saveDocument() {
       if (destroyed || !document) throw new Error('The PDF is not ready.')
       annotations.commit()
-      return document.saveDocument()
+      return annotations.save()
     },
     setPage(page) {
       if (!destroyed) viewer.currentPageNumber = page
@@ -362,6 +393,7 @@ export function createPdfViewer({
         )
       }
     },
+    setHighlightColor: annotations.setHighlightColor,
     addImage: annotations.addImage,
     undo: annotations.undo,
     redo: annotations.redo,
@@ -370,9 +402,9 @@ export function createPdfViewer({
       if (destroyed) return
       destroyed = true
       resizeObserver.disconnect()
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
       lifetime.abort()
       if (scrollFrame !== null) cancelAnimationFrame(scrollFrame)
-      if (document) document.annotationStorage.onSetModified = null
       // @ts-expect-error PDF.js accepts null to detach a document, but its declaration omits it.
       viewer.setDocument(null)
       linkService.setDocument(null)

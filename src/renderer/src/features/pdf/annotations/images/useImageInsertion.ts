@@ -1,7 +1,6 @@
 import { useCallback, useEffect, type DragEvent } from 'react'
 import type { PdfDocumentHandle } from '../../types'
 import type { AnnotationTool } from '../types'
-import { supportedImageMimeTypes } from './imageFiles'
 
 type Options = {
   enabled: boolean
@@ -32,7 +31,7 @@ export function useImageInsertion({ enabled, getActiveViewer, onToolChange, onEr
   useEffect(() => {
     const onPaste = (event: ClipboardEvent): void => {
       const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
-        supportedImageMimeTypes.includes(file.type)
+        file.type.startsWith('image/')
       )
       if (!files.length) return
       // Capture image pastes before PDF.js's document listeners in the other tabs.
@@ -51,7 +50,7 @@ export function useImageInsertion({ enabled, getActiveViewer, onToolChange, onEr
 
   const onImageDrop = (event: DragEvent<HTMLElement>): void => {
     const files = Array.from(event.dataTransfer.files).filter((file) =>
-      supportedImageMimeTypes.includes(file.type)
+      file.type.startsWith('image/')
     )
     if (!files.length) return
     event.preventDefault()

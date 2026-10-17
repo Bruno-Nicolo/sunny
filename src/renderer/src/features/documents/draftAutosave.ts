@@ -35,7 +35,7 @@ export function createDraftAutosave(): DraftAutosave {
             if (
               paused.has(tab.id) ||
               !getTabs().some(
-                (current) => current.id === tab.id && current.data === tab.data && current.dirty
+                (current) => current.id === tab.id && current.source === tab.source && current.dirty
               )
             )
               return

@@ -63,7 +63,7 @@ export function DocumentWorkspace({
         >
           <PdfDocumentView
             ref={(handle) => onViewerHandle(tab.id, handle)}
-            data={tab.data}
+            source={tab.source}
             initialPage={tab.view.page}
             initialScale={tab.view.scale}
             initialScrollTop={tab.view.scrollTop}

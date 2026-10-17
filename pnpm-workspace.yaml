@@ -2,3 +2,5 @@ allowBuilds:
   electron: true
   electron-winstaller: false
   esbuild: true
+patchedDependencies:
+  pdfjs-dist@6.3.289: patches/pdfjs-dist@6.3.289.patch

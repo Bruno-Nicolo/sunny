@@ -1,9 +1,23 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, protocol } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerIpc } from './ipc'
+import { createPdfResponse, releaseAllPdfSources } from './pdf-sources'
 import { createMenu } from './menu'
 import { createWindow, getMainWindow, sendToRenderer } from './window'
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'lepis-pdf',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
+])
 
 const pendingFiles: string[] = []
 
@@ -31,6 +45,7 @@ app.on('open-file', (event, filePath) => {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.lepis.desktop')
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
+  protocol.handle('lepis-pdf', createPdfResponse)
   registerIpc()
   createMenu()
   const window = createWindow()
@@ -44,5 +59,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  void releaseAllPdfSources()
   if (process.platform !== 'darwin') app.quit()
 })

@@ -17,7 +17,7 @@ export type DocumentsAction =
   | { type: 'update'; id: string; changes: TabChanges }
   | { type: 'close'; id: string }
   | { type: 'restore'; tabs: Tab[]; activePath: string | null }
-  | { type: 'saved'; id: string; stats: PdfFileStats }
+  | { type: 'saved'; id: string; stats: PdfFileStats; dirty: boolean }
   | { type: 'replace'; id: string; pdf: OpenedPdf }
 
 export const initialDocumentsState: DocumentsState = { tabs: [], activeId: null, ready: false }
@@ -118,7 +118,7 @@ export function documentsReducer(state: DocumentsState, action: DocumentsAction)
       return {
         ...state,
         tabs: state.tabs.map((tab) =>
-          tab.id === action.id ? { ...tab, ...action.stats, dirty: false } : tab
+          tab.id === action.id ? { ...tab, ...action.stats, dirty: action.dirty } : tab
         )
       }
     case 'replace':
@@ -130,7 +130,7 @@ export function documentsReducer(state: DocumentsState, action: DocumentsAction)
                 ...tab,
                 ...action.pdf,
                 id: tab.id,
-                view: tab.view,
+                view: { ...tab.view, canAnnotate: false, signed: false },
                 dirty: false,
                 unavailable: false,
                 error: null

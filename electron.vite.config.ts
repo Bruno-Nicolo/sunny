@@ -7,6 +7,16 @@ export default defineConfig({
   main: {},
   preload: {},
   renderer: {
+    build: { minify: 'esbuild' },
+    worker: {
+      format: 'es',
+      plugins: () => [
+        {
+          name: 'pdf-worker-exports',
+          options: (options) => ({ ...options, preserveEntrySignatures: 'strict' })
+        }
+      ]
+    },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),

@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { textPdf } from './fixtures/pdf.mjs'
 const { app, BrowserWindow, ipcMain } = electron
@@ -14,7 +15,7 @@ ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
   directoryName: 'test',
-  data: new Uint8Array(saved.get(name) ?? Buffer.from(pdf)).buffer,
+  source: { kind: 'memory', data: new Uint8Array(saved.get(name) ?? Buffer.from(pdf)).buffer },
   mtimeMs: 1,
   size: pdf.length
 }))
@@ -28,6 +29,7 @@ fs.writeFileSync(
   `const { contextBridge, ipcRenderer } = require('electron')
 const handlers = new Map()
 contextBridge.exposeInMainWorld('lepis', {
+  releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: async () => ({ tabs: [{path:'second.pdf',page:1,scale:'page-fit',scrollTop:0}], activePath:'second.pdf', highlightColor:'#FDE047', theme:'light' }),
@@ -40,7 +42,11 @@ contextBridge.exposeInMainWorld('lepis', {
 contextBridge.exposeInMainWorld('testCommands', {run: name => handlers.get(name)?.()})`
 )
 let win
-const evaluate = (code) => win.webContents.executeJavaScript(code)
+const evaluate = (code) =>
+  win.webContents.executeJavaScript(code).catch((error) => {
+    error.message += `\n${code}`
+    throw error
+  })
 async function waitFor(code) {
   const check = typeof code === 'function' ? code : () => evaluate(code)
   const start = Date.now()
@@ -76,12 +82,18 @@ app
   .whenReady()
   .then(async () => {
     win = new BrowserWindow({
-      show: true,
+      show: false,
       width: 1180,
       height: 780,
-      webPreferences: { preload, sandbox: true, contextIsolation: true }
+      webPreferences: {
+        backgroundThrottling: false,
+        preload,
+        sandbox: true,
+        contextIsolation: true
+      }
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
+    await enableTestFocus(win)
     await evaluate(`(() => {
       window.annotationErrors = [];
       window.addEventListener('error', event => window.annotationErrors.push(event.message));
@@ -147,13 +159,10 @@ app
       'Creating and recoloring a highlight must not throw or interrupt annotation editing'
     )
     await waitFor(`document.querySelector('[aria-label="Highlight color: Green"]') !== null`)
-    await waitFor(`document.querySelector('.visible .highlightEditor .editToolbar') !== null`)
     assert.equal(
-      await evaluate(
-        `document.querySelector('.visible .highlightEditor .editToolbar').checkVisibility()`
-      ),
-      false,
-      'Selected highlights must not show a local toolbar'
+      await evaluate(`document.querySelector('.visible .highlightEditor .editToolbar')`),
+      null,
+      'Highlight annotations have no local toolbar'
     )
     await highlightText('Second highlight', 2)
     await evaluate(`void window.testCommands.run('save')`)
@@ -174,7 +183,6 @@ app
       )
     }
     console.log('PASS: recoloring yellow to green also sets green for the next highlight')
-    win.focus()
     await evaluate(`document.querySelector('.visible .highlightEditor.selectedEditor').focus()`)
     await waitFor(`document.hasFocus() && document.activeElement.matches('.highlightEditor')`)
     pressKey('Backspace')

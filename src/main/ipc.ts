@@ -1,11 +1,13 @@
 import { join } from 'path'
 import { app, ipcMain, nativeTheme } from 'electron'
 import type {
+  PdfSource,
   SavePdfAsRequest,
   SavePdfRequest,
   SavePdfDraftRequest,
   SessionState
 } from '../shared/contracts'
+import { releasePdfSource } from './pdf-sources'
 import { deleteBackup, readPdf, savePdf, statPdf } from './pdf-files'
 import { openPdfDialog, savePdfAs } from './pdf-dialogs'
 import { createDraftStore } from './drafts'
@@ -21,6 +23,7 @@ export function registerIpc(): void {
   ipcMain.handle('draft:delete', (_event, path: string) => drafts.remove(path))
   ipcMain.handle('pdf:open-dialog', () => openPdfDialog(getMainWindow()))
   ipcMain.handle('pdf:read', (_event, filePath: string) => readPdf(filePath))
+  ipcMain.handle('pdf:release-source', (_event, source: PdfSource) => releasePdfSource(source))
   ipcMain.handle('pdf:stat', (_event, filePath: string) => statPdf(filePath))
   ipcMain.handle('pdf:save', (_event, payload: SavePdfRequest) => savePdf(payload, userDataPath))
   ipcMain.handle('pdf:save-as', (_event, payload: SavePdfAsRequest) =>

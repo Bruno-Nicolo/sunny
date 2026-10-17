@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -14,7 +15,7 @@ ipcMain.handle('test:read', () => ({
   path: 'scroll.pdf',
   name: 'scroll.pdf',
   directoryName: 'test',
-  data: new Uint8Array(blankPdf).buffer,
+  source: { kind: 'memory', data: new Uint8Array(blankPdf).buffer },
   mtimeMs: 1,
   size: blankPdf.length
 }))
@@ -24,6 +25,7 @@ fs.writeFileSync(
   `
 const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('lepis', {
+  releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: async () => ({ tabs: [{path:'scroll.pdf',page:1,scale:'3',scrollTop:0}], activePath:'scroll.pdf', highlightColor:'#FDE047', theme:'light' }),
@@ -42,9 +44,15 @@ app
       show: false,
       width: 1180,
       height: 780,
-      webPreferences: { preload, sandbox: true, contextIsolation: true }
+      webPreferences: {
+        backgroundThrottling: false,
+        preload,
+        sandbox: true,
+        contextIsolation: true
+      }
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
+    await enableTestFocus(win)
     const deadline = Date.now() + 15000
     while (
       !(await evaluate(`document.querySelector('.visible .pdfViewer .page canvas')?.width > 0`))

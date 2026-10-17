@@ -10,7 +10,7 @@ import ts from 'typescript'
 // Load the filesystem modules without starting Electron, using the project's TypeScript compiler.
 const modulesPath = await mkdtemp(join(tmpdir(), 'lepis-test-modules-'))
 after(() => rm(modulesPath, { recursive: true, force: true }))
-for (const name of ['atomic-write', 'pdf-files', 'session', 'drafts']) {
+for (const name of ['pdf-sources', 'atomic-write', 'pdf-files', 'session', 'drafts']) {
   const source = await readFile(new URL(`../src/main/${name}.ts`, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
@@ -18,12 +18,16 @@ for (const name of ['atomic-write', 'pdf-files', 'session', 'drafts']) {
   await writeFile(
     join(modulesPath, `${name}.mjs`),
     outputText
+      .replace("from './pdf-sources'", "from './pdf-sources.mjs'")
       .replace("from './atomic-write'", "from './atomic-write.mjs'")
       .replace("from './pdf-files'", "from './pdf-files.mjs'")
   )
 }
 const { readPdf, statPdf, savePdf, writePdfCopy, deleteBackup } = await import(
   pathToFileURL(join(modulesPath, 'pdf-files.mjs')).href
+)
+const { createPdfResponse, createPdfSource, releasePdfSource, releaseAllPdfSources } = await import(
+  pathToFileURL(join(modulesPath, 'pdf-sources.mjs')).href
 )
 const { writeFileAtomically } = await import(
   pathToFileURL(join(modulesPath, 'atomic-write.mjs')).href
@@ -59,14 +63,18 @@ async function fixture(t) {
   }
 }
 
-test('reading a PDF returns bytes and filesystem metadata and rejects invalid files', async (t) => {
+test('opening a PDF returns a local source and metadata without an IPC byte buffer', async (t) => {
   const { filePath, directory } = await fixture(t)
   const opened = await readPdf(filePath)
-  assert.ok(opened.data instanceof ArrayBuffer)
+  assert.equal(opened.source.kind, 'file')
+  assert.equal('data' in opened, false)
   assert.equal(opened.path, filePath)
   assert.equal(opened.name, 'document.pdf')
   assert.equal(opened.directoryName, directory.split('/').at(-1))
-  assert.deepEqual(new Uint8Array(opened.data), new Uint8Array(original))
+  assert.deepEqual(
+    new Uint8Array(await (await createPdfResponse(new Request(opened.source.url))).arrayBuffer()),
+    new Uint8Array(original)
+  )
   assert.deepEqual({ size: opened.size, mtimeMs: opened.mtimeMs }, await statPdf(filePath))
   await writeFile(filePath, 'invalid')
   await assert.rejects(readPdf(filePath), /not a valid PDF/)
@@ -119,7 +127,10 @@ test('saving a copy returns the new document without changing the original', asy
   const copy = await writePdfCopy(copyPath, new Uint8Array(edited))
   assert.equal(copy.path, copyPath)
   assert.equal(copy.name, 'copy.pdf')
-  assert.deepEqual(new Uint8Array(copy.data), new Uint8Array(edited))
+  assert.deepEqual(
+    new Uint8Array(await (await createPdfResponse(new Request(copy.source.url))).arrayBuffer()),
+    new Uint8Array(edited)
+  )
   assert.deepEqual(await readFile(filePath), original)
   await writePdfCopy(copyPath, new Uint8Array(original))
   assert.deepEqual(await readFile(copyPath), original)
@@ -172,7 +183,7 @@ test('recovery drafts survive a new store, retain the original revision, and nev
   assert.equal(recovered.path, filePath)
   assert.equal(recovered.mtimeMs, payload.expectedMtimeMs)
   assert.ok(recovered.savedAt > 0)
-  assert.deepEqual(new Uint8Array(recovered.data), new Uint8Array(edited))
+  assert.deepEqual(new Uint8Array(recovered.source.data), new Uint8Array(edited))
   assert.deepEqual(await readFile(filePath), original)
   await rm(filePath)
   assert.equal((await reopened.load()).length, 1, 'Missing originals do not prevent recovery')
@@ -186,7 +197,7 @@ test('draft writes and deletion are serialized, invalid output preserves the pre
   const draft = { path: filePath, mtimeMs: 1, size: original.length, data: payload.data }
   await store.save(draft)
   await assert.rejects(store.save({ ...draft, data: new Uint8Array([1]) }), /Invalid recovery PDF/)
-  assert.deepEqual(new Uint8Array((await store.load())[0].data), new Uint8Array(edited))
+  assert.deepEqual(new Uint8Array((await store.load())[0].source.data), new Uint8Array(edited))
   await Promise.all([store.save(draft), store.remove(filePath)])
   assert.deepEqual(await store.load(), [])
   await store.save(draft)
@@ -203,5 +214,43 @@ test('draft storage keeps large PDFs in binary without Base64 expansion', async 
   const [name] = await readdir(join(userDataPath, 'drafts'))
   const stored = await readFile(join(userDataPath, 'drafts', name))
   assert.ok(stored.length < data.length + 1024)
-  assert.deepEqual(new Uint8Array((await store.load())[0].data), data)
+  assert.deepEqual(new Uint8Array((await store.load())[0].source.data), data)
+})
+
+test('PDF ranges use a stable snapshot, survive original replacement and disappear on release', async (t) => {
+  const { filePath } = await fixture(t)
+  const pdf = await readPdf(filePath)
+  const response = await createPdfResponse(
+    new Request(pdf.source.url, { headers: { Range: 'bytes=0-7' } })
+  )
+  assert.equal(response.status, 206)
+  assert.equal(response.headers.get('Content-Range'), `bytes 0-7/${original.length}`)
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), original.subarray(0, 8))
+  await writeFile(filePath, edited)
+  assert.deepEqual(
+    Buffer.from(await (await createPdfResponse(new Request(pdf.source.url))).arrayBuffer()),
+    original
+  )
+  const invalid = await createPdfResponse(
+    new Request(pdf.source.url, { headers: { Range: 'bytes=999999-1000000' } })
+  )
+  assert.equal(invalid.status, 416)
+  assert.equal(
+    (await createPdfResponse(new Request('lepis-pdf://document/unregistered'))).status,
+    404
+  )
+  await releasePdfSource(pdf.source)
+  assert.equal((await createPdfResponse(new Request(pdf.source.url))).status, 404)
+})
+
+test('closing sources cancels in-flight snapshots and permits reopening afterward', async (t) => {
+  const { filePath } = await fixture(t)
+  const stats = await statPdf(filePath)
+  const pending = createPdfSource(filePath, stats)
+  const rejected = assert.rejects(pending, /source was closed/)
+  await releaseAllPdfSources()
+  await rejected
+  const reopened = await readPdf(filePath)
+  assert.equal((await createPdfResponse(new Request(reopened.source.url))).status, 200)
+  await releasePdfSource(reopened.source)
 })

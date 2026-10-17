@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -34,7 +35,7 @@ const document = (name) => ({
   path: name,
   name,
   directoryName: 'test',
-  data: new Uint8Array(files.get(name) ?? blankPdf).buffer,
+  source: { kind: 'memory', data: new Uint8Array(files.get(name) ?? blankPdf).buffer },
   mtimeMs: mtimes.get(name) ?? 1,
   size: blankPdf.length
 })
@@ -87,6 +88,7 @@ fs.writeFileSync(
 const commands = new Map()
 const openListeners = new Set()
 contextBridge.exposeInMainWorld('lepis', {
+  releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
   loadSession: () => ipcRenderer.invoke('test:session'),
@@ -137,16 +139,22 @@ app
   .whenReady()
   .then(async () => {
     win = new BrowserWindow({
-      show: true,
+      show: false,
       width: 1180,
       height: 780,
-      webPreferences: { preload, sandbox: true, contextIsolation: true }
+      webPreferences: {
+        backgroundThrottling: false,
+        preload,
+        sandbox: true,
+        contextIsolation: true
+      }
     })
     win.webContents.on('console-message', (details) => {
       if (details.level === 'error') rendererErrors.push(details.message)
     })
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
-    win.focus()
+    await enableTestFocus(win)
+    win.webContents.focus()
     await waitFor('document.hasFocus()')
     await waitFor('window.testCommands.listening()')
     await evaluate("window.testCommands.open('startup.pdf')")

@@ -224,7 +224,10 @@ function App(): React.JSX.Element {
           highlightColor={highlightColor}
           textSettings={textEditor?.id === activeId ? textEditor.settings : null}
           onAnnotationToolChange={setAnnotationTool}
-          onHighlightColorChange={setHighlightColor}
+          onHighlightColorChange={(color) => {
+            getActiveViewer()?.setHighlightColor(color)
+            setHighlightColor(color)
+          }}
           onAddImages={(files) => void addImages(files)}
           onPageChange={(page) => getActiveViewer()?.setPage(page)}
           onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}

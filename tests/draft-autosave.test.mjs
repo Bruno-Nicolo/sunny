@@ -26,7 +26,7 @@ function fixture(snapshot = async () => ({ hash: 'one', data: new Uint8Array([1]
     path: 'original.pdf',
     dirty: true,
     view: { pages: 1 },
-    data: new ArrayBuffer(1),
+    source: { kind: 'memory', data: new ArrayBuffer(1) },
     mtimeMs: 42,
     size: 100
   }

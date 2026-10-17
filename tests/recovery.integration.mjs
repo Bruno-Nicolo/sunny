@@ -1,3 +1,4 @@
+import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
@@ -6,12 +7,24 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
-const { app, BrowserWindow, ipcMain } = electron
+const { app, BrowserWindow, ipcMain, protocol } = electron
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'lepis-pdf',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
+])
 const root = path.resolve(import.meta.dirname, '..')
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'lepis-recovery-'))
 app.setPath('userData', temp)
 app.on('window-all-closed', () => {})
-for (const name of ['atomic-write', 'pdf-files', 'drafts']) {
+for (const name of ['pdf-sources', 'atomic-write', 'pdf-files', 'drafts']) {
   const source = await fs.readFile(path.join(root, 'src/main', `${name}.ts`), 'utf8')
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
@@ -19,6 +32,7 @@ for (const name of ['atomic-write', 'pdf-files', 'drafts']) {
   await fs.writeFile(
     path.join(temp, `${name}.mjs`),
     outputText
+      .replace("from './pdf-sources'", "from './pdf-sources.mjs'")
       .replace("from './atomic-write'", "from './atomic-write.mjs'")
       .replace("from './pdf-files'", "from './pdf-files.mjs'")
   )
@@ -26,6 +40,9 @@ for (const name of ['atomic-write', 'pdf-files', 'drafts']) {
 const { createDraftStore } = await import(pathToFileURL(path.join(temp, 'drafts.mjs')).href)
 const { readPdf, statPdf, savePdf, writePdfCopy } = await import(
   pathToFileURL(path.join(temp, 'pdf-files.mjs')).href
+)
+const { createPdfResponse, releasePdfSource } = await import(
+  pathToFileURL(path.join(temp, 'pdf-sources.mjs')).href
 )
 let store = createDraftStore(temp)
 const originalPath = path.join(temp, 'original.pdf')
@@ -56,6 +73,7 @@ ipcMain.handle('draft:save', async (_, value) => {
   await store.save(value)
 })
 ipcMain.handle('draft:delete', (_, value) => store.remove(value))
+ipcMain.handle('pdf:release-source', (_event, source) => releasePdfSource(source))
 ipcMain.handle('pdf:read', (_, value) => readPdf(value))
 ipcMain.handle('pdf:stat', (_, value) => statPdf(value))
 ipcMain.handle('pdf:save', (_, value) => {
@@ -71,6 +89,7 @@ await fs.writeFile(
   `const { contextBridge, ipcRenderer } = require('electron');
 const commands = new Map();
 contextBridge.exposeInMainWorld('lepis', {
+ releasePdfSource: source => ipcRenderer.invoke('pdf:release-source', source),
  loadDrafts: () => ipcRenderer.invoke('draft:load'), saveDraft: value => ipcRenderer.invoke('draft:save', value), deleteDraft: value => ipcRenderer.invoke('draft:delete', value),
  loadSession: () => ipcRenderer.invoke('session:load'), saveSession: value => ipcRenderer.invoke('session:save', value),
  readPdf: value => ipcRenderer.invoke('pdf:read', value), statPdf: value => ipcRenderer.invoke('pdf:stat', value),
@@ -104,19 +123,22 @@ async function launch() {
   win?.destroy() // Terminate the renderer without the normal save/close workflow.
   store = createDraftStore(temp)
   win = new BrowserWindow({
-    show: true,
+    show: false,
     width: 1180,
     height: 780,
-    webPreferences: { preload, sandbox: true, contextIsolation: true }
+    webPreferences: { backgroundThrottling: false, preload, sandbox: true, contextIsolation: true }
   })
   win.webContents.on('console-message', (details) => {
     if (details.level === 'error') errors.push(details.message)
   })
   await win.loadFile(path.join(root, 'out/renderer/index.html'))
-  win.focus()
+  await enableTestFocus(win)
 }
 async function typeText(value) {
-  await evaluate(`document.querySelector('[aria-label="Add text"]').click()`)
+  await ready()
+  await evaluate(
+    `(() => { const button = document.querySelector('[aria-label="Add text"]'); if (button.getAttribute('aria-pressed') !== 'true') button.click(); })()`
+  )
   await waitFor(
     `document.querySelector('.visible .annotationEditorLayer.freetextEditing') !== null`
   )
@@ -138,10 +160,12 @@ async function typeText(value) {
 }
 async function draftContains(value) {
   const [draft] = await store.load()
-  return draft && Buffer.from(draft.data).includes(Buffer.from(value))
+  return draft && Buffer.from(draft.source.data).includes(Buffer.from(value))
 }
 
 app.whenReady().then(async () => {
+  protocol.handle('lepis-pdf', createPdfResponse)
+
   try {
     await launch()
     await ready()
