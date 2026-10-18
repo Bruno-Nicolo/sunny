@@ -173,6 +173,7 @@ export function ChatDock({
                 key={tab.path}
                 tab={tab}
                 active={tab.id === activeId}
+                visible={open && tab.id === activeId}
                 getViewer={getViewer}
                 onWidth={applyWidth}
                 onShowDocument={() => {

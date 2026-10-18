@@ -479,10 +479,27 @@ app
       )
       assert.equal(generated.length, 0, 'suggestions prepare a draft without sending')
       assert.equal(service.store.list('first.pdf').length, 0, 'suggestions do not create history')
+      if (label === 'Summarize') {
+        assert.equal(
+          await evaluate(
+            `document.querySelector('[aria-label="Cancel document summary"]').getAttribute('data-slot')`
+          ),
+          null,
+          'summary cancel has no tooltip trigger'
+        )
+      }
     }
+    await click('Toggle AI chat')
+    await click('Toggle AI chat')
+    await waitFor(`document.activeElement?.getAttribute('aria-label') === 'Message AI'`)
     for (let index = 0; index < 3; index++) {
       await click('New chat')
       await evaluate(`new Promise(resolve => requestAnimationFrame(resolve))`)
+      assert.equal(
+        await evaluate(`document.activeElement?.getAttribute('aria-label')`),
+        'Message AI',
+        'new chat focuses the composer'
+      )
       assert.equal(
         service.store.list('first.pdf').length,
         0,
@@ -809,6 +826,7 @@ app
     await waitFor(
       `document.querySelectorAll('aside:not(.hidden) [aria-label="Recent chats"] li').length === 5`
     )
+    await waitFor(`document.activeElement?.getAttribute('aria-label') === 'Message AI'`)
     assert.equal(
       await evaluate(
         `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').value`

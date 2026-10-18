@@ -10,7 +10,6 @@ import {
   Settings,
   Square,
   TextSelect,
-  Trash2,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -67,6 +66,7 @@ import './chat.css'
 type Props = {
   tab: Tab
   active: boolean
+  visible: boolean
   getViewer(id: string): PdfDocumentHandle | null
   onWidth(width: number): void
   onShowDocument(): void
@@ -77,6 +77,7 @@ type Props = {
 export function ChatPanel({
   tab,
   active,
+  visible,
   getViewer,
   onWidth,
   onShowDocument,
@@ -105,7 +106,6 @@ export function ChatPanel({
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const [rename, setRename] = useState<string | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [scrollPinned, setScrollPinned] = useState(true)
   const messagesRef = useRef<HTMLDivElement>(null)
   const requestRef = useRef<string | null>(null)
@@ -113,6 +113,12 @@ export function ChatPanel({
   const statusRef = useRef<AiStatus | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const selectedTextRef = useRef<ChatAttachment[]>([])
+  const statusLoaded = Boolean(status)
+  useEffect(() => {
+    if (visible && statusLoaded && !historyOpen && !settingsOpen) {
+      composerRef.current?.focus({ preventScroll: true })
+    }
+  }, [visible, statusLoaded, historyOpen, settingsOpen])
   const sourceRef = useRef(tab.source)
   const activeRef = useRef(active)
   const showError = (error: unknown): void =>
@@ -373,7 +379,6 @@ export function ChatPanel({
     setConversation(null)
     setHistoryOpen(false)
     setRename(null)
-    setDeleteConfirm(false)
     setScrollPinned(true)
   }
   const newChat = (): void => {
@@ -396,7 +401,6 @@ export function ChatPanel({
     setConversation(chat)
     setHistoryOpen(false)
     setRename(null)
-    setDeleteConfirm(false)
     setScrollPinned(true)
   }
   const renameHistory = async (id: string, title: string): Promise<void> => {
@@ -409,7 +413,6 @@ export function ChatPanel({
       conversationRef.current = null
       setConversation(null)
       setRename(null)
-      setDeleteConfirm(false)
     }
     await reloadList()
   }
@@ -616,7 +619,7 @@ export function ChatPanel({
           </TooltipTrigger>
           <TooltipContent>New chat</TooltipContent>
         </Tooltip>
-        <Dialog open={settingsOpen && active} onOpenChange={setSettingsOpen}>
+        <Dialog open={settingsOpen && visible} onOpenChange={setSettingsOpen}>
           <Tooltip>
             <TooltipTrigger asChild>
               <DialogTrigger asChild>
@@ -628,7 +631,15 @@ export function ChatPanel({
             <TooltipContent>AI settings</TooltipContent>
           </Tooltip>
           {status && (
-            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+            <DialogContent
+              className="max-h-[85vh] overflow-y-auto sm:max-w-xl"
+              onCloseAutoFocus={(event) => {
+                if (visible && !historyOpen) {
+                  event.preventDefault()
+                  composerRef.current?.focus({ preventScroll: true })
+                }
+              }}
+            >
               <DialogHeader>
                 <DialogTitle>AI settings</DialogTitle>
                 <DialogDescription className="sr-only">Manage AI connections.</DialogDescription>
@@ -689,78 +700,6 @@ export function ChatPanel({
         </div>
       ) : (
         <>
-          {!historyOpen && Boolean(conversation?.messages.length) && (
-            <div className="space-y-2 border-b px-3 py-2">
-              {conversations.length > 0 && (
-                <div className="flex items-center gap-1">
-                  <Select
-                    value={conversation?.id ?? ''}
-                    disabled={busy || modelChanging}
-                    onValueChange={(value) => {
-                      if (!value || value === conversation?.id) return
-                      void openConversation(value).catch(showError)
-                    }}
-                  >
-                    <SelectTrigger
-                      aria-label="Conversation history"
-                      size="sm"
-                      className="min-w-0 flex-1"
-                    >
-                      <SelectValue placeholder="Conversation history" />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                      {conversations.map((chat) => (
-                        <SelectItem key={chat.id} value={chat.id}>
-                          {chat.title} · {providerNames[chat.provider]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="Delete conversation"
-                        disabled={!conversation || busy}
-                        onClick={() => setDeleteConfirm((value) => !value)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Delete conversation</TooltipContent>
-                  </Tooltip>
-                </div>
-              )}
-              {deleteConfirm && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span>Delete this chat and its selections?</span>
-                  <Button
-                    size="xs"
-                    variant="destructive"
-                    onClick={() => {
-                      if (conversation)
-                        void window.lepis.ai
-                          .deleteConversation(conversation.id)
-                          .then(() => {
-                            conversationRef.current = null
-                            setConversation(null)
-                            setDeleteConfirm(false)
-                            return reloadList()
-                          })
-                          .catch(showError)
-                    }}
-                  >
-                    Delete
-                  </Button>
-                  <Button size="xs" variant="ghost" onClick={() => setDeleteConfirm(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
           {indexProgress && (
             <p
               role="status"
@@ -906,20 +845,7 @@ export function ChatPanel({
             </div>
           )}
           {!historyOpen && (
-            <div className="shrink-0 space-y-2 border-t p-3">
-              <Button
-                variant="ghost"
-                size="xs"
-                disabled={!document || busy || stale}
-                onClick={() =>
-                  action(
-                    'Summarize the entire document, covering its main arguments and conclusions.',
-                    true
-                  )
-                }
-              >
-                Summarize PDF
-              </Button>
+            <div className="shrink-0 space-y-2 p-3">
               {attachments.length > 0 && (
                 <>
                   <div className="flex max-h-32 flex-wrap gap-2 overflow-auto">
@@ -991,17 +917,9 @@ export function ChatPanel({
                   <span className="flex-1">
                     Full document summary · may require multiple AI requests
                   </span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        aria-label="Cancel document summary"
-                        onClick={() => setSummarize(false)}
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Cancel document summary</TooltipContent>
-                  </Tooltip>
+                  <button aria-label="Cancel document summary" onClick={() => setSummarize(false)}>
+                    <X className="size-3" />
+                  </button>
                 </div>
               )}
               <form
