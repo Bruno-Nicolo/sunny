@@ -155,7 +155,7 @@ export class ChatStore {
   list(path: string): ConversationSummary[] {
     return this.db
       .prepare(
-        `SELECT id,path,updated,json_extract(json,'$.documentVersion') AS version,json_extract(json,'$.documentName') AS name,json_extract(json,'$.provider') AS provider,json_extract(json,'$.title') AS title FROM conversations WHERE path=? ORDER BY updated DESC`
+        `SELECT id,path,updated,json_extract(json,'$.documentVersion') AS version,json_extract(json,'$.documentName') AS name,json_extract(json,'$.provider') AS provider,json_extract(json,'$.title') AS title FROM conversations WHERE path=? AND json_array_length(json,'$.messages') > 0 ORDER BY updated DESC`
       )
       .all(path)
       .map((row) => {
@@ -175,7 +175,14 @@ export class ChatStore {
     if (!row) throw new Error('Conversation not found.')
     return JSON.parse(String(row.json))
   }
-  create(version: string, provider: AiProvider, path: string): Conversation {
+  create(
+    version: string,
+    provider: AiProvider,
+    path: string,
+    id: string = randomUUID()
+  ): Conversation {
+    if (this.db.prepare('SELECT 1 FROM conversations WHERE id=?').get(id))
+      throw new Error('Conversation already exists.')
     this.document(version)
     const document = this.db
       .prepare('SELECT name,version FROM document_paths WHERE path=?')
@@ -183,7 +190,7 @@ export class ChatStore {
     if (!document || document.version !== version)
       throw new Error('Index the current PDF version before starting a conversation.')
     const conversation: Conversation = {
-      id: randomUUID(),
+      id,
       documentVersion: version,
       documentName: String(document.name),
       documentPath: path,
@@ -192,10 +199,11 @@ export class ChatStore {
       updatedAt: Date.now(),
       messages: []
     }
-    this.save(conversation)
     return conversation
   }
   save(conversation: Conversation): void {
+    if (!conversation.messages.some((message) => message.role === 'user'))
+      throw new Error('A conversation requires a user message.')
     this.db
       .prepare('INSERT OR REPLACE INTO conversations VALUES(?,?,?,?)')
       .run(

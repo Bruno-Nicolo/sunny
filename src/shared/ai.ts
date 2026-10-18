@@ -70,6 +70,7 @@ export type AiModel = { id: string; name: string }
 export type ChatSendRequest = {
   requestId: string
   conversationId: string
+  newConversation?: { version: string; path: string; provider: AiProvider }
   model: string
   text: string
   attachments: ChatAttachment[]
@@ -97,7 +98,6 @@ export interface AiApi {
   index(document: ChatDocument): Promise<void>
   conversations(path: string): Promise<ConversationSummary[]>
   conversation(id: string): Promise<Conversation>
-  createConversation(version: string, provider: AiProvider, path: string): Promise<Conversation>
   renameConversation(id: string, title: string): Promise<void>
   deleteConversation(id: string): Promise<void>
   send(request: ChatSendRequest): Promise<void>

@@ -7,6 +7,7 @@ import type {
   ChatDocument,
   ChatEvent,
   ChatMessage,
+  Conversation,
   ChatSendRequest,
   DocumentSource
 } from '../../shared/ai'
@@ -143,11 +144,26 @@ export class AiService {
       [...this.jobs.values()].some((job) => job.conversationId === request.conversationId)
     )
       throw new Error('A response is already running in this conversation.')
-    const conversation = this.store.get(request.conversationId)
+    if (typeof request.conversationId !== 'string' || !request.conversationId)
+      throw new Error('Invalid conversation ID.')
+    const first = request.newConversation
+    if (
+      first &&
+      (!aiProviders.includes(first.provider) ||
+        typeof first.path !== 'string' ||
+        typeof first.version !== 'string' ||
+        request.retryMessageId)
+    )
+      throw new Error('Invalid new conversation.')
+    if (first && this.currentVersions.get(first.path) !== first.version)
+      throw new Error('The PDF changed. Start a new chat on the current version.')
+    const conversation = first
+      ? this.store.create(first.version, first.provider, first.path, request.conversationId)
+      : this.store.get(request.conversationId)
     if (this.currentVersions.get(conversation.documentPath) !== conversation.documentVersion)
       throw new Error('The PDF changed. Start a new chat on the current version.')
     const abort = new AbortController()
-    const promise = this.run(request, abort.signal, emit).finally(() => {
+    const promise = this.run(request, conversation, abort.signal, emit).finally(() => {
       this.jobs.delete(request.requestId)
     })
     this.jobs.set(request.requestId, {
@@ -160,10 +176,10 @@ export class AiService {
   }
   private async run(
     request: ChatSendRequest,
+    conversation: Conversation,
     signal: AbortSignal,
     emit: (event: ChatEvent) => void
   ): Promise<void> {
-    const conversation = this.store.get(request.conversationId)
     const base = { requestId: request.requestId, conversationId: conversation.id }
     const progress = (text: string): void => emit({ ...base, type: 'progress', text })
     let user: ChatMessage
@@ -193,9 +209,8 @@ export class AiService {
         model: request.model,
         summarize: request.summarize
       }
+      if (!conversation.messages.length) conversation.title = user.text.slice(0, 70)
       conversation.messages.push(user)
-      if (conversation.title === 'New chat') conversation.title = user.text.slice(0, 70)
-      emit({ ...base, type: 'message', message: user })
     }
     const assistant: ChatMessage = {
       id: randomUUID(),
@@ -211,6 +226,7 @@ export class AiService {
     conversation.messages.push(assistant)
     conversation.updatedAt = Date.now()
     this.store.save(conversation)
+    if (!request.retryMessageId) emit({ ...base, type: 'message', message: user })
     emit({ ...base, type: 'message', message: assistant })
     let lastCheckpoint = Date.now()
     try {

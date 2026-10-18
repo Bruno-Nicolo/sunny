@@ -213,7 +213,6 @@ app
     })
     ai('conversations', (value) => service.store.list(value))
     ai('conversation', (id) => service.store.get(id))
-    ai('create', (version, provider, filePath) => service.store.create(version, provider, filePath))
     ai('rename', (id, title) => service.store.rename(id, title))
     ai('delete', (id) => service.remove(id))
     ai('send', (request) =>
@@ -459,6 +458,42 @@ app
     )
     assert.ok(indexed[0].sources[0].text.includes('Photosynthesis'))
     console.log('PASS: model catalog failures recover and login progress survives closing settings')
+    await waitFor(
+      `document.querySelector('[aria-label="Chat empty state"] h2')?.textContent.includes('What would you like to know')`
+    )
+    fs.writeFileSync('/tmp/lepis-chat-empty.png', (await win.webContents.capturePage()).toPNG())
+    for (const [label, expected] of [
+      ['Summarize', 'Summarize the entire document'],
+      ['Explain key concepts', 'Explain the key concepts'],
+      ['Find information', 'Find information about ']
+    ]) {
+      await evaluate(
+        `Array.from(document.querySelectorAll('[aria-label="Chat empty state"] button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`
+      )
+      await waitFor(
+        `document.querySelector('[aria-label="Message AI"]').value.startsWith(${JSON.stringify(expected)})`
+      )
+      assert.equal(
+        await evaluate(`document.activeElement?.getAttribute('aria-label')`),
+        'Message AI'
+      )
+      assert.equal(generated.length, 0, 'suggestions prepare a draft without sending')
+      assert.equal(service.store.list('first.pdf').length, 0, 'suggestions do not create history')
+    }
+    for (let index = 0; index < 3; index++) {
+      await click('New chat')
+      await evaluate(`new Promise(resolve => requestAnimationFrame(resolve))`)
+      assert.equal(
+        service.store.list('first.pdf').length,
+        0,
+        'New chat must not persist an empty conversation'
+      )
+    }
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Rename conversation"]').disabled`),
+      true,
+      'placeholder title cannot be edited'
+    )
     const originalVersion = indexed[0].version
     await setInput('Message AI', 'Explain photosynthesis')
     await waitFor(`!document.querySelector('[aria-label="Send message"]').disabled`)
@@ -642,6 +677,22 @@ app
     await click('Highlight text')
     await click('Close first.pdf')
     await waitFor(`document.querySelector('[aria-label="first.pdf"]') === null`)
+    for (let index = 0; index < 6; index++) {
+      const past = service.store.create(originalVersion, 'chatgpt', 'first.pdf')
+      past.messages.push({
+        id: crypto.randomUUID(),
+        role: 'user',
+        text: `Past question ${index + 1}`,
+        attachments: [],
+        sources: [],
+        status: 'complete',
+        createdAt: Date.now(),
+        model: 'test-model'
+      })
+      past.title = `Past chat ${index + 1}`
+      past.updatedAt = firstChat.updatedAt - (index + 1) * 1000
+      service.store.save(past)
+    }
     win.webContents.send('file:open-requested', 'first.pdf')
     await waitFor(
       `document.querySelector('.visible .textLayer')?.textContent.includes('Photosynthesis')`
@@ -654,6 +705,121 @@ app
       indexed.at(-1).version,
       originalVersion,
       'saved annotations do not change the source content version'
+    )
+    await waitFor(
+      `document.querySelectorAll('aside:not(.hidden) [aria-label="Recent chats"] li').length === 5`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelectorAll('aside:not(.hidden) [aria-label="AI answer"]').length`
+      ),
+      0,
+      'opening chat shows history instead of automatically loading a conversation'
+    )
+    assert.deepEqual(
+      await evaluate(
+        `Array.from(document.querySelectorAll('aside:not(.hidden) [aria-label="Recent chats"] [data-conversation-id]')).map(button => button.textContent)`
+      ),
+      ['Photosynthesis notes', 'Past chat 1', 'Past chat 2', 'Past chat 3', 'Past chat 4']
+    )
+    assert.equal(
+      await evaluate(`(() => {
+      const empty = document.querySelector('aside:not(.hidden) [aria-label="Chat empty state"]');
+      const bounds = empty.getBoundingClientRect();
+      const content = empty.firstElementChild.getBoundingClientRect();
+      return Math.abs(content.x + content.width / 2 - bounds.x - bounds.width / 2) < 2 && Math.abs(content.y + content.height / 2 - bounds.y - bounds.height / 2) < 2;
+    })()`),
+      true,
+      'history is centered horizontally and vertically'
+    )
+    await setInput('Message AI', 'Draft kept in history')
+    await evaluate(
+      `Array.from(document.querySelectorAll('aside:not(.hidden) button')).find(button => button.textContent === 'Show more').click()`
+    )
+    await waitFor(
+      `document.querySelectorAll('aside:not(.hidden) [aria-label="All chats"] li').length === 7`
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('aside:not(.hidden) [aria-label="Message AI"]')`),
+      null,
+      'all-history view has no composer'
+    )
+    await evaluate(
+      `document.querySelector('[aria-label="Chat actions: Past chat 1"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
+    )
+    await waitFor(`document.querySelector('[role="menuitem"]')`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent === 'Rename').click()`
+    )
+    await waitFor(`document.querySelector('[aria-label="Chat title"]')`)
+    await setInput('Chat title', 'Renamed history chat')
+    await evaluate(
+      `document.querySelector('[aria-label="Chat title"]').closest('form').requestSubmit()`
+    )
+    await waitFor(`document.querySelector('[aria-label="Chat actions: Renamed history chat"]')`)
+    assert.ok(service.store.list('first.pdf').some((chat) => chat.title === 'Renamed history chat'))
+    await evaluate(
+      `document.querySelector('[aria-label="Chat actions: Past chat 6"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
+    )
+    await waitFor(`document.querySelector('[role="menuitem"]')`)
+    assert.equal(
+      await evaluate(
+        `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent === 'Delete').getAttribute('data-variant')`
+      ),
+      'destructive'
+    )
+    assert.equal(
+      await evaluate(
+        `(() => { const item = Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent === 'Delete'); return getComputedStyle(item).color === getComputedStyle(item.querySelector('svg')).color; })()`
+      ),
+      true,
+      'delete icon uses the same danger color as its label'
+    )
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent === 'Delete').click()`
+    )
+    await waitFor(
+      `document.querySelector('[role="alertdialog"]')?.textContent.includes('Delete chat?')`
+    )
+    await waitFor(
+      `getComputedStyle(document.querySelector('[role="alertdialog"]')).opacity === '1'`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[role="alertdialog"]').getBoundingClientRect().width <= 320`
+      ),
+      true
+    )
+    assert.equal(await evaluate(`document.activeElement?.textContent`), 'Cancel')
+    await evaluate(
+      `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
+    )
+    fs.writeFileSync('/tmp/lepis-delete-chat.png', (await win.webContents.capturePage()).toPNG())
+    await evaluate(
+      `document.querySelector('[role="alertdialog"] [data-variant="destructive"]').click()`
+    )
+    await waitFor(
+      `document.querySelectorAll('aside:not(.hidden) [aria-label="All chats"] li').length === 6`
+    )
+    assert.equal(
+      service.store.list('first.pdf').some((chat) => chat.title === 'Past chat 6'),
+      false
+    )
+    await click('Back to chat')
+    await waitFor(
+      `document.querySelectorAll('aside:not(.hidden) [aria-label="Recent chats"] li').length === 5`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').value`
+      ),
+      'Draft kept in history'
+    )
+    console.log(
+      'PASS: centered recent history, full history without composer, rename, delete and back navigation'
+    )
+    await evaluate(
+      `document.querySelector('aside:not(.hidden) [aria-label="Recent chats"] [data-conversation-id]').click()`
     )
     await waitFor(
       `document.querySelectorAll('aside:not(.hidden) [aria-label="AI answer"]').length === 2`

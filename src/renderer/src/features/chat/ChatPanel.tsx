@@ -2,6 +2,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   ArrowUp,
+  ChevronLeft,
   Crop,
   LoaderCircle,
   MessageSquarePlus,
@@ -59,6 +60,7 @@ import type {
 import { AiSettingsView } from './AiSettingsView'
 import { providerNames, providerSections } from './labels'
 import { ProviderLogo } from './ProviderLogo'
+import { ConversationHistory } from './ConversationHistory'
 import { ChatMessageView } from './ChatMessageView'
 import './chat.css'
 
@@ -95,6 +97,7 @@ export function ChatPanel({
   const [indexAttempt, setIndexAttempt] = useState(0)
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [conversation, setConversation] = useState<Conversation | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [summarize, setSummarize] = useState(false)
@@ -132,16 +135,12 @@ export function ChatPanel({
     if (!active) return
     let alive = true
     void Promise.all([window.lepis.ai.status(), window.lepis.ai.conversations(tab.path)])
-      .then(async ([value, chats]) => {
+      .then(([value, chats]) => {
         if (!alive) return
         setStatus(value)
         onWidth(value.settings.panelWidth)
         if (value.connected.length === 0 || !value.settings.consent) setSettingsOpen(true)
         setConversations(chats)
-        if (chats[0]) {
-          const latest = await window.lepis.ai.conversation(chats[0].id)
-          if (alive && !conversationRef.current) setConversation(latest)
-        }
       })
       .catch((error) => {
         if (alive) showError(error)
@@ -344,6 +343,10 @@ export function ChatPanel({
             current
               ? {
                   ...current,
+                  title:
+                    !current.messages.length && message.role === 'user'
+                      ? message.text.slice(0, 70)
+                      : current.title,
                   messages: current.messages.some((item) => item.id === message.id)
                     ? current.messages.map((item) => (item.id === message.id ? message : item))
                     : [...current.messages, message]
@@ -365,15 +368,58 @@ export function ChatPanel({
     if (scrollPinned) messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight })
   }, [conversation, progress, scrollPinned])
 
-  const newChat = async (value: AiProvider = provider): Promise<Conversation | null> => {
-    if (!document || busy) return null
-    const chat = await window.lepis.ai.createConversation(document.version, value, tab.path)
-    conversationRef.current = chat
-    setConversation(chat)
+  const resetConversation = (): void => {
+    conversationRef.current = null
+    setConversation(null)
+    setHistoryOpen(false)
     setRename(null)
     setDeleteConfirm(false)
+    setScrollPinned(true)
+  }
+  const newChat = (): void => {
+    if (busy || modelChanging) return
+    resetConversation()
+    setDraft('')
+    setAttachments([])
+    setSummarize(false)
+    setError('')
+    composerRef.current?.focus()
+  }
+  const openConversation = async (id: string): Promise<void> => {
+    if (busy || modelChanging) return
+    if (id === conversationRef.current?.id) {
+      setHistoryOpen(false)
+      return
+    }
+    const chat = await window.lepis.ai.conversation(id)
+    conversationRef.current = chat
+    setConversation(chat)
+    setHistoryOpen(false)
+    setRename(null)
+    setDeleteConfirm(false)
+    setScrollPinned(true)
+  }
+  const renameHistory = async (id: string, title: string): Promise<void> => {
+    await window.lepis.ai.renameConversation(id, title)
     await reloadList()
-    return chat
+  }
+  const deleteHistory = async (id: string): Promise<void> => {
+    await window.lepis.ai.deleteConversation(id)
+    if (conversationRef.current?.id === id) {
+      conversationRef.current = null
+      setConversation(null)
+      setRename(null)
+      setDeleteConfirm(false)
+    }
+    await reloadList()
+  }
+  const recentChats = conversations.filter((chat) => chat.id !== conversation?.id)
+  const historyProps = {
+    disabled: busy || modelChanging,
+    onOpen: openConversation,
+    onRename: renameHistory,
+    onDelete: deleteHistory,
+    onError: showError
   }
   const addAttachments = (items: ChatAttachment[]): void => {
     if (!items.length) {
@@ -385,15 +431,25 @@ export function ChatPanel({
     composerRef.current?.focus()
   }
   const send = async (retry?: ChatMessage): Promise<void> => {
-    if (!ready || requestRef.current) return
+    if (!ready || requestRef.current || (!retry && !draft.trim() && !attachments.length)) return
     const id = crypto.randomUUID()
     requestRef.current = id
     setRequestId(id)
     setError('')
     setScrollPinned(true)
     try {
-      const chat = conversation ?? (await newChat())
-      if (!chat) return
+      const chat: Conversation = conversation ?? {
+        id: crypto.randomUUID(),
+        documentVersion: document!.version,
+        documentPath: tab.path,
+        documentName: tab.name,
+        provider,
+        title: 'New chat',
+        updatedAt: 0,
+        messages: []
+      }
+      conversationRef.current = chat
+      setConversation(chat)
       if (retry) setConversation({ ...chat, messages: chat.messages.slice(0, -1) })
       requestRef.current = id
       setRequestId(id)
@@ -401,6 +457,9 @@ export function ChatPanel({
       const pending = window.lepis.ai.send({
         requestId: id,
         conversationId: chat.id,
+        newConversation: conversation
+          ? undefined
+          : { version: document!.version, path: tab.path, provider },
         model: selectedModel,
         text: draft,
         attachments,
@@ -416,6 +475,10 @@ export function ChatPanel({
       }
     } catch (error) {
       showError(error)
+      if (!conversation && !conversationRef.current?.messages.length) {
+        conversationRef.current = null
+        setConversation(null)
+      }
       if (retry && conversation) {
         const latest = await window.lepis.ai.conversation(conversation.id)
         setConversation(latest)
@@ -446,7 +509,7 @@ export function ChatPanel({
         provider: group.provider,
         models: { [group.provider]: model.id }
       })
-      if (conversation && conversation.provider !== group.provider) await newChat(group.provider)
+      if (conversation && conversation.provider !== group.provider) resetConversation()
       setStatus((current) =>
         current
           ? {
@@ -472,7 +535,7 @@ export function ChatPanel({
     composerRef.current?.focus()
   }
   const saveTitle = (): void => {
-    if (!conversation || rename === null) return
+    if (!conversation?.messages.length || rename === null) return
     const title = rename.trim()
     const id = conversation.id
     setRename(null)
@@ -488,7 +551,24 @@ export function ChatPanel({
   return (
     <div className="flex h-full min-h-0 flex-col bg-background" aria-label="AI chat panel">
       <div className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
-        {rename !== null ? (
+        {historyOpen ? (
+          <div className="mr-auto flex min-w-0 items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Back to chat"
+                  onClick={() => setHistoryOpen(false)}
+                >
+                  <ChevronLeft />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Back to chat</TooltipContent>
+            </Tooltip>
+            <span className="text-sm font-semibold">All chats</span>
+          </div>
+        ) : rename !== null ? (
           <Input
             autoFocus
             className="mr-auto h-8 min-w-36 max-w-[calc(100%-7rem)] text-sm font-semibold"
@@ -513,10 +593,10 @@ export function ChatPanel({
         ) : (
           <Button
             variant="ghost"
-            className="mr-auto min-w-36 max-w-[calc(100%-7rem)] justify-start px-2 text-sm font-semibold"
+            className="mr-auto min-w-36 max-w-[calc(100%-7rem)] justify-start px-2 text-sm font-semibold disabled:opacity-100"
             aria-label="Rename conversation"
-            title={conversation ? 'Click to rename conversation' : undefined}
-            disabled={!conversation || busy}
+            title={conversation?.messages.length ? 'Click to rename conversation' : undefined}
+            disabled={!conversation?.messages.length || busy}
             onClick={() => setRename(conversation?.title ?? '')}
           >
             <span className="truncate">{conversation?.title ?? 'New chat'}</span>
@@ -529,7 +609,7 @@ export function ChatPanel({
               size="icon-sm"
               aria-label="New chat"
               disabled={!document || busy || modelChanging}
-              onClick={() => void newChat().catch(showError)}
+              onClick={newChat}
             >
               <MessageSquarePlus />
             </Button>
@@ -609,86 +689,78 @@ export function ChatPanel({
         </div>
       ) : (
         <>
-          <div className="space-y-2 border-b px-3 py-2">
-            {conversations.length > 0 && (
-              <div className="flex items-center gap-1">
-                <Select
-                  value={conversation?.id ?? ''}
-                  disabled={busy || modelChanging}
-                  onValueChange={(value) => {
-                    if (!value || value === conversation?.id) return
-                    const id = value
-                    void window.lepis.ai
-                      .conversation(id)
-                      .then((chat) => {
-                        conversationRef.current = chat
-                        setConversation(chat)
-                        setRename(null)
-                        setDeleteConfirm(false)
-                        setScrollPinned(true)
-                      })
-                      .catch(showError)
-                  }}
-                >
-                  <SelectTrigger
-                    aria-label="Conversation history"
-                    size="sm"
-                    className="min-w-0 flex-1"
+          {!historyOpen && Boolean(conversation?.messages.length) && (
+            <div className="space-y-2 border-b px-3 py-2">
+              {conversations.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <Select
+                    value={conversation?.id ?? ''}
+                    disabled={busy || modelChanging}
+                    onValueChange={(value) => {
+                      if (!value || value === conversation?.id) return
+                      void openConversation(value).catch(showError)
+                    }}
                   >
-                    <SelectValue placeholder="Conversation history" />
-                  </SelectTrigger>
-                  <SelectContent position="popper">
-                    {conversations.map((chat) => (
-                      <SelectItem key={chat.id} value={chat.id}>
-                        {chat.title} · {providerNames[chat.provider]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="Delete conversation"
-                      disabled={!conversation || busy}
-                      onClick={() => setDeleteConfirm((value) => !value)}
+                    <SelectTrigger
+                      aria-label="Conversation history"
+                      size="sm"
+                      className="min-w-0 flex-1"
                     >
-                      <Trash2 />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Delete conversation</TooltipContent>
-                </Tooltip>
-              </div>
-            )}
-            {deleteConfirm && (
-              <div className="flex items-center gap-2 text-xs">
-                <span>Delete this chat and its selections?</span>
-                <Button
-                  size="xs"
-                  variant="destructive"
-                  onClick={() => {
-                    if (conversation)
-                      void window.lepis.ai
-                        .deleteConversation(conversation.id)
-                        .then(() => {
-                          conversationRef.current = null
-                          setConversation(null)
-                          setDeleteConfirm(false)
-                          return reloadList()
-                        })
-                        .catch(showError)
-                  }}
-                >
-                  Delete
-                </Button>
-                <Button size="xs" variant="ghost" onClick={() => setDeleteConfirm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            )}
-          </div>
+                      <SelectValue placeholder="Conversation history" />
+                    </SelectTrigger>
+                    <SelectContent position="popper">
+                      {conversations.map((chat) => (
+                        <SelectItem key={chat.id} value={chat.id}>
+                          {chat.title} · {providerNames[chat.provider]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="Delete conversation"
+                        disabled={!conversation || busy}
+                        onClick={() => setDeleteConfirm((value) => !value)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete conversation</TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+              {deleteConfirm && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span>Delete this chat and its selections?</span>
+                  <Button
+                    size="xs"
+                    variant="destructive"
+                    onClick={() => {
+                      if (conversation)
+                        void window.lepis.ai
+                          .deleteConversation(conversation.id)
+                          .then(() => {
+                            conversationRef.current = null
+                            setConversation(null)
+                            setDeleteConfirm(false)
+                            return reloadList()
+                          })
+                          .catch(showError)
+                    }}
+                  >
+                    Delete
+                  </Button>
+                  <Button size="xs" variant="ghost" onClick={() => setDeleteConfirm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           {indexProgress && (
             <p
               role="status"
@@ -702,59 +774,102 @@ export function ChatPanel({
             <div className="border-b bg-muted px-3 py-2 text-xs">
               The PDF content changed. This conversation belongs to an older version; its citations
               are unavailable.
-              <Button variant="link" size="xs" onClick={() => void newChat().catch(showError)}>
+              <Button variant="link" size="xs" onClick={newChat}>
                 Start new chat
               </Button>
             </div>
           )}
           <div
             ref={messagesRef}
-            className="min-h-0 flex-1 overflow-auto p-4"
+            className={`min-h-0 flex-1 overflow-auto p-4 ${!historyOpen && !conversation?.messages.length ? 'flex flex-col' : ''}`}
             onScroll={(event) => {
               const element = event.currentTarget
               setScrollPinned(element.scrollHeight - element.scrollTop - element.clientHeight < 80)
             }}
           >
-            {!conversation?.messages.length && (
-              <div className="space-y-3 py-6 text-sm text-muted-foreground">
-                <p>
-                  Ask about <span className="font-medium text-foreground">{tab.name}</span>. Answers
-                  can cite passages you can open in the PDF.
-                </p>
-                <p>
-                  Select text or draw a rectangle to include a specific passage, formula or figure.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!document || busy}
-                  onClick={() =>
-                    action(
-                      'Summarize the entire document, covering its main arguments and conclusions.',
-                      true
-                    )
-                  }
+            {historyOpen ? (
+              <ConversationHistory chats={conversations} label="All chats" {...historyProps} />
+            ) : (
+              !conversation?.messages.length && (
+                <div
+                  aria-label="Chat empty state"
+                  className="flex flex-1 items-center justify-center"
                 >
-                  Summarize document
-                </Button>
-              </div>
+                  <div className="w-full max-w-sm space-y-3">
+                    {recentChats.length ? (
+                      <>
+                        <ConversationHistory
+                          chats={recentChats.slice(0, 5)}
+                          label="Recent chats"
+                          {...historyProps}
+                        />
+                        {recentChats.length > 5 && (
+                          <div className="flex justify-center">
+                            <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
+                              Show more
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-5 text-center">
+                        <h2 className="max-w-64 text-lg font-bold leading-snug">
+                          What would you like to know about this PDF?
+                        </h2>
+                        <div className="flex max-w-72 flex-wrap justify-center gap-2">
+                          {[
+                            {
+                              label: 'Summarize',
+                              prompt:
+                                'Summarize the entire document, covering its main arguments and conclusions.',
+                              whole: true
+                            },
+                            {
+                              label: 'Explain key concepts',
+                              prompt: 'Explain the key concepts in this PDF.',
+                              whole: false
+                            },
+                            {
+                              label: 'Find information',
+                              prompt: 'Find information about ',
+                              whole: false
+                            }
+                          ].map(({ label, prompt, whole }) => (
+                            <Button
+                              key={label}
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full text-xs font-normal shadow-none"
+                              disabled={busy || modelChanging}
+                              onClick={() => action(prompt, whole)}
+                            >
+                              {label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
             )}
-            {conversation?.messages.map((message, index) => (
-              <ChatMessageView
-                key={message.id}
-                message={message}
-                stale={stale || !document}
-                retry={
-                  !busy &&
-                  !stale &&
-                  index === conversation.messages.length - 1 &&
-                  message.status !== 'streaming'
-                }
-                onCitation={cite}
-                onRetry={() => void send(message)}
-                onError={setError}
-              />
-            ))}
+            {!historyOpen &&
+              conversation?.messages.map((message, index) => (
+                <ChatMessageView
+                  key={message.id}
+                  message={message}
+                  stale={stale || !document}
+                  retry={
+                    !busy &&
+                    !stale &&
+                    index === conversation.messages.length - 1 &&
+                    message.status !== 'streaming'
+                  }
+                  onCitation={cite}
+                  onRetry={() => void send(message)}
+                  onError={setError}
+                />
+              ))}
             {busy && (
               <p
                 role="status"
@@ -790,270 +905,272 @@ export function ChatPanel({
               </Tooltip>
             </div>
           )}
-          <div className="shrink-0 space-y-2 border-t p-3">
-            <Button
-              variant="ghost"
-              size="xs"
-              disabled={!document || busy || stale}
-              onClick={() =>
-                action(
-                  'Summarize the entire document, covering its main arguments and conclusions.',
-                  true
-                )
-              }
-            >
-              Summarize PDF
-            </Button>
-            {attachments.length > 0 && (
-              <>
-                <div className="flex max-h-32 flex-wrap gap-2 overflow-auto">
-                  {attachments.map((attachment) => (
-                    <div
-                      className="relative w-24 rounded-md border p-1.5 text-[11px]"
-                      key={attachment.id}
+          {!historyOpen && (
+            <div className="shrink-0 space-y-2 border-t p-3">
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={!document || busy || stale}
+                onClick={() =>
+                  action(
+                    'Summarize the entire document, covering its main arguments and conclusions.',
+                    true
+                  )
+                }
+              >
+                Summarize PDF
+              </Button>
+              {attachments.length > 0 && (
+                <>
+                  <div className="flex max-h-32 flex-wrap gap-2 overflow-auto">
+                    {attachments.map((attachment) => (
+                      <div
+                        className="relative w-24 rounded-md border p-1.5 text-[11px]"
+                        key={attachment.id}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5"
+                              aria-label={`Remove selection on page ${attachment.page}`}
+                              disabled={busy}
+                              onClick={() =>
+                                setAttachments((current) =>
+                                  current.filter((item) => item.id !== attachment.id)
+                                )
+                              }
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>{`Remove selection on page ${attachment.page}`}</TooltipContent>
+                        </Tooltip>
+                        {attachment.image ? (
+                          <img
+                            className="mb-1 h-12 w-full object-contain"
+                            src={attachment.image}
+                            alt={`Region on page ${attachment.page}`}
+                          />
+                        ) : (
+                          <p className="mb-1 line-clamp-2" title={attachment.text}>
+                            {attachment.text}
+                          </p>
+                        )}
+                        Page {attachment.page}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      ['Explain', 'Explain these selections.'],
+                      ['Summarize', 'Summarize these selections.'],
+                      [
+                        'Translate',
+                        'Translate these selections into the language I use in this conversation.'
+                      ],
+                      [
+                        'Formula / figure',
+                        'Explain the selected formula or figure, including its symbols and meaning.'
+                      ]
+                    ].map(([label, prompt]) => (
+                      <Button
+                        key={label}
+                        variant="secondary"
+                        size="xs"
+                        disabled={busy}
+                        onClick={() => action(prompt)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {summarize && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="flex-1">
+                    Full document summary · may require multiple AI requests
+                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        aria-label="Cancel document summary"
+                        onClick={() => setSummarize(false)}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Cancel document summary</TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void send()
+                }}
+                className="w-full"
+              >
+                <InputGroup>
+                  <InputGroupTextarea
+                    ref={composerRef}
+                    aria-label="Message AI"
+                    className="max-h-40 min-h-20 text-sm"
+                    placeholder={
+                      !connected ? 'Connect an AI service in settings' : 'Ask about this PDF…'
+                    }
+                    value={draft}
+                    maxLength={16000}
+                    disabled={busy || Boolean(loginBusy)}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === 'Enter' &&
+                        !event.shiftKey &&
+                        !event.nativeEvent.isComposing
+                      ) {
+                        event.preventDefault()
+                        void send()
+                      }
+                    }}
+                  />
+                  <InputGroupAddon align="block-end" className="text-foreground">
+                    <DropdownMenu
+                      onOpenChange={(open) => {
+                        if (open)
+                          selectedTextRef.current = getViewer(tab.id)?.attachSelectedText() ?? []
+                      }}
                     >
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button
-                            className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5"
-                            aria-label={`Remove selection on page ${attachment.page}`}
-                            disabled={busy}
-                            onClick={() =>
-                              setAttachments((current) =>
-                                current.filter((item) => item.id !== attachment.id)
-                              )
-                            }
-                          >
-                            <X className="size-3" />
-                          </button>
+                          <DropdownMenuTrigger asChild>
+                            <InputGroupButton
+                              size="icon-sm"
+                              aria-label="Add attachment"
+                              disabled={busy || stale || !document}
+                              onMouseDown={(event) => event.preventDefault()}
+                            >
+                              <Plus />
+                            </InputGroupButton>
+                          </DropdownMenuTrigger>
                         </TooltipTrigger>
-                        <TooltipContent>{`Remove selection on page ${attachment.page}`}</TooltipContent>
+                        <TooltipContent>Add attachment</TooltipContent>
                       </Tooltip>
-                      {attachment.image ? (
-                        <img
-                          className="mb-1 h-12 w-full object-contain"
-                          src={attachment.image}
-                          alt={`Region on page ${attachment.page}`}
-                        />
-                      ) : (
-                        <p className="mb-1 line-clamp-2" title={attachment.text}>
-                          {attachment.text}
-                        </p>
-                      )}
-                      Page {attachment.page}
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    ['Explain', 'Explain these selections.'],
-                    ['Summarize', 'Summarize these selections.'],
-                    [
-                      'Translate',
-                      'Translate these selections into the language I use in this conversation.'
-                    ],
-                    [
-                      'Formula / figure',
-                      'Explain the selected formula or figure, including its symbols and meaning.'
-                    ]
-                  ].map(([label, prompt]) => (
-                    <Button
-                      key={label}
-                      variant="secondary"
-                      size="xs"
-                      disabled={busy}
-                      onClick={() => action(prompt)}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-            {summarize && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="flex-1">
-                  Full document summary · may require multiple AI requests
-                </span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      aria-label="Cancel document summary"
-                      onClick={() => setSummarize(false)}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>Cancel document summary</TooltipContent>
-                </Tooltip>
-              </div>
-            )}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                void send()
-              }}
-              className="w-full"
-            >
-              <InputGroup>
-                <InputGroupTextarea
-                  ref={composerRef}
-                  aria-label="Message AI"
-                  className="max-h-40 min-h-20 text-sm"
-                  placeholder={
-                    !connected ? 'Connect an AI service in settings' : 'Ask about this PDF…'
-                  }
-                  value={draft}
-                  maxLength={16000}
-                  disabled={busy || Boolean(loginBusy)}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === 'Enter' &&
-                      !event.shiftKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      event.preventDefault()
-                      void send()
-                    }
-                  }}
-                />
-                <InputGroupAddon align="block-end">
-                  <DropdownMenu
-                    onOpenChange={(open) => {
-                      if (open)
-                        selectedTextRef.current = getViewer(tab.id)?.attachSelectedText() ?? []
-                    }}
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <DropdownMenuTrigger asChild>
-                          <InputGroupButton
-                            size="icon-sm"
-                            aria-label="Add attachment"
-                            disabled={busy || stale || !document}
-                            onMouseDown={(event) => event.preventDefault()}
-                          >
-                            <Plus />
-                          </InputGroupButton>
-                        </DropdownMenuTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>Add attachment</TooltipContent>
-                    </Tooltip>
-                    <DropdownMenuContent
-                      align="start"
-                      side="top"
-                      onCloseAutoFocus={(event) => event.preventDefault()}
-                    >
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          onCancelSelection()
-                          addAttachments(selectedTextRef.current)
-                        }}
+                      <DropdownMenuContent
+                        align="start"
+                        side="top"
+                        onCloseAutoFocus={(event) => event.preventDefault()}
                       >
-                        <TextSelect />
-                        Attach text
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          onSelectRegion((attachment) => addAttachments([attachment]))
-                        }
-                      >
-                        <Crop />
-                        Attach selection
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Select
-                    value={
-                      connected && models.some((model) => model.id === selectedModel)
-                        ? `${provider}:${selectedModel}`
-                        : ''
-                    }
-                    disabled={
-                      busy ||
-                      modelChanging ||
-                      modelsLoading ||
-                      !catalog.some((group) => group.models.length)
-                    }
-                    onValueChange={(value) => void chooseModel(value)}
-                  >
-                    <SelectTrigger
-                      aria-label="AI model"
-                      size="sm"
-                      className="min-w-24 max-w-[calc(100%-6rem)] border-0 bg-transparent px-2 shadow-none dark:bg-transparent"
-                    >
-                      <SelectValue
-                        placeholder={modelsLoading ? 'Loading models…' : 'Choose model'}
-                      />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                      {providerSections.map((section) => {
-                        const groups = catalog.filter(
-                          (group) =>
-                            section.providers.includes(group.provider) && group.models.length
-                        )
-                        if (!groups.length) return null
-                        return (
-                          <SelectGroup key={section.id}>
-                            <SelectLabel>{section.name}</SelectLabel>
-                            {groups.map((group) => (
-                              <div key={group.provider}>
-                                {group.models.map((model) => (
-                                  <SelectItem
-                                    value={`${group.provider}:${model.id}`}
-                                    key={model.id}
-                                  >
-                                    <ProviderLogo provider={group.provider} />
-                                    {model.name}
-                                  </SelectItem>
-                                ))}
-                              </div>
-                            ))}
-                          </SelectGroup>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                  {busy ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <InputGroupButton
-                          type="button"
-                          variant="default"
-                          size="icon-sm"
-                          className="ml-auto"
-                          aria-label="Stop response"
-                          onClick={() => {
-                            if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            onCancelSelection()
+                            addAttachments(selectedTextRef.current)
                           }}
                         >
-                          <Square />
-                        </InputGroupButton>
-                      </TooltipTrigger>
-                      <TooltipContent>Stop response</TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <InputGroupButton
-                          type="submit"
-                          variant="default"
-                          size="icon-sm"
-                          className="ml-auto"
-                          aria-label="Send message"
-                          disabled={!ready || (!draft.trim() && !attachments.length)}
+                          <TextSelect />
+                          Attach text
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            onSelectRegion((attachment) => addAttachments([attachment]))
+                          }
                         >
-                          <ArrowUp />
-                        </InputGroupButton>
-                      </TooltipTrigger>
-                      <TooltipContent>Send message</TooltipContent>
-                    </Tooltip>
-                  )}
-                </InputGroupAddon>
-              </InputGroup>
-            </form>
-          </div>
+                          <Crop />
+                          Attach selection
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Select
+                      value={
+                        connected && models.some((model) => model.id === selectedModel)
+                          ? `${provider}:${selectedModel}`
+                          : ''
+                      }
+                      disabled={
+                        busy ||
+                        modelChanging ||
+                        modelsLoading ||
+                        !catalog.some((group) => group.models.length)
+                      }
+                      onValueChange={(value) => void chooseModel(value)}
+                    >
+                      <SelectTrigger
+                        aria-label="AI model"
+                        size="sm"
+                        className="min-w-24 max-w-[calc(100%-6rem)] border-0 bg-transparent px-2 shadow-none dark:bg-transparent"
+                      >
+                        <SelectValue
+                          placeholder={modelsLoading ? 'Loading models…' : 'Choose model'}
+                        />
+                      </SelectTrigger>
+                      <SelectContent position="popper">
+                        {providerSections.map((section) => {
+                          const groups = catalog.filter(
+                            (group) =>
+                              section.providers.includes(group.provider) && group.models.length
+                          )
+                          if (!groups.length) return null
+                          return (
+                            <SelectGroup key={section.id}>
+                              <SelectLabel>{section.name}</SelectLabel>
+                              {groups.map((group) => (
+                                <div key={group.provider}>
+                                  {group.models.map((model) => (
+                                    <SelectItem
+                                      value={`${group.provider}:${model.id}`}
+                                      key={model.id}
+                                    >
+                                      <ProviderLogo provider={group.provider} />
+                                      {model.name}
+                                    </SelectItem>
+                                  ))}
+                                </div>
+                              ))}
+                            </SelectGroup>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                    {busy ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InputGroupButton
+                            type="button"
+                            variant="default"
+                            size="icon-sm"
+                            className="ml-auto"
+                            aria-label="Stop response"
+                            onClick={() => {
+                              if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
+                            }}
+                          >
+                            <Square />
+                          </InputGroupButton>
+                        </TooltipTrigger>
+                        <TooltipContent>Stop response</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InputGroupButton
+                            type="submit"
+                            variant="default"
+                            size="icon-sm"
+                            className="ml-auto"
+                            aria-label="Send message"
+                            disabled={!ready || (!draft.trim() && !attachments.length)}
+                          >
+                            <ArrowUp />
+                          </InputGroupButton>
+                        </TooltipTrigger>
+                        <TooltipContent>Send message</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </InputGroupAddon>
+                </InputGroup>
+              </form>
+            </div>
+          )}
         </>
       )}
     </div>

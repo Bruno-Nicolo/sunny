@@ -11,6 +11,10 @@ billing. The app never switches providers automatically. OpenRouter itself route
 upstream providers. A new provider or access method starts a new conversation; models within the
 same provider can change inside a conversation.
 
+New chat opens an unsaved draft. A conversation is persisted only when its first user message
+is accepted, including attachment-only messages. Empty or rejected requests do not add history
+entries. The placeholder title is not editable; the first message supplies the initial title.
+
 ## Selecting context
 
 - Select text in the PDF, then choose **Attach text**. Selections spanning pages produce one

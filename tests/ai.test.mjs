@@ -44,10 +44,25 @@ function setup(t) {
   })
   return service
 }
+function userMessage(text = 'A saved question') {
+  return {
+    id: crypto.randomUUID(),
+    role: 'user',
+    text,
+    attachments: [],
+    sources: [],
+    status: 'complete',
+    createdAt: Date.now(),
+    model: 'test-model'
+  }
+}
 function request(chat, overrides = {}) {
   return {
     requestId: crypto.randomUUID(),
     conversationId: chat.id,
+    newConversation: overrides.retryMessageId
+      ? undefined
+      : { version: chat.documentVersion, path: chat.documentPath, provider: chat.provider },
     model: 'test-model',
     text: 'Explain photosynthesis',
     attachments: [],
@@ -55,6 +70,38 @@ function request(chat, overrides = {}) {
     ...overrides
   }
 }
+
+test('conversations are persisted only with the first user message, including provider failures', async (t) => {
+  const service = setup(t)
+  const chat = service.store.create(version, 'openai', document.path)
+  assert.deepEqual(service.store.list(document.path), [])
+  assert.throws(() => service.store.save(chat), /user message/)
+  await assert.rejects(
+    service.send(request(chat, { text: '' }), () => {}),
+    /Write a message/
+  )
+  assert.deepEqual(service.store.list(document.path), [])
+  service.providers.generate = async () => {
+    throw new Error('Provider unavailable')
+  }
+  await service.send(request(chat), (event) => {
+    if (event.type === 'message')
+      assert.ok(service.store.get(chat.id).messages.some((message) => message.role === 'user'))
+  })
+  assert.equal(service.store.list(document.path).length, 1)
+  assert.equal(service.store.get(chat.id).title, 'Explain photosynthesis')
+  assert.equal(service.store.get(chat.id).messages.at(-1).status, 'error')
+  service.store.rename(chat.id, 'New chat')
+  await service.send(
+    request(chat, { newConversation: undefined, text: 'Another question' }),
+    () => {}
+  )
+  assert.equal(
+    service.store.get(chat.id).title,
+    'New chat',
+    'a saved title is not treated as a placeholder'
+  )
+})
 
 test('local retrieval is version-scoped, parameterized and retains citation geometry', (t) => {
   const service = setup(t)
@@ -151,7 +198,8 @@ test('consent, attachment budgets and changed document versions block requests b
     /PDF changed/
   )
   assert.equal(calls, 0)
-  assert.equal(service.store.get(chat.id).messages.length, 0)
+  assert.deepEqual(service.store.list(document.path), [])
+  assert.throws(() => service.store.get(chat.id), /not found/)
 })
 
 test('stop stores an interrupted answer and retry replaces it without duplicating the user', async (t) => {
@@ -227,6 +275,7 @@ test('restart retains conversations and converts unfinished responses to interru
   })
   store.index(document)
   const chat = store.create(version, 'chatgpt', document.path)
+  chat.messages.push(userMessage())
   chat.messages.push({
     id: 'answer',
     role: 'assistant',
@@ -240,7 +289,7 @@ test('restart retains conversations and converts unfinished responses to interru
   store.save(chat)
   store.close()
   store = new ChatStore(directory)
-  assert.equal(store.get(chat.id).messages[0].status, 'stopped')
+  assert.equal(store.get(chat.id).messages[1].status, 'stopped')
   store.rename(chat.id, 'Study notes')
   assert.equal(store.list(document.path)[0].title, 'Study notes')
   store.remove(chat.id)
@@ -279,6 +328,10 @@ test('identical PDF copies keep separate conversation ownership', (t) => {
   const first = service.store.create(version, 'chatgpt', document.path)
   service.index({ ...document, path: '/test/copy.pdf', name: 'copy.pdf' })
   const second = service.store.create(version, 'chatgpt', '/test/copy.pdf')
+  for (const chat of [first, second]) {
+    chat.messages.push(userMessage())
+    service.store.save(chat)
+  }
   assert.equal(first.documentPath, document.path)
   assert.equal(second.documentPath, '/test/copy.pdf')
   assert.deepEqual(
