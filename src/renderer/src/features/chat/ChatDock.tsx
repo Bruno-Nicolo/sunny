@@ -1,6 +1,6 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { MessageSquare, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
 import type { Tab } from '@/features/documents/types'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
 import type { ChatAttachment } from '../../../../shared/ai'
@@ -9,6 +9,8 @@ const ChatPanel = lazy(() =>
 )
 
 type Props = {
+  open: boolean
+  onOpenChange(open: boolean): void
   tabs: Tab[]
   activeId: string | null
   getViewer(id: string): PdfDocumentHandle | null
@@ -17,16 +19,18 @@ type Props = {
 }
 
 export function ChatDock({
+  open,
+  onOpenChange,
   tabs,
   activeId,
   getViewer,
   onSelectionTool,
   children
 }: Props): React.JSX.Element {
-  const [open, setOpen] = useState(false)
   const [width, setWidth] = useState(380)
   const [narrow, setNarrow] = useState(window.innerWidth < 1000)
   const [activated, setActivated] = useState<string[]>([])
+  const [previousOpen, setPreviousOpen] = useState(open)
   const [selecting, setSelecting] = useState<string | null>(null)
   const selectedViewer = useRef<PdfDocumentHandle | null>(null)
   const dockRef = useRef<HTMLDivElement>(null)
@@ -44,11 +48,21 @@ export function ChatDock({
   }, [])
   if (open && activeId && !activated.includes(activeId)) setActivated([...activated, activeId])
   if (selecting && selecting !== activeId) setSelecting(null)
+  if (previousOpen !== open) {
+    setPreviousOpen(open)
+    if (open || !narrow) setSelecting(null)
+  }
   const cancelSelection = useCallback((): void => {
     selectedViewer.current?.selectChatRegion(null)
     selectedViewer.current = null
     setSelecting(null)
   }, [])
+  useEffect(() => {
+    if (open || !narrow) {
+      selectedViewer.current?.selectChatRegion(null)
+      selectedViewer.current = null
+    }
+  }, [open, narrow])
   useEffect(() => {
     const escape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && selectedViewer.current) cancelSelection()
@@ -80,14 +94,14 @@ export function ChatDock({
     if (!viewer) return
     selectedViewer.current = viewer
     setSelecting(activeId)
-    if (narrow) setOpen(false)
+    if (narrow) onOpenChange(false)
     // React first disables annotation tools, then this transient tool takes over.
     requestAnimationFrame(() => {
       if (selectedViewer.current !== viewer) return
       viewer.selectChatRegion((attachment) => {
         callback(attachment)
         cancelSelection()
-        setOpen(true)
+        onOpenChange(true)
       })
     })
   }
@@ -96,25 +110,17 @@ export function ChatDock({
       <div className={`flex min-w-0 flex-1 ${open && narrow && activeId ? 'hidden' : ''}`}>
         {children}
       </div>
-      {activeId && !open && (
-        <Button
-          className="absolute right-5 top-3 z-20 shadow-sm"
-          variant="outline"
-          size="sm"
-          aria-label="Open AI chat"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => setOpen(true)}
-        >
-          <MessageSquare />
-          AI chat
-        </Button>
-      )}
       {selecting && (
         <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-background px-3 py-2 text-xs shadow-lg">
           Drag a rectangle on the PDF
-          <button aria-label="Cancel region selection" onClick={cancelSelection}>
-            <X className="size-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button aria-label="Cancel region selection" onClick={cancelSelection}>
+                <X className="size-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Cancel region selection</TooltipContent>
+          </Tooltip>
         </div>
       )}
       {open && activeId && !narrow && (
@@ -158,6 +164,7 @@ export function ChatDock({
         .map((tab) => (
           <aside
             key={tab.id}
+            id={tab.id === activeId ? 'ai-chat-panel' : undefined}
             style={{ width: narrow ? '100%' : width }}
             className={`min-h-0 shrink-0 border-l ${open && tab.id === activeId ? '' : 'hidden'}`}
           >
@@ -168,12 +175,8 @@ export function ChatDock({
                 active={tab.id === activeId}
                 getViewer={getViewer}
                 onWidth={applyWidth}
-                onClose={() => {
-                  cancelSelection()
-                  setOpen(false)
-                }}
                 onShowDocument={() => {
-                  if (narrow) setOpen(false)
+                  if (narrow) onOpenChange(false)
                 }}
                 onSelectRegion={selectRegion}
                 onCancelSelection={cancelSelection}

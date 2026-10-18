@@ -2,7 +2,7 @@ import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from '@dn
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import { Monitor, Moon, PanelLeft, Plus, Sun, X } from 'lucide-react'
+import { Monitor, Moon, PanelLeft, PanelRight, Plus, Sun, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,8 @@ import type { Tab } from '../types'
 type Props = {
   tabs: Pick<Tab, 'id' | 'path' | 'name' | 'directoryName' | 'dirty'>[]
   activeId: string | null
+  chatOpen: boolean
+  onToggleChat(): void
   sidebarOpen: boolean
   theme: SessionState['theme']
   onToggleSidebar(): void
@@ -38,6 +40,8 @@ const sensors = [
 export function TabBar({
   tabs,
   activeId,
+  chatOpen,
+  onToggleChat,
   sidebarOpen,
   theme,
   onToggleSidebar,
@@ -108,6 +112,23 @@ export function TabBar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>Theme: {theme}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="titlebar-no-drag shrink-0"
+              disabled={!activeId}
+              aria-label="Toggle AI chat"
+              aria-expanded={chatOpen && Boolean(activeId)}
+              aria-controls="ai-chat-panel"
+              onClick={onToggleChat}
+            >
+              <PanelRight />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{chatOpen ? 'Hide AI chat' : 'Show AI chat'}</TooltipContent>
         </Tooltip>
       </div>
     </DragDropProvider>

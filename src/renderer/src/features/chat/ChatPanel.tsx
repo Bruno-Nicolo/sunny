@@ -1,12 +1,11 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   ArrowUp,
-  Check,
-  ChevronLeft,
   Crop,
   LoaderCircle,
   MessageSquarePlus,
-  Pencil,
+  Plus,
   Settings,
   Square,
   TextSelect,
@@ -14,6 +13,36 @@ import {
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from '@/components/ui/dropdown-menu'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea
+} from '@/components/ui/input-group'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectLabel,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import type { Tab } from '@/features/documents/types'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
 import type {
@@ -28,7 +57,8 @@ import type {
   DocumentSource
 } from '../../../../shared/ai'
 import { AiSettingsView } from './AiSettingsView'
-import { providerNames } from './labels'
+import { providerNames, providerSections } from './labels'
+import { ProviderLogo } from './ProviderLogo'
 import { ChatMessageView } from './ChatMessageView'
 import './chat.css'
 
@@ -37,7 +67,6 @@ type Props = {
   active: boolean
   getViewer(id: string): PdfDocumentHandle | null
   onWidth(width: number): void
-  onClose(): void
   onShowDocument(): void
   onSelectRegion(callback: (attachment: ChatAttachment) => void): void
   onCancelSelection(): void
@@ -48,16 +77,18 @@ export function ChatPanel({
   active,
   getViewer,
   onWidth,
-  onClose,
   onShowDocument,
   onSelectRegion,
   onCancelSelection
 }: Props): React.JSX.Element {
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [models, setModels] = useState<AiModel[]>([])
+  const [catalog, setCatalog] = useState<
+    { provider: AiProvider; models: AiModel[]; error?: string }[]
+  >([])
+  const [modelChanging, setModelChanging] = useState(false)
+  const [settingsError, setSettingsError] = useState('')
   const [modelsLoading, setModelsLoading] = useState(false)
-  const [modelsError, setModelsError] = useState('')
   const [connectionRevision, setConnectionRevision] = useState(0)
   const [document, setDocument] = useState<ChatDocument | null>(null)
   const [indexProgress, setIndexProgress] = useState('')
@@ -78,6 +109,7 @@ export function ChatPanel({
   const conversationRef = useRef<Conversation | null>(null)
   const statusRef = useRef<AiStatus | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const selectedTextRef = useRef<ChatAttachment[]>([])
   const sourceRef = useRef(tab.source)
   const activeRef = useRef(active)
   const showError = (error: unknown): void =>
@@ -87,10 +119,14 @@ export function ChatPanel({
     statusRef.current = status
     activeRef.current = active
   }, [conversation, status, active])
-  const reloadList = useCallback(
-    async (): Promise<void> => setConversations(await window.lepis.ai.conversations(tab.path)),
-    [tab.path]
-  )
+  const reloadList = useCallback(async (): Promise<void> => {
+    const chats = await window.lepis.ai.conversations(tab.path)
+    setConversations(chats)
+    setConversation((current) => {
+      const saved = chats.find((chat) => chat.id === current?.id)
+      return current && saved ? { ...current, title: saved.title } : current
+    })
+  }, [tab.path])
 
   useEffect(() => {
     if (!active) return
@@ -100,7 +136,7 @@ export function ChatPanel({
         if (!alive) return
         setStatus(value)
         onWidth(value.settings.panelWidth)
-        if (value.connected.length === 0) setSettingsOpen(true)
+        if (value.connected.length === 0 || !value.settings.consent) setSettingsOpen(true)
         setConversations(chats)
         if (chats[0]) {
           const latest = await window.lepis.ai.conversation(chats[0].id)
@@ -178,6 +214,12 @@ export function ChatPanel({
   const provider = conversation?.provider ?? status?.settings.provider ?? 'chatgpt'
   const connected = status?.connected.includes(provider) ?? false
   const selectedModel = status?.settings.models[provider] ?? ''
+  const models = catalog.find((group) => group.provider === provider)?.models ?? []
+  const modelsError = catalog
+    .filter((group) => group.error)
+    .map((group) => `${providerNames[group.provider]}: ${group.error}`)
+    .join(' · ')
+  const connectedProviders = JSON.stringify(status?.connected ?? [])
   const stale = Boolean(
     document && conversation && conversation.documentVersion !== document.version
   )
@@ -191,6 +233,7 @@ export function ChatPanel({
     status?.settings.consent &&
     selectedModel &&
     !modelsLoading &&
+    !modelChanging &&
     models.some((model) => model.id === selectedModel) &&
     !stale &&
     !busy &&
@@ -198,38 +241,67 @@ export function ChatPanel({
   )
 
   useEffect(() => {
-    if (!connected || !active) return
+    if (!active) return
     let alive = true
+    const providers = JSON.parse(connectedProviders) as AiProvider[]
     void Promise.resolve()
       .then(async () => {
         if (!alive) return []
-        setModels([])
         setModelsLoading(true)
-        setModelsError('')
-        return window.lepis.ai.models(provider)
-      })
-      .then((value) => {
-        if (!alive) return
-        setModels(value)
-        if (!value.length) {
-          setModelsError('No supported models are available for this connection.')
-          return
-        }
-        const current = statusRef.current!
-        if (!value.some((model) => model.id === current.settings.models[provider])) {
-          const next = {
-            ...current,
-            settings: {
-              ...current.settings,
-              models: { ...current.settings.models, [provider]: value[0].id }
+        setCatalog([])
+        return Promise.all(
+          providers.map(async (provider) => {
+            try {
+              const models = await window.lepis.ai.models(provider)
+              return {
+                provider,
+                models,
+                error: models.length ? undefined : 'No supported models are available.'
+              }
+            } catch (error) {
+              return {
+                provider,
+                models: [],
+                error: error instanceof Error ? error.message : String(error)
+              }
             }
-          }
-          setStatus(next)
-          void window.lepis.ai.settings({ models: { [provider]: value[0].id } }).catch(showError)
-        }
+          })
+        )
       })
-      .catch((error) => {
-        if (alive) setModelsError(error instanceof Error ? error.message : String(error))
+      .then((groups) => {
+        if (!alive) return
+        setCatalog(groups)
+        const current = statusRef.current
+        if (!current) return
+        const defaults: Partial<Record<AiProvider, string>> = {}
+        for (const group of groups) {
+          if (
+            group.models.length &&
+            !group.models.some((model) => model.id === current.settings.models[group.provider])
+          ) {
+            defaults[group.provider] = group.models[0].id
+          }
+        }
+        const available = groups.find((group) => group.models.length)?.provider
+        const provider =
+          !conversationRef.current && !providers.includes(current.settings.provider) && available
+            ? available
+            : current.settings.provider
+        if (Object.keys(defaults).length || provider !== current.settings.provider) {
+          setStatus((value) =>
+            value
+              ? {
+                  ...value,
+                  settings: {
+                    ...value.settings,
+                    provider,
+                    models: { ...value.settings.models, ...defaults }
+                  }
+                }
+              : value
+          )
+          void window.lepis.ai.settings({ provider, models: defaults }).catch(showError)
+        }
       })
       .finally(() => {
         if (alive) setModelsLoading(false)
@@ -237,7 +309,7 @@ export function ChatPanel({
     return () => {
       alive = false
     }
-  }, [provider, connected, active, status?.chatgptAccount, connectionRevision])
+  }, [connectedProviders, active, status?.chatgptAccount, connectionRevision])
 
   useEffect(
     () =>
@@ -361,16 +433,37 @@ export function ChatPanel({
       if (activeRef.current) getViewer(tab.id)?.showCitation(source)
     })
   }
-  const chooseProvider = async (value: AiProvider): Promise<void> => {
-    if (!status || busy) return
+  const chooseModel = async (value: string): Promise<void> => {
+    if (!status || busy || modelChanging || !value) return
+    const group = catalog.find((group) =>
+      group.models.some((model) => `${group.provider}:${model.id}` === value)
+    )
+    const model = group?.models.find((model) => `${group.provider}:${model.id}` === value)
+    if (!group || !model || !status.connected.includes(group.provider)) return
+    setModelChanging(true)
     try {
-      if (document && conversation?.provider !== value) await newChat(value)
-      const next = { ...status, settings: { ...status.settings, provider: value } }
-      await window.lepis.ai.settings({ provider: value })
-      setStatus(next)
+      await window.lepis.ai.settings({
+        provider: group.provider,
+        models: { [group.provider]: model.id }
+      })
+      if (conversation && conversation.provider !== group.provider) await newChat(group.provider)
+      setStatus((current) =>
+        current
+          ? {
+              ...current,
+              settings: {
+                ...current.settings,
+                provider: group.provider,
+                models: { ...current.settings.models, [group.provider]: model.id }
+              }
+            }
+          : current
+      )
       setError('')
     } catch (error) {
       showError(error)
+    } finally {
+      setModelChanging(false)
     }
   }
   const action = (text: string, whole = false): void => {
@@ -378,40 +471,118 @@ export function ChatPanel({
     setSummarize(whole)
     composerRef.current?.focus()
   }
+  const saveTitle = (): void => {
+    if (!conversation || rename === null) return
+    const title = rename.trim()
+    const id = conversation.id
+    setRename(null)
+    if (!title || title === conversation.title) return
+    void window.lepis.ai
+      .renameConversation(id, title)
+      .then(() => {
+        setConversation((current) => (current?.id === id ? { ...current, title } : current))
+        return reloadList()
+      })
+      .catch(showError)
+  }
   return (
     <div className="flex h-full min-h-0 flex-col bg-background" aria-label="AI chat panel">
       <div className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
-        <span className="mr-auto text-sm font-semibold">AI chat</span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Show PDF"
-          title="Show PDF"
-          onClick={onShowDocument}
-        >
-          <ChevronLeft />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="New chat"
-          disabled={!document || busy}
-          onClick={() => void newChat().catch(showError)}
-        >
-          <MessageSquarePlus />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="AI settings"
-          aria-pressed={settingsOpen}
-          onClick={() => setSettingsOpen((value) => !value)}
-        >
-          <Settings />
-        </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="Close AI chat" onClick={onClose}>
-          <X />
-        </Button>
+        {rename !== null ? (
+          <Input
+            autoFocus
+            className="mr-auto h-8 min-w-36 max-w-[calc(100%-7rem)] text-sm font-semibold"
+            style={{ width: `${Math.max(12, (rename?.length ?? 0) + 2)}ch` }}
+            aria-label="Conversation title"
+            value={rename}
+            maxLength={120}
+            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => setRename(event.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                event.currentTarget.blur()
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                setRename(null)
+              }
+            }}
+          />
+        ) : (
+          <Button
+            variant="ghost"
+            className="mr-auto min-w-36 max-w-[calc(100%-7rem)] justify-start px-2 text-sm font-semibold"
+            aria-label="Rename conversation"
+            title={conversation ? 'Click to rename conversation' : undefined}
+            disabled={!conversation || busy}
+            onClick={() => setRename(conversation?.title ?? '')}
+          >
+            <span className="truncate">{conversation?.title ?? 'New chat'}</span>
+          </Button>
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="New chat"
+              disabled={!document || busy || modelChanging}
+              onClick={() => void newChat().catch(showError)}
+            >
+              <MessageSquarePlus />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>New chat</TooltipContent>
+        </Tooltip>
+        <Dialog open={settingsOpen && active} onOpenChange={setSettingsOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="AI settings" disabled={!status}>
+                  <Settings />
+                </Button>
+              </DialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>AI settings</TooltipContent>
+          </Tooltip>
+          {status && (
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle>AI settings</DialogTitle>
+                <DialogDescription className="sr-only">Manage AI connections.</DialogDescription>
+              </DialogHeader>
+              <AiSettingsView
+                status={status}
+                onStatus={(value) => {
+                  setStatus(value)
+                  setConnectionRevision((revision) => revision + 1)
+                }}
+                onError={setSettingsError}
+              />
+              {settingsError && (
+                <p role="alert" className="text-xs text-destructive">
+                  {settingsError}
+                </p>
+              )}
+              {modelsError && !modelsLoading && (
+                <div className="flex flex-col items-end gap-2">
+                  <p role="alert" className="w-full text-xs text-destructive">
+                    {modelsError}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setConnectionRevision((value) => value + 1)}
+                  >
+                    Retry loading models
+                  </Button>
+                </div>
+              )}
+            </DialogContent>
+          )}
+        </Dialog>
       </div>
       {!status ? (
         <div className="space-y-3 p-4 text-sm">
@@ -438,198 +609,58 @@ export function ChatPanel({
         </div>
       ) : (
         <>
-          {!status.settings.consent && (
-            <div className="space-y-3 border-b p-4 text-sm">
-              <p className="font-medium">Use AI with this app</p>
-              <p className="text-muted-foreground">
-                Document excerpts, selected images and needed conversation history will be sent to
-                your chosen AI service. Chat history is stored on this computer. AI can make
-                mistakes.
-              </p>
-              <Button
-                size="sm"
-                onClick={() => {
-                  const next = { ...status, settings: { ...status.settings, consent: true } }
-                  void window.lepis.ai
-                    .settings({ consent: true })
-                    .then(() => {
-                      setStatus(next)
-                      setSettingsOpen(true)
-                    })
-                    .catch(showError)
-                }}
-              >
-                Allow AI requests
-              </Button>
-            </div>
-          )}
-          {settingsOpen && status.settings.consent && (
-            <div className="max-h-[45%] shrink-0 overflow-auto">
-              <AiSettingsView
-                status={status}
-                onStatus={(value) => {
-                  setStatus(value)
-                  setConnectionRevision((revision) => revision + 1)
-                }}
-                onError={setError}
-              />
-            </div>
-          )}
           <div className="space-y-2 border-b px-3 py-2">
-            <div className="flex gap-2">
-              <select
-                aria-label="AI provider"
-                className="chat-select min-w-0 flex-1"
-                value={provider}
-                disabled={busy}
-                onChange={(event) => void chooseProvider(event.target.value as AiProvider)}
-              >
-                {Object.entries(providerNames).map(([id, label]) => (
-                  <option value={id} key={id}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="AI model"
-                className="chat-select min-w-0 flex-1"
-                value={selectedModel}
-                disabled={busy || !connected || modelsLoading}
-                onChange={(event) => {
-                  const next = {
-                    ...status,
-                    settings: {
-                      ...status.settings,
-                      models: { ...status.settings.models, [provider]: event.target.value }
-                    }
-                  }
-                  void window.lepis.ai
-                    .settings({ models: { [provider]: event.target.value } })
-                    .then(() => setStatus(next))
-                    .catch(showError)
-                }}
-              >
-                <option value="">
-                  {connected && modelsLoading ? 'Loading models…' : 'Choose model'}
-                </option>
-                {connected &&
-                  models.map((model) => (
-                    <option value={model.id} key={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            {provider === 'chatgpt' && connected && (
-              <p className="text-[11px] text-muted-foreground">
-                Using ChatGPT plan ·{' '}
-                <a
-                  className="underline"
-                  href="https://chatgpt.com/settings/usage"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Manage usage
-                </a>
-              </p>
-            )}
-            {provider === 'openrouter' && (
-              <p className="text-[11px] text-muted-foreground">
-                OpenRouter routes requests to the selected model’s upstream provider.
-              </p>
-            )}
-            {connected && !modelsLoading && !models.length && (
-              <div className="space-y-1">
-                {modelsError && (
-                  <p role="alert" className="text-xs text-destructive">
-                    {modelsError}
-                  </p>
-                )}
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={() => setConnectionRevision((value) => value + 1)}
-                >
-                  Retry loading models
-                </Button>
-              </div>
-            )}
             {conversations.length > 0 && (
               <div className="flex items-center gap-1">
-                <select
-                  aria-label="Conversation history"
-                  className="chat-select min-w-0 flex-1"
+                <Select
                   value={conversation?.id ?? ''}
-                  disabled={busy}
-                  onChange={(event) => {
-                    const id = event.target.value
+                  disabled={busy || modelChanging}
+                  onValueChange={(value) => {
+                    if (!value || value === conversation?.id) return
+                    const id = value
                     void window.lepis.ai
                       .conversation(id)
                       .then((chat) => {
                         conversationRef.current = chat
                         setConversation(chat)
+                        setRename(null)
                         setDeleteConfirm(false)
                         setScrollPinned(true)
                       })
                       .catch(showError)
                   }}
                 >
-                  <option value="" disabled>
-                    Conversation history
-                  </option>
-                  {conversations.map((chat) => (
-                    <option key={chat.id} value={chat.id}>
-                      {chat.title} · {providerNames[chat.provider]}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Rename conversation"
-                  disabled={!conversation || busy}
-                  onClick={() => setRename(conversation?.title ?? '')}
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Delete conversation"
-                  disabled={!conversation || busy}
-                  onClick={() => setDeleteConfirm((value) => !value)}
-                >
-                  <Trash2 />
-                </Button>
+                  <SelectTrigger
+                    aria-label="Conversation history"
+                    size="sm"
+                    className="min-w-0 flex-1"
+                  >
+                    <SelectValue placeholder="Conversation history" />
+                  </SelectTrigger>
+                  <SelectContent position="popper">
+                    {conversations.map((chat) => (
+                      <SelectItem key={chat.id} value={chat.id}>
+                        {chat.title} · {providerNames[chat.provider]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Delete conversation"
+                      disabled={!conversation || busy}
+                      onClick={() => setDeleteConfirm((value) => !value)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete conversation</TooltipContent>
+                </Tooltip>
               </div>
-            )}
-            {rename !== null && (
-              <form
-                className="flex gap-1"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  if (conversation)
-                    void window.lepis.ai
-                      .renameConversation(conversation.id, rename)
-                      .then(() => {
-                        setConversation({ ...conversation, title: rename })
-                        setRename(null)
-                        return reloadList()
-                      })
-                      .catch(showError)
-                }}
-              >
-                <input
-                  className="chat-select min-w-0 flex-1"
-                  aria-label="Conversation title"
-                  value={rename}
-                  onChange={(event) => setRename(event.target.value)}
-                  maxLength={120}
-                />
-                <Button size="icon-xs" type="submit" aria-label="Save conversation title">
-                  <Check />
-                </Button>
-              </form>
             )}
             {deleteConfirm && (
               <div className="flex items-center gap-2 text-xs">
@@ -749,36 +780,17 @@ export function ChatPanel({
                   Retry PDF
                 </Button>
               )}
-              <button aria-label="Dismiss chat error" onClick={() => setError('')}>
-                <X className="size-3" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button aria-label="Dismiss chat error" onClick={() => setError('')}>
+                    <X className="size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Dismiss chat error</TooltipContent>
+              </Tooltip>
             </div>
           )}
           <div className="shrink-0 space-y-2 border-t p-3">
-            <div className="flex flex-wrap gap-1">
-              <Button
-                variant="ghost"
-                size="xs"
-                disabled={busy || stale || !document}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  onCancelSelection()
-                  addAttachments(getViewer(tab.id)?.attachSelectedText() ?? [])
-                }}
-              >
-                <TextSelect />
-                Attach text
-              </Button>
-              <Button
-                variant="ghost"
-                size="xs"
-                disabled={busy || stale || !document}
-                onClick={() => onSelectRegion((attachment) => addAttachments([attachment]))}
-              >
-                <Crop />
-                Select region
-              </Button>
-            </div>
             <Button
               variant="ghost"
               size="xs"
@@ -800,18 +812,23 @@ export function ChatPanel({
                       className="relative w-24 rounded-md border p-1.5 text-[11px]"
                       key={attachment.id}
                     >
-                      <button
-                        className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5"
-                        aria-label={`Remove selection on page ${attachment.page}`}
-                        disabled={busy}
-                        onClick={() =>
-                          setAttachments((current) =>
-                            current.filter((item) => item.id !== attachment.id)
-                          )
-                        }
-                      >
-                        <X className="size-3" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5"
+                            aria-label={`Remove selection on page ${attachment.page}`}
+                            disabled={busy}
+                            onClick={() =>
+                              setAttachments((current) =>
+                                current.filter((item) => item.id !== attachment.id)
+                              )
+                            }
+                          >
+                            <X className="size-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{`Remove selection on page ${attachment.page}`}</TooltipContent>
+                      </Tooltip>
                       {attachment.image ? (
                         <img
                           className="mb-1 h-12 w-full object-contain"
@@ -858,9 +875,17 @@ export function ChatPanel({
                 <span className="flex-1">
                   Full document summary · may require multiple AI requests
                 </span>
-                <button aria-label="Cancel document summary" onClick={() => setSummarize(false)}>
-                  <X className="size-3" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      aria-label="Cancel document summary"
+                      onClick={() => setSummarize(false)}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Cancel document summary</TooltipContent>
+                </Tooltip>
               </div>
             )}
             <form
@@ -868,53 +893,165 @@ export function ChatPanel({
                 event.preventDefault()
                 void send()
               }}
-              className="rounded-lg border bg-muted/20 p-2 focus-within:ring-1 focus-within:ring-ring"
+              className="w-full"
             >
-              <textarea
-                ref={composerRef}
-                aria-label="Message AI"
-                className="max-h-40 min-h-20 w-full resize-y bg-transparent p-1 text-sm outline-none"
-                placeholder={
-                  !connected ? 'Connect an AI service in settings' : 'Ask about this PDF…'
-                }
-                value={draft}
-                maxLength={16000}
-                disabled={busy || Boolean(loginBusy)}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault()
-                    void send()
+              <InputGroup>
+                <InputGroupTextarea
+                  ref={composerRef}
+                  aria-label="Message AI"
+                  className="max-h-40 min-h-20 text-sm"
+                  placeholder={
+                    !connected ? 'Connect an AI service in settings' : 'Ask about this PDF…'
                   }
-                }}
-              />
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">
-                  {attachments.length ? `${attachments.length} selections · ` : ''}PDF + model
-                  knowledge
-                </span>
-                {busy ? (
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    aria-label="Stop response"
-                    onClick={() => {
-                      if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
+                  value={draft}
+                  maxLength={16000}
+                  disabled={busy || Boolean(loginBusy)}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === 'Enter' &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing
+                    ) {
+                      event.preventDefault()
+                      void send()
+                    }
+                  }}
+                />
+                <InputGroupAddon align="block-end">
+                  <DropdownMenu
+                    onOpenChange={(open) => {
+                      if (open)
+                        selectedTextRef.current = getViewer(tab.id)?.attachSelectedText() ?? []
                     }}
                   >
-                    <Square />
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    size="icon-sm"
-                    aria-label="Send message"
-                    disabled={!ready || (!draft.trim() && !attachments.length)}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <InputGroupButton
+                            size="icon-sm"
+                            aria-label="Add attachment"
+                            disabled={busy || stale || !document}
+                            onMouseDown={(event) => event.preventDefault()}
+                          >
+                            <Plus />
+                          </InputGroupButton>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Add attachment</TooltipContent>
+                    </Tooltip>
+                    <DropdownMenuContent
+                      align="start"
+                      side="top"
+                      onCloseAutoFocus={(event) => event.preventDefault()}
+                    >
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          onCancelSelection()
+                          addAttachments(selectedTextRef.current)
+                        }}
+                      >
+                        <TextSelect />
+                        Attach text
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          onSelectRegion((attachment) => addAttachments([attachment]))
+                        }
+                      >
+                        <Crop />
+                        Attach selection
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Select
+                    value={
+                      connected && models.some((model) => model.id === selectedModel)
+                        ? `${provider}:${selectedModel}`
+                        : ''
+                    }
+                    disabled={
+                      busy ||
+                      modelChanging ||
+                      modelsLoading ||
+                      !catalog.some((group) => group.models.length)
+                    }
+                    onValueChange={(value) => void chooseModel(value)}
                   >
-                    <ArrowUp />
-                  </Button>
-                )}
-              </div>
+                    <SelectTrigger
+                      aria-label="AI model"
+                      size="sm"
+                      className="min-w-24 max-w-[calc(100%-6rem)] border-0 bg-transparent px-2 shadow-none dark:bg-transparent"
+                    >
+                      <SelectValue
+                        placeholder={modelsLoading ? 'Loading models…' : 'Choose model'}
+                      />
+                    </SelectTrigger>
+                    <SelectContent position="popper">
+                      {providerSections.map((section) => {
+                        const groups = catalog.filter(
+                          (group) =>
+                            section.providers.includes(group.provider) && group.models.length
+                        )
+                        if (!groups.length) return null
+                        return (
+                          <SelectGroup key={section.id}>
+                            <SelectLabel>{section.name}</SelectLabel>
+                            {groups.map((group) => (
+                              <div key={group.provider}>
+                                {group.models.map((model) => (
+                                  <SelectItem
+                                    value={`${group.provider}:${model.id}`}
+                                    key={model.id}
+                                  >
+                                    <ProviderLogo provider={group.provider} />
+                                    {model.name}
+                                  </SelectItem>
+                                ))}
+                              </div>
+                            ))}
+                          </SelectGroup>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {busy ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <InputGroupButton
+                          type="button"
+                          variant="default"
+                          size="icon-sm"
+                          className="ml-auto"
+                          aria-label="Stop response"
+                          onClick={() => {
+                            if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
+                          }}
+                        >
+                          <Square />
+                        </InputGroupButton>
+                      </TooltipTrigger>
+                      <TooltipContent>Stop response</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <InputGroupButton
+                          type="submit"
+                          variant="default"
+                          size="icon-sm"
+                          className="ml-auto"
+                          aria-label="Send message"
+                          disabled={!ready || (!draft.trim() && !attachments.length)}
+                        >
+                          <ArrowUp />
+                        </InputGroupButton>
+                      </TooltipTrigger>
+                      <TooltipContent>Send message</TooltipContent>
+                    </Tooltip>
+                  )}
+                </InputGroupAddon>
+              </InputGroup>
             </form>
           </div>
         </>

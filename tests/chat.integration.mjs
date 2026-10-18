@@ -172,13 +172,15 @@ app
     service = new AiService(temp)
     const credentials = {
       hostId: 'test',
-      keys: {},
+      keys: { openai: 'fixture-openai-key', anthropic: 'fixture-anthropic-key' },
       session: { email: 'test@example.invalid', scope: 'chatgpt.tokens.use.direct' }
     }
     service.credentials.load = async () => credentials
     service.credentials.update = async (change) => change(credentials)
     let catalogUnavailable = true
-    service.providers.models = async () => {
+    service.providers.models = async (provider) => {
+      if (provider === 'anthropic') throw new Error('Fixture Anthropic catalog unavailable')
+      if (provider === 'openai') return [{ id: 'test-model', name: 'OpenAI test model' }]
       if (catalogUnavailable) throw new Error('Fixture catalog temporarily unavailable')
       return [{ id: 'test-model', name: 'Test model' }]
     }
@@ -275,9 +277,9 @@ app
       `document.querySelector('.visible .textLayer')?.textContent.includes('Photosynthesis')`
     )
     assert.equal(indexed.length, 0, 'opening a PDF does not index it')
-    await click('Open AI chat')
+    await click('Toggle AI chat')
     await waitFor(
-      `document.querySelector('[aria-label="AI chat panel"]') && document.body.innerText.includes('Allow AI requests')`
+      `document.querySelector('[aria-label="AI chat panel"]') && document.querySelector('[role="dialog"] [aria-label="Allow AI requests"]')`
     )
     await waitFor(
       `!document.body.innerText.includes('Preparing PDF locally') && document.querySelector('[aria-label="Message AI"]')`
@@ -286,30 +288,175 @@ app
       `document.querySelector('aside:not(.hidden) [aria-label="New chat"]')?.disabled === false`
     )
     assert.equal(generated.length, 0, 'opening chat does not call the model')
-    await evaluate(
-      `Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Allow AI requests').click()`
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Close AI chat"]')`), null)
+    assert.equal(
+      await evaluate(`(() => {
+      const theme = document.querySelector('[aria-label^="Change theme:"]');
+      const toggle = document.querySelector('[aria-label="Toggle AI chat"]');
+      return theme.nextElementSibling === toggle && toggle.getAttribute('aria-expanded') === 'true';
+    })()`),
+      true,
+      'chat toggle follows theme and reflects panel visibility'
     )
+    await click('Allow AI requests')
     await waitFor(`document.body.innerText.includes('Retry loading models')`)
     catalogUnavailable = false
     await evaluate(
       `Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Retry loading models')).click()`
     )
-    await waitFor(`document.querySelector('[aria-label="AI model"]').value === 'test-model'`)
+    await waitFor(`document.querySelector('[aria-label="AI model"]').textContent === 'Test model'`)
     assert.equal(
       await evaluate(`document.body.innerText.includes('Fixture catalog temporarily unavailable')`),
       false
     )
     await waitFor(`document.querySelector('[aria-label="AI connections"]') !== null`)
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[role="dialog"] [role="tab"]').length`),
+      4,
+      'OpenAI and ChatGPT share one provider section'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[role="dialog"]').textContent.includes('Personal ChatGPT conversations')`
+      ),
+      false
+    )
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="dialog"] [role="tab"]')).find(tab => tab.textContent.startsWith('Gemini')).click()`
+    )
+    await waitFor(`document.querySelector('[aria-label="Gemini API key"]')`)
+    await setInput('Gemini API key', 'fixture-unsaved-key')
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="dialog"] [role="tab"]')).find(tab => tab.textContent.startsWith('OpenAI')).click()`
+    )
+    await waitFor(`document.querySelector('[aria-label="OpenAI API key"]')?.value === ''`)
+    assert.equal(
+      await evaluate(
+        `Boolean(document.querySelector('[aria-label="ChatGPT connection"]') && document.querySelector('[aria-label="OpenAI connection"]'))`
+      ),
+      true
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelectorAll('[role="dialog"] [role="tab"] [data-provider-logo]').length`
+      ),
+      4
+    )
+    assert.equal(
+      await evaluate(
+        `Array.from(document.querySelectorAll('[role="dialog"] button')).find(button => button.textContent === 'Disconnect')?.getAttribute('data-variant')`
+      ),
+      'destructive'
+    )
     win.webContents.send('ai:login-state', { phase: 'exchanging-code' })
     await waitFor(`document.body.innerText.includes('Completing authorization')`)
-    await click('AI settings')
+    await evaluate(`document.querySelector('[role="dialog"] [data-slot="dialog-close"]').click()`)
     win.webContents.send('ai:login-state', { phase: 'verifying-identity' })
     await click('AI settings')
     await waitFor(`document.body.innerText.includes('Verifying your account')`)
     win.webContents.send('ai:login-state', { phase: 'idle' })
-    await waitFor(`document.body.innerText.includes('Reconnect ChatGPT')`)
-    await click('AI settings')
-    await waitFor(`document.querySelector('[aria-label="AI model"]').value === 'test-model'`)
+    await waitFor(
+      `document.querySelector('[role="dialog"] [role="tablist"] [aria-selected="true"]')?.textContent.includes('Connected')`
+    )
+    await evaluate(
+      `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
+    )
+    await waitFor(`getComputedStyle(document.querySelector('[role="dialog"]')).opacity === '1'`)
+    fs.writeFileSync('/tmp/lepis-ai-settings.png', (await win.webContents.capturePage()).toPNG())
+    await evaluate(`document.querySelector('[role="dialog"] [data-slot="dialog-close"]').click()`)
+    await waitFor(`!document.querySelector('[role="dialog"]')`)
+    await waitFor(`document.querySelector('[aria-label="AI model"]').textContent === 'Test model'`)
+    assert.equal(
+      await evaluate(
+        `Boolean(document.querySelector('[aria-label="AI model"]').closest('[data-slot="input-group"]'))`
+      ),
+      true,
+      'model selector is inside the composer'
+    )
+    assert.equal(await evaluate(`document.body.innerText.includes('PDF + model knowledge')`), false)
+    const newChatButton = await evaluate(
+      `(() => { const rect = document.querySelector('aside:not(.hidden) [aria-label="New chat"]').getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; })()`
+    )
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      ...newChatButton
+    })
+    await waitFor(`document.querySelector('[role="tooltip"]')?.textContent === 'New chat'`)
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: 1,
+      y: 1
+    })
+
+    assert.equal(
+      await evaluate(`(() => {
+      const model = document.querySelector('[aria-label="AI model"]');
+      const title = document.querySelector('[aria-label="Rename conversation"]');
+      return model.getBoundingClientRect().width >= 96
+        && model.getBoundingClientRect().width < model.parentElement.getBoundingClientRect().width - 64
+        && title.getBoundingClientRect().width >= 144
+        && title.getBoundingClientRect().width < title.parentElement.getBoundingClientRect().width - 100;
+    })()`),
+      true,
+      'model and title use compact widths with a minimum'
+    )
+    assert.equal(
+      await evaluate(`getComputedStyle(document.querySelector('.chat-resizer'), '::after').width`),
+      '1px'
+    )
+    await click('AI model')
+    await waitFor(`document.querySelector('[role="option"]')?.textContent.includes('Test model')`)
+    await evaluate(`document.querySelector('[role="option"]').click()`)
+    await waitFor(
+      `document.querySelector('[aria-label="AI model"]').getAttribute('aria-expanded') === 'false'`
+    )
+    await click('AI model')
+    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    assert.equal(
+      await evaluate(
+        `Array.from(document.querySelectorAll('[data-slot="select-label"]')).map(label => label.textContent).join('|')`
+      ),
+      'OpenAI'
+    )
+    assert.equal(await evaluate(`document.querySelector('[aria-label="AI provider"]')`), null)
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[role="option"] [data-provider-logo]').length`),
+      2
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelectorAll('[aria-label="AI model"] [data-provider-logo]').length`
+      ),
+      1
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelectorAll('[data-slot="select-label"] [data-provider-logo]').length`
+      ),
+      0
+    )
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'OpenAI test model').click()`
+    )
+    await waitFor(
+      `document.querySelector('[aria-label="AI model"]').textContent === 'OpenAI test model'`
+    )
+    assert.equal(
+      service.store.settings().provider,
+      'openai',
+      'model selection persists the corresponding provider'
+    )
+    await click('AI model')
+    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'Test model').click()`
+    )
+    await waitFor(`document.querySelector('[aria-label="AI model"]').textContent === 'Test model'`)
+    await waitFor(`!document.querySelector('[role="option"]')`)
+    assert.equal(service.store.settings().provider, 'chatgpt')
+    console.log(
+      'PASS: modal settings, grouped connected providers, duplicate model IDs and partial catalog failure'
+    )
     assert.ok(indexed[0].sources[0].text.includes('Photosynthesis'))
     console.log('PASS: model catalog failures recover and login progress survives closing settings')
     const originalVersion = indexed[0].version
@@ -322,6 +469,39 @@ app
     })()`)
     await waitFor(
       `document.querySelector('.chat-source') && document.querySelector('.katex') && document.querySelector('[aria-label="Send message"]')`
+    )
+    await waitFor(
+      `document.querySelector('[aria-label="Rename conversation"]').textContent === 'Explain photosynthesis'`
+    )
+    await waitFor(`!document.querySelector('[aria-label="Rename conversation"]').disabled`)
+    await click('Rename conversation')
+
+    await waitFor(`document.activeElement?.getAttribute('aria-label') === 'Conversation title'`)
+    await setInput('Conversation title', 'Plant energy')
+    await evaluate(
+      `document.querySelector('[aria-label="Conversation title"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
+    )
+    await waitFor(
+      `document.querySelector('[aria-label="Rename conversation"]').textContent === 'Plant energy'`
+    )
+    assert.equal(service.store.list('first.pdf')[0].title, 'Plant energy')
+    await click('Rename conversation')
+    await setInput('Conversation title', 'Discard this title')
+    await evaluate(
+      `document.querySelector('[aria-label="Conversation title"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`
+    )
+    await waitFor(
+      `document.querySelector('[aria-label="Rename conversation"]')?.textContent === 'Plant energy'`
+    )
+    await click('Rename conversation')
+    await setInput('Conversation title', 'Photosynthesis notes')
+    await evaluate(`document.querySelector('[aria-label="Conversation title"]').blur()`)
+    await waitFor(
+      `document.querySelector('[aria-label="Rename conversation"]')?.textContent === 'Photosynthesis notes'`
+    )
+    assert.equal(service.store.list('first.pdf')[0].title, 'Photosynthesis notes')
+    console.log(
+      'PASS: composer model selector and inline title editing with Enter, blur and Escape'
     )
     await evaluate(`document.querySelector('.chat-source').click()`)
     assert.equal(service.store.list('first.pdf').length, 1, 'rapid submits create only one chat')
@@ -337,6 +517,11 @@ app
       ),
       true
     )
+    await waitFor(
+      `(() => { const citation = document.querySelector('.visible .chat-citation'); return citation && getComputedStyle(citation).animationName === 'chat-citation-fade' && Number(getComputedStyle(citation).opacity) < 0.9; })()`,
+      3000
+    )
+    await waitFor(`document.querySelector('.visible .chat-citation') === null`, 4000)
     console.log(
       'PASS: lazy local indexing, consent, streaming, exact source navigation and math rendering'
     )
@@ -361,11 +546,19 @@ app
       `(() => { const text = document.querySelector('.visible .textLayer span').firstChild; const range = document.createRange(); range.selectNodeContents(text); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`
     )
     await evaluate(
-      `Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Attach text')).click()`
+      `document.querySelector('[aria-label="Add attachment"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
+    )
+    await waitFor(`document.querySelector('[role="menuitem"]')`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent.includes('Attach text')).click()`
     )
     await waitFor(`document.querySelector('[aria-label="Remove selection on page 1"]')`)
     await evaluate(
-      `Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Select region')).click()`
+      `document.querySelector('[aria-label="Add attachment"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
+    )
+    await waitFor(`document.querySelector('[role="menuitem"]')`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent.includes('Attach selection')).click()`
     )
     await waitFor(`document.querySelector('.visible .chat-region-mode') !== null`)
     const bounds = await evaluate(
@@ -417,6 +610,8 @@ app
       'PASS: text and rectangle selections, multiple attachments, original image and persistent history'
     )
 
+    await evaluate(`document.querySelector('aside:not(.hidden) .chat-source').click()`)
+    await waitFor(`document.querySelector('.visible .chat-citation') !== null`)
     fs.writeFileSync('/tmp/lepis-chat-wide.png', (await win.webContents.capturePage()).toPNG())
     const citationWidth = await evaluate(
       `document.querySelector('.visible .chat-citation').getBoundingClientRect().width`
@@ -468,8 +663,8 @@ app
     )
 
     await setInput('Message AI', 'A draft to keep')
-    await click('Close AI chat')
-    await click('Open AI chat')
+    await click('Toggle AI chat')
+    await click('Toggle AI chat')
     assert.equal(
       await evaluate(
         `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').value`
@@ -487,9 +682,9 @@ app
     )
     await evaluate(`document.querySelector('.chat-source').click()`)
     await waitFor(
-      `document.querySelector('[aria-label="Open AI chat"]') && document.querySelector('.visible .chat-citation') !== null`
+      `document.querySelector('[aria-label="Toggle AI chat"][aria-expanded="false"]') && document.querySelector('.visible .chat-citation') !== null`
     )
-    await click('Open AI chat')
+    await click('Toggle AI chat')
     await waitFor(
       `document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect().width === 0`
     )
@@ -500,9 +695,9 @@ app
       window.requestAnimationFrame = schedule;
     })()`)
     await waitFor(
-      `document.querySelector('[aria-label="Open AI chat"]') && document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect().width > 0`
+      `document.querySelector('[aria-label="Toggle AI chat"][aria-expanded="false"]') && document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect().width > 0`
     )
-    await click('Open AI chat')
+    await click('Toggle AI chat')
     await waitFor(
       `document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect().width === 0`
     )
@@ -514,12 +709,12 @@ app
       'A draft to keep'
     )
     await win.webContents.debugger.sendCommand('Emulation.clearDeviceMetricsOverride')
-    await click('Close AI chat')
+    await click('Toggle AI chat')
     win.webContents.send('menu:next-tab')
     await waitFor(
       `document.querySelector('.visible .textLayer')?.textContent.includes('Chlorophyll')`
     )
-    await click('Open AI chat')
+    await click('Toggle AI chat')
     await waitFor(
       `document.querySelector('aside:not(.hidden) [aria-label="New chat"]')?.disabled === false`
     )
@@ -610,8 +805,41 @@ app
     console.log(
       `PASS: indexed all 300 pages in ${Date.now() - started} ms; renderer heap ${Math.round(heap / 1024 / 1024)} MiB`
     )
+    await setInput('Message AI', 'Explain this PDF using OpenAI')
+    await click('AI model')
+    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'OpenAI test model').click()`
+    )
+    await waitFor(
+      `document.querySelector('aside:not(.hidden) [aria-label="AI model"]').textContent === 'OpenAI test model'`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').value`
+      ),
+      'Explain this PDF using OpenAI'
+    )
+    await waitFor(
+      `!document.querySelector('aside:not(.hidden) [aria-label="Send message"]').disabled`
+    )
+    await click('Send message')
+    await waitFor(
+      `document.querySelector('aside:not(.hidden) .katex') && document.querySelector('aside:not(.hidden) [aria-label="Send message"]')`
+    )
+    assert.equal(generated.at(-1).provider, 'openai')
+    assert.equal(generated.at(-1).model, 'test-model')
+    assert.equal(service.store.list('large.pdf')[0].provider, 'openai')
+    console.log('PASS: choosing another provider preserves the draft and sends with its model')
     assert.deepEqual(rendererErrors, [])
     fs.writeFileSync('/tmp/lepis-chat.png', (await win.webContents.capturePage()).toPNG())
+    await click('AI model')
+    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await evaluate(
+      `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
+    )
+    await waitFor(`getComputedStyle(document.querySelector('[role="listbox"]')).opacity === '1'`)
+    fs.writeFileSync('/tmp/lepis-model-groups.png', (await win.webContents.capturePage()).toPNG())
     console.log('PASS: stop persists interrupted responses; no renderer errors')
   })
   .then(() => finish(0))

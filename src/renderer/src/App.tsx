@@ -27,6 +27,7 @@ function App(): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarTab, setSidebarTab] = useState<PdfDocumentViewProps['sidebarTab']>('pages')
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
+  const [chatOpen, setChatOpen] = useState(false)
   const [theme, setTheme] = useState<SessionState['theme']>('system')
   const [message, setMessage] = useState<string | null>(null)
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -225,6 +226,8 @@ function App(): React.JSX.Element {
           activeId={activeId}
           sidebarOpen={sidebarOpen}
           theme={theme}
+          chatOpen={chatOpen}
+          onToggleChat={() => setChatOpen((open) => !open)}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onSelect={selectTab}
           onReorder={reorderTab}
@@ -251,6 +254,8 @@ function App(): React.JSX.Element {
       </header>
 
       <ChatDock
+        open={chatOpen}
+        onOpenChange={setChatOpen}
         tabs={tabs}
         activeId={activeId}
         getViewer={getChatViewer}

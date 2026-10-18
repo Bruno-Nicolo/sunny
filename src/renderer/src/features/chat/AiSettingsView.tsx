@@ -1,28 +1,42 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import type { AiProvider, AiStatus } from '../../../../shared/ai'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { ProviderLogo } from './ProviderLogo'
+import type { AiProvider, ApiProvider, AiStatus } from '../../../../shared/ai'
+import { providerSections } from './labels'
 
-import { providerNames } from './labels'
+const connectionNames: Record<AiProvider, string> = {
+  chatgpt: 'ChatGPT',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  google: 'Gemini',
+  openrouter: 'OpenRouter'
+}
 
 type Props = { status: AiStatus; onStatus(status: AiStatus): void; onError(error: string): void }
 
 export function AiSettingsView({ status, onStatus, onError }: Props): React.JSX.Element {
-  const [provider, setProvider] = useState<AiProvider>(status.settings.provider)
+  const [section, setSection] = useState<ApiProvider>(
+    status.settings.provider === 'chatgpt' ? 'openai' : status.settings.provider
+  )
   const [key, setKey] = useState('')
   const [updating, setUpdating] = useState(false)
   const loginBusy = !['idle', 'error'].includes(status.chatgptLogin.phase)
   const busy = updating || loginBusy
   const loginLabels = {
-    idle: 'Continue with ChatGPT',
-    preparing: 'Preparing secure sign-in…',
+    idle: 'Connect ChatGPT',
+    preparing: 'Preparing sign-in…',
     'waiting-browser': 'Complete sign-in in your browser…',
     'exchanging-code': 'Completing authorization…',
     'verifying-identity': 'Verifying your account…',
-    'saving-session': 'Saving connection securely…',
-    error: 'Retry ChatGPT sign-in'
+    'saving-session': 'Saving connection…',
+    error: 'Retry sign-in'
   }
   const run = async (action: () => Promise<AiStatus>): Promise<void> => {
     setUpdating(true)
+    onError('')
     try {
       onStatus(await action())
       setKey('')
@@ -38,107 +52,156 @@ export function AiSettingsView({ status, onStatus, onError }: Props): React.JSX.
     }
   }
   return (
-    <section aria-label="AI connections" className="space-y-3 border-b p-4 text-sm">
-      <p className="font-medium">AI connections</p>
-      <select
-        aria-label="Connection provider"
-        className="chat-select w-full"
-        value={provider}
-        disabled={busy}
-        onChange={(event) => {
-          setProvider(event.target.value as AiProvider)
+    <section aria-label="AI connections" className="space-y-5 text-sm">
+      <Tabs
+        orientation="vertical"
+        value={section}
+        onValueChange={(value) => {
+          setSection(value as ApiProvider)
           setKey('')
+          onError('')
         }}
+        className="flex-col gap-5 sm:flex-row"
       >
-        {Object.entries(providerNames).map(([id, label]) => (
-          <option key={id} value={id}>
-            {label}
-          </option>
-        ))}
-      </select>
-      {provider === 'chatgpt' ? (
-        <>
-          <p className="text-xs text-muted-foreground">
-            Use your eligible ChatGPT plan. Sign-in opens your browser and requests permission to
-            use the plan. Personal ChatGPT conversations are not imported.
-          </p>
-          {status.chatgptAccount && (
-            <p className="truncate text-xs">Account: {status.chatgptAccount}</p>
-          )}
-          {status.chatgptAccount && !status.connected.includes('chatgpt') && (
-            <p className="text-xs text-muted-foreground">
-              Signed in. Plan usage is not enabled; authorize it below or choose an API provider.
-            </p>
-          )}
-          <Button
-            size="sm"
-            disabled={busy}
-            onClick={() => void run(() => window.lepis.ai.connectChatgpt())}
-          >
-            {loginBusy
-              ? loginLabels[status.chatgptLogin.phase]
-              : status.connected.includes('chatgpt')
-                ? 'Reconnect ChatGPT'
-                : status.chatgptAccount
-                  ? 'Enable ChatGPT plan usage'
-                  : loginLabels[status.chatgptLogin.phase]}
-          </Button>
-          {loginBusy && (
-            <Button variant="ghost" size="sm" onClick={() => void window.lepis.ai.cancelLogin()}>
-              Cancel
-            </Button>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="text-xs text-muted-foreground">
-            API usage is billed separately by the provider. Your key is protected by the operating
-            system and is never sent to the PDF viewer.
-          </p>
-          <input
-            className="chat-select w-full"
-            type="password"
-            autoComplete="off"
-            aria-label="API key"
-            placeholder={status.connected.includes(provider) ? 'Replace saved API key' : 'API key'}
-            value={key}
-            onChange={(event) => setKey(event.target.value)}
-            disabled={busy}
-          />
-          <Button
-            size="sm"
-            disabled={busy || key.trim().length < 8}
-            onClick={() => void run(() => window.lepis.ai.setKey(provider, key))}
-          >
-            Save key
-          </Button>
-        </>
-      )}
-      {(status.connected.includes(provider) ||
-        (provider === 'chatgpt' && status.chatgptAccount)) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          onClick={() => void run(() => window.lepis.ai.disconnect(provider))}
+        <TabsList
+          aria-label="AI providers"
+          className="w-full shrink-0 gap-1 bg-transparent p-0 sm:w-40"
         >
-          Disconnect
-        </Button>
-      )}
-      <label className="flex items-start gap-2 text-xs text-muted-foreground">
-        <input
-          type="checkbox"
+          {providerSections.map(({ id, name, providers }) => {
+            const connected = providers.some((provider) => status.connected.includes(provider))
+            return (
+              <TabsTrigger
+                key={id}
+                value={id}
+                disabled={busy}
+                className="h-auto flex-none justify-start rounded-md px-3 py-2 text-left data-active:bg-muted data-active:shadow-none"
+              >
+                <ProviderLogo provider={id} className="mr-1" />
+                <span className="flex flex-1 flex-col gap-0.5">
+                  <span>{name}</span>
+                  <span className="text-[11px] font-normal text-muted-foreground">
+                    {connected ? 'Connected' : 'Not connected'}
+                  </span>
+                </span>
+                {connected && (
+                  <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
+                )}
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+        {providerSections.map(({ id, providers }) => (
+          <TabsContent key={id} value={id} className="min-w-0 space-y-4 sm:border-l sm:pl-5">
+            {section === id &&
+              providers.map((provider) => {
+                const connected = status.connected.includes(provider)
+                return (
+                  <section
+                    key={provider}
+                    aria-label={`${connectionNames[provider]} connection`}
+                    className="space-y-3 border-b pb-4 last:border-0 last:pb-0"
+                  >
+                    <h3 className="font-medium">
+                      {provider === 'chatgpt'
+                        ? 'ChatGPT plan'
+                        : provider === 'openai'
+                          ? 'OpenAI API'
+                          : connectionNames[provider]}
+                    </h3>
+                    {provider === 'chatgpt' ? (
+                      <>
+                        {status.chatgptAccount && (
+                          <p className="break-all text-xs text-muted-foreground">
+                            {status.chatgptAccount}
+                          </p>
+                        )}
+                        {status.chatgptLogin.phase === 'error' && (
+                          <p role="alert" className="text-xs text-destructive">
+                            {status.chatgptLogin.error}
+                          </p>
+                        )}
+                        {loginBusy && (
+                          <p role="status" className="text-xs text-muted-foreground">
+                            {loginLabels[status.chatgptLogin.phase]}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          aria-label={`${connectionNames[provider]} API key`}
+                          placeholder={connected ? 'Replace API key' : 'API key'}
+                          value={key}
+                          onChange={(event) => setKey(event.target.value)}
+                          disabled={busy}
+                        />
+                      </>
+                    )}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {(connected || (provider === 'chatgpt' && status.chatgptAccount)) && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => void run(() => window.lepis.ai.disconnect(provider))}
+                        >
+                          Disconnect
+                        </Button>
+                      )}
+                      {provider === 'chatgpt' ? (
+                        loginBusy ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void window.lepis.ai.cancelLogin()}
+                          >
+                            Cancel
+                          </Button>
+                        ) : (
+                          !connected && (
+                            <Button
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => void run(() => window.lepis.ai.connectChatgpt())}
+                            >
+                              {status.chatgptAccount
+                                ? 'Enable plan access'
+                                : loginLabels[status.chatgptLogin.phase]}
+                            </Button>
+                          )
+                        )
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={busy || key.trim().length < 8}
+                          onClick={() => void run(() => window.lepis.ai.setKey(provider, key))}
+                        >
+                          Save key
+                        </Button>
+                      )}
+                    </div>
+                  </section>
+                )
+              })}
+          </TabsContent>
+        ))}
+      </Tabs>
+      <label className="flex items-start gap-2 border-t pt-4 text-xs text-muted-foreground">
+        <Checkbox
+          aria-label="Allow AI requests"
           checked={status.settings.consent}
-          onChange={(event) => {
-            const settings = { ...status.settings, consent: event.target.checked }
+          onCheckedChange={(checked) => {
+            onError('')
+            const settings = { ...status.settings, consent: checked === true }
             void window.lepis.ai
               .settings({ consent: settings.consent })
               .then(() => onStatus({ ...status, settings }))
               .catch((error) => onError(String(error)))
           }}
         />
-        Allow document excerpts, selected images and needed conversation history to be sent to the
-        chosen AI service.
+        Share document excerpts and chat context with the selected provider.
       </label>
     </section>
   )

@@ -34,6 +34,8 @@ export function createChatSelection({
   let indexSignal: AbortSignal | null = null
   let regionCallback: ((attachment: ChatAttachment) => void) | null = null
   let captureAbort: AbortController | null = null
+  const citationDuration = 2000
+  let citationStartedAt = 0
   let citation: DocumentSource | null = null
   let citationTimer: ReturnType<typeof setTimeout> | undefined
   let drag: { page: number; x: number; y: number; pointer: number; box: HTMLDivElement } | null =
@@ -61,7 +63,9 @@ export function createChatSelection({
       ]
       const element = window.document.createElement('div')
       element.className = 'chat-citation'
+      element.style.setProperty('--chat-citation-duration', `${citationDuration}ms`)
       Object.assign(element.style, {
+        animationDelay: `${citationStartedAt - performance.now()}ms`,
         left: `${Math.min(bounds[0], bounds[2])}px`,
         top: `${Math.min(bounds[1], bounds[3])}px`,
         width: `${Math.abs(bounds[2] - bounds[0])}px`,
@@ -281,6 +285,7 @@ export function createChatSelection({
       )
         return
       citation = source
+      citationStartedAt = performance.now()
       const rect = source.rects[0]
       viewer.scrollPageIntoView({
         pageNumber: source.page,
@@ -291,7 +296,7 @@ export function createChatSelection({
       citationTimer = setTimeout(() => {
         citation = null
         renderCitation()
-      }, 7000)
+      }, citationDuration)
     }
   }
 }
