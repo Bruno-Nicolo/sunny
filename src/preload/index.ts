@@ -1,7 +1,38 @@
 import type { LepisApi } from '../shared/contracts'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { ChatEvent, ChatgptLoginState } from '../shared/ai'
 
 const api: LepisApi = {
+  ai: {
+    status: () => ipcRenderer.invoke('ai:status'),
+    settings: (settings) => ipcRenderer.invoke('ai:settings', settings),
+    connectChatgpt: () => ipcRenderer.invoke('ai:connect'),
+    cancelLogin: () => ipcRenderer.invoke('ai:cancel-login'),
+    setKey: (provider, key) => ipcRenderer.invoke('ai:set-key', provider, key),
+    disconnect: (provider) => ipcRenderer.invoke('ai:disconnect', provider),
+    models: (provider) => ipcRenderer.invoke('ai:models', provider),
+    index: (document) => ipcRenderer.invoke('ai:index', document),
+    conversations: (path) => ipcRenderer.invoke('ai:conversations', path),
+    conversation: (id) => ipcRenderer.invoke('ai:conversation', id),
+    createConversation: (version, provider, path) =>
+      ipcRenderer.invoke('ai:create', version, provider, path),
+    renameConversation: (id, title) => ipcRenderer.invoke('ai:rename', id, title),
+    deleteConversation: (id) => ipcRenderer.invoke('ai:delete', id),
+    send: (request) => ipcRenderer.invoke('ai:send', request),
+    stop: (requestId) => ipcRenderer.invoke('ai:stop', requestId),
+    onLoginState: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, state: ChatgptLoginState): void =>
+        callback(state)
+      ipcRenderer.on('ai:login-state', listener)
+      return () => ipcRenderer.removeListener('ai:login-state', listener)
+    },
+    onEvent: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatEvent): void =>
+        callback(event)
+      ipcRenderer.on('ai:event', listener)
+      return () => ipcRenderer.removeListener('ai:event', listener)
+    }
+  },
   saveDraft: (draft) => ipcRenderer.invoke('draft:save', draft),
   loadDrafts: () => ipcRenderer.invoke('draft:load'),
   deleteDraft: (path) => ipcRenderer.invoke('draft:delete', path),

@@ -16,6 +16,7 @@ import { RecoveryDialog } from '@/features/documents/components/RecoveryDialog'
 import { FileConflictDialog } from '@/features/documents/components/FileConflictDialog'
 import { useImageInsertion } from '@/features/pdf/annotations/images/useImageInsertion'
 import { defaultHighlightColor } from '@/features/pdf/annotations/highlight/colors'
+import { ChatDock } from '@/features/chat/ChatDock'
 
 function App(): React.JSX.Element {
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('none')
@@ -76,6 +77,19 @@ function App(): React.JSX.Element {
     saveConflictCopy,
     reloadConflict
   } = useDocuments(showMessage, persistSession)
+  const chatViewers = useRef(new Map<string, PdfDocumentHandle>())
+  const registerDocumentViewer = useCallback(
+    (id: string, handle: PdfDocumentHandle | null): void => {
+      registerViewer(id, handle)
+      if (handle) chatViewers.current.set(id, handle)
+      else chatViewers.current.delete(id)
+    },
+    [registerViewer]
+  )
+  const getChatViewer = useCallback(
+    (id: string): PdfDocumentHandle | null => chatViewers.current.get(id) ?? null,
+    []
+  )
 
   const onTextEditorChange = useCallback(
     (id: string, settings: TextEditorSettings | null): void => {
@@ -236,22 +250,29 @@ function App(): React.JSX.Element {
         />
       </header>
 
-      <DocumentWorkspace
+      <ChatDock
         tabs={tabs}
         activeId={activeId}
-        ready={ready}
-        sidebarOpen={sidebarOpen}
-        sidebarTab={sidebarTab}
-        onSidebarTabChange={setSidebarTab}
-        annotationTool={annotationTool}
-        highlightColor={highlightColor}
-        onOpen={() => void openDialog()}
-        onViewerHandle={registerViewer}
-        onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
-        onSnapshot={(id, view) => updateTab(id, { view })}
-        onError={(id, error) => updateTab(id, { error })}
-        onTextEditorChange={onTextEditorChange}
-      />
+        getViewer={getChatViewer}
+        onSelectionTool={() => setAnnotationTool('none')}
+      >
+        <DocumentWorkspace
+          tabs={tabs}
+          activeId={activeId}
+          ready={ready}
+          sidebarOpen={sidebarOpen}
+          sidebarTab={sidebarTab}
+          onSidebarTabChange={setSidebarTab}
+          annotationTool={annotationTool}
+          highlightColor={highlightColor}
+          onOpen={() => void openDialog()}
+          onViewerHandle={registerDocumentViewer}
+          onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
+          onSnapshot={(id, view) => updateTab(id, { view })}
+          onError={(id, error) => updateTab(id, { error })}
+          onTextEditorChange={onTextEditorChange}
+        />
+      </ChatDock>
 
       {message && (
         <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg">

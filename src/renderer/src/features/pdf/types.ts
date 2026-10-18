@@ -1,6 +1,8 @@
 import type { PdfSource } from '../../../../shared/contracts'
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
+import type { ChatAttachment, DocumentSource } from '../../../../shared/ai'
+import type { IndexedPdf } from './chatDocument'
 
 export type ViewerSnapshot = {
   page: number
@@ -22,6 +24,13 @@ export type PdfViewPosition = Pick<
 export type PdfSnapshot = { hash: string; data: Uint8Array }
 
 export type PdfDocumentHandle = {
+  prepareChatDocument(
+    progress: (page: number, total: number) => void,
+    signal: AbortSignal
+  ): Promise<IndexedPdf>
+  selectChatRegion(callback: ((attachment: ChatAttachment) => void) | null): void
+  attachSelectedText(): ChatAttachment[]
+  showCitation(source: DocumentSource): void
   readonly revision: string
   openSearch(): void
   snapshotDocument(previousHash?: string): Promise<PdfSnapshot | null>

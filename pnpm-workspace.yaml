@@ -1,6 +1,8 @@
 allowBuilds:
+  '@google/genai': false
   electron: true
   electron-winstaller: false
   esbuild: true
+  protobufjs: false
 patchedDependencies:
   pdfjs-dist@6.3.289: patches/pdfjs-dist@6.3.289.patch

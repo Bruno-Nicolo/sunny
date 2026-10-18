@@ -23,6 +23,7 @@ import { createAnnotationController } from './annotations/createAnnotationContro
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 import { createKeyboardScroll } from './keyboardScroll'
+import { createChatSelection } from './createChatSelection'
 import type {
   PasswordRequest,
   PdfDocumentHandle,
@@ -96,6 +97,22 @@ export function createPdfViewer({
   let document: PDFDocumentProxy | null = null
   let destroyed = false
   let loading = true
+  const releasePage = (page: PDFPageProxy): void => {
+    if (
+      destroyed ||
+      viewer.getPageView(page.pageNumber - 1)?.renderingState === RenderingStates.INITIAL
+    )
+      page.cleanup()
+  }
+  const chat = createChatSelection({
+    viewer,
+    eventBus,
+    container,
+    signal: lifetime.signal,
+    document: () => document,
+    release: releasePage,
+    onError
+  })
   let composing = false
   // Chromium reports trackpad pinches as wheel events with ctrlKey set.
   container.addEventListener(
@@ -304,6 +321,10 @@ export function createPdfViewer({
     })
 
   return {
+    prepareChatDocument: chat.index,
+    selectChatRegion: chat.selectRegion,
+    attachSelectedText: chat.selectedText,
+    showCitation: chat.cite,
     releasePageResources(page) {
       if (
         destroyed ||
@@ -397,7 +418,10 @@ export function createPdfViewer({
     addImage: annotations.addImage,
     undo: annotations.undo,
     redo: annotations.redo,
-    setAnnotationOptions: annotations.setOptions,
+    setAnnotationOptions(options) {
+      if (!options.active || options.annotationTool !== 'none') chat.deactivate()
+      annotations.setOptions(options)
+    },
     async destroy() {
       if (destroyed) return
       destroyed = true

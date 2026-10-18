@@ -13,9 +13,11 @@ import { openPdfDialog, savePdfAs } from './pdf-dialogs'
 import { createDraftStore } from './drafts'
 import { loadSession, saveSession } from './session'
 import { confirmWindowClose, getMainWindow } from './window'
+import { registerAiIpc } from './ai/ipc'
 
 export function registerIpc(): void {
   const userDataPath = app.getPath('userData')
+  registerAiIpc(userDataPath)
   const sessionPath = join(userDataPath, 'session.json')
   const drafts = createDraftStore(userDataPath)
   ipcMain.handle('draft:save', (_event, draft: SavePdfDraftRequest) => drafts.save(draft))

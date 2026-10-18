@@ -1,7 +1,8 @@
 # Lepis
 
 Lepis is a lightweight, local-first PDF viewer and annotation editor for macOS.
-Documents never leave the computer.
+PDF viewing and editing run locally. Optional AI chat sends selected images, relevant document
+excerpts and needed conversation history to the service chosen by the user, after consent.
 
 ## Current scope
 
@@ -17,10 +18,15 @@ Documents never leave the computer.
 - Undo and redo annotations with the standard macOS shortcuts.
 - Save changes to the original PDF with Command-S.
 - Detect external file changes and protect signed or restricted PDFs from edits.
+- Ask questions in a resizable right-hand AI panel, with clickable citations that reveal passages in the PDF.
+- Attach selected text or rectangular regions, including figures and formulas, without modifying the PDF.
+- Keep multiple local conversations per PDF, with saved selections, streaming, stop, retry and copy.
+- Connect an eligible ChatGPT plan, or configure OpenAI, Anthropic, Google Gemini or OpenRouter API keys.
+- Summarize the full document through a separate flow that processes every section of extractable text.
 
 ## Development
 
-Requirements: Node.js 20.19 or newer and pnpm.
+Requirements: Node.js 22.13 or newer and pnpm. Electron includes SQLite; no database server is needed.
 
 ```bash
 pnpm install
@@ -41,6 +47,7 @@ pnpm test:text
 pnpm test:documents
 pnpm test:recovery
 pnpm test:memory
+pnpm test:chat
 ```
 
 Build the unsigned macOS application:
@@ -59,6 +66,7 @@ pnpm build:mac
 - `src/main/drafts.ts`: atomic recovery copies with original-file metadata and serialized writes/deletion.
 - `src/main/pdf-files.ts`, `session.ts`, and `atomic-write.ts`: PDF file access, backups, session persistence, and atomic writes. These modules do not depend on Electron.
 - `src/preload`: narrow IPC API exposed to the renderer and checked against the shared `LepisApi` contract.
+- `src/shared/ai.ts`, `src/main/ai` and `src/renderer/src/features/chat`: chat contracts, local storage, provider connections and the chat interface. See [AI chat](docs/ai-chat.md) for data flow, limits and deferred features.
 - `src/renderer`: React interface, shadcn components, Tailwind theme, and PDF.js viewer/editor.
 - `src/renderer/src/App.tsx`: interface composition, preferences, and PDF file drops.
 - `src/renderer/src/features/documents/documentsReducer.ts`: atomic tab and selection transitions, including merging session restore with documents opened during startup.
