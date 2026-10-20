@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   Crop,
   LoaderCircle,
-  MessageSquarePlus,
   Plus,
   Settings,
   Square,
@@ -614,7 +613,7 @@ export function ChatPanel({
               disabled={!document || busy || modelChanging}
               onClick={newChat}
             >
-              <MessageSquarePlus />
+              <Plus />
             </Button>
           </TooltipTrigger>
           <TooltipContent>New chat</TooltipContent>

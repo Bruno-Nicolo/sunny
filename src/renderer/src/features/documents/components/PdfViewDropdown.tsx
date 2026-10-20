@@ -1,4 +1,4 @@
-import { BookOpen, LayoutTemplate, Presentation, RotateCw } from 'lucide-react'
+import { BookOpen, Presentation, RotateCw, Settings2 } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import {
   DropdownMenu,
@@ -27,7 +27,7 @@ export function PdfViewDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <ToolbarButton label="PDF view" disabled={disabled}>
-          <LayoutTemplate />
+          <Settings2 />
         </ToolbarButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center">
