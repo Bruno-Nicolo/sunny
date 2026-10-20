@@ -23,6 +23,7 @@ import { createAnnotationController } from './annotations/createAnnotationContro
 import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 import { createKeyboardScroll } from './keyboardScroll'
+import { createPresentationMode } from './createPresentationMode'
 import { createChatSelection } from './createChatSelection'
 import type {
   PasswordRequest,
@@ -173,6 +174,14 @@ export function createPdfViewer({
     onTextEditorChange,
     onError
   })
+  let annotationOptions = initialOptions
+  const startPresentation = createPresentationMode(container, viewer, lifetime.signal, (active) => {
+    if (active) {
+      annotations.commit()
+      chat.deactivate()
+    }
+    annotations.setOptions({ ...annotationOptions, active: !active && annotationOptions.active })
+  })
   let searchSnapshot: PdfSearchSnapshot = { current: 0, total: 0, pending: false }
   const updateSearch = ({
     state,
@@ -321,6 +330,14 @@ export function createPdfViewer({
     })
 
   return {
+    async startPresentation() {
+      if (destroyed || loading) return
+      try {
+        await startPresentation()
+      } catch (error) {
+        onError(error instanceof Error ? error.message : 'Presentation mode could not be started.')
+      }
+    },
     prepareChatDocument: chat.index,
     selectChatRegion: chat.selectRegion,
     attachSelectedText: chat.selectedText,
@@ -419,8 +436,12 @@ export function createPdfViewer({
     undo: annotations.undo,
     redo: annotations.redo,
     setAnnotationOptions(options) {
+      annotationOptions = options
       if (!options.active || options.annotationTool !== 'none') chat.deactivate()
-      annotations.setOptions(options)
+      annotations.setOptions({
+        ...options,
+        active: options.active && container.ownerDocument.fullscreenElement !== container
+      })
     },
     async destroy() {
       if (destroyed) return

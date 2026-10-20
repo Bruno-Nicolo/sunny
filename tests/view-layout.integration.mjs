@@ -138,6 +138,13 @@ app
     )
     await openViewMenu()
     assert.equal(
+      await evaluate(`new Set([...document.querySelectorAll(
+        '[role="menuitem"] > svg, [role="menuitemcheckbox"] > svg'
+      )].map(icon => getComputedStyle(icon).color)).size`),
+      1,
+      'All PDF view menu entry icons must use the same color'
+    )
+    assert.equal(
       await evaluate(
         `document.querySelector('[role="menuitemcheckbox"]').getAttribute('aria-checked')`
       ),
@@ -229,8 +236,57 @@ app
       3
     )
 
+    command('toggle-two-page-view')
+    await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
+    command('zoom-in')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const readingZoom = await evaluate(`document.querySelector('button.min-w-16').textContent`)
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Presentation mode"]')`),
+      null,
+      'Presentation must be inside the PDF view dropdown'
+    )
+    await openViewMenu()
+    await win.webContents.executeJavaScript(
+      `[...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === 'Presentation mode').click()`,
+      true
+    )
+    await waitFor(`document.fullscreenElement?.classList.contains('pdf-viewer-container')`)
+    await waitFor(`document.querySelectorAll('.visible .pdfViewer .page').length === 1`)
+    assert.equal(
+      await evaluate(`getComputedStyle(document.fullscreenElement).overflow`),
+      'hidden',
+      'Presentation must hide scrolling'
+    )
+    await evaluate(`document.fullscreenElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowRight', bubbles: true, cancelable: true
+    }))`)
+    await waitFor(`document.querySelector('.visible .pdfViewer .page')?.dataset.pageNumber === '2'`)
+    await evaluate(`document.fullscreenElement.click()`)
+    await waitFor(`document.querySelector('.visible .pdfViewer .page')?.dataset.pageNumber === '3'`)
+    await evaluate(`document.fullscreenElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowLeft', bubbles: true, cancelable: true
+    }))`)
+    await waitFor(`document.querySelector('.visible .pdfViewer .page')?.dataset.pageNumber === '2'`)
+    await evaluate(`document.fullscreenElement.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true, cancelable: true
+    }))`)
+    await waitFor(`document.fullscreenElement === null`)
+    await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
+    await waitFor(
+      `document.querySelector('button.min-w-16').textContent === ${JSON.stringify(readingZoom)}`
+    )
+    assert.ok(
+      await evaluate(`(() => {
+        const page = document.querySelector('.visible .page[data-page-number="2"]').getBoundingClientRect()
+        const container = document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect()
+        return page.bottom > container.top && page.top < container.bottom
+      })()`),
+      'Leaving presentation must keep the last slide visible and restore paired pages'
+    )
+
     console.log(
-      'PASS: view menu, vertical scrolling without viewer focus, input guards, rotation, paired pages, fit scale, and tab isolation'
+      'PASS: view menu, scrolling, input guards, rotation, paired pages, fit scale, tab isolation, and fullscreen presentation with layout restoration'
     )
   })
   .then(() => finish(0))

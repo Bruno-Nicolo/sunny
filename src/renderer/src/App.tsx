@@ -252,6 +252,7 @@ function App(): React.JSX.Element {
           onZoomOut={() => getActiveViewer()?.zoomOut()}
           onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
           onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
+          onStartPresentation={() => void getActiveViewer()?.startPresentation()}
         />
       </header>
 

@@ -1,20 +1,12 @@
-import { BookOpen, Minus, Plus, RotateCw, Settings2 } from 'lucide-react'
-import { ToolbarButton } from '@/components/ToolbarButton'
+import { Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { AnnotationToolbar } from '@/features/pdf/annotations/AnnotationToolbar'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import type { Tab } from '../types'
+import { PdfViewDropdown } from './PdfViewDropdown'
 
 type Props = {
   activeTab: Pick<Tab, 'id' | 'view'> | null
@@ -30,6 +22,7 @@ type Props = {
   onZoomOut(): void
   onRotateClockwise(): void
   onToggleTwoPageView(): void
+  onStartPresentation(): void
 }
 
 export function DocumentToolbar({
@@ -45,7 +38,8 @@ export function DocumentToolbar({
   onZoomIn,
   onZoomOut,
   onRotateClockwise,
-  onToggleTwoPageView
+  onToggleTwoPageView,
+  onStartPresentation
 }: Props): React.JSX.Element {
   return (
     <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 border-t px-3">
@@ -97,27 +91,13 @@ export function DocumentToolbar({
               <Plus />
             </Button>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <ToolbarButton label="PDF view" disabled={!activeTab.view.pages}>
-                <Settings2 />
-              </ToolbarButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="center">
-              <DropdownMenuItem onSelect={onRotateClockwise}>
-                <RotateCw />
-                Rotate clockwise
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={activeTab.view.twoPageView}
-                onCheckedChange={onToggleTwoPageView}
-              >
-                <BookOpen />
-                Two-page view
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <PdfViewDropdown
+            disabled={!activeTab.view.pages}
+            twoPageView={activeTab.view.twoPageView}
+            onRotateClockwise={onRotateClockwise}
+            onToggleTwoPageView={onToggleTwoPageView}
+            onStartPresentation={onStartPresentation}
+          />
           <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
         </>
       )}

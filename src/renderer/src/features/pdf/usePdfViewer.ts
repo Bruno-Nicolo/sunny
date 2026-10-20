@@ -222,6 +222,9 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       zoomOut: () => controllerRef.current?.zoomOut(),
       rotateClockwise: () => controllerRef.current?.rotateClockwise(),
       toggleTwoPageView: () => controllerRef.current?.toggleTwoPageView(),
+      async startPresentation() {
+        await controllerRef.current?.startPresentation()
+      },
       navigateHorizontally: (direction) => controllerRef.current?.navigateHorizontally(direction),
       scrollVertically: (direction) => controllerRef.current?.scrollVertically(direction),
       setHighlightColor: (color) => controllerRef.current?.setHighlightColor(color),

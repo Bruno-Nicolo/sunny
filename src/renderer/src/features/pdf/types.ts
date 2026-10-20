@@ -41,6 +41,7 @@ export type PdfDocumentHandle = {
   zoomOut(): void
   rotateClockwise(): void
   toggleTwoPageView(): void
+  startPresentation(): Promise<void>
   navigateHorizontally(direction: -1 | 1): void
   scrollVertically(direction: -1 | 1): void
   setHighlightColor(color: string): void
