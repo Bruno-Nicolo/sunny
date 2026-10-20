@@ -115,17 +115,30 @@ export function createPdfViewer({
     onError
   })
   let composing = false
+  let pendingWheelDelta = 0
   // Chromium reports trackpad pinches as wheel events with ctrlKey set.
   container.addEventListener(
     'wheel',
     (event) => {
       if (!event.ctrlKey) return
       event.preventDefault()
+      const unit =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? container.clientHeight
+            : 1
+      const delta = Math.max(-100, Math.min(100, event.deltaY * unit))
+      if (delta * pendingWheelDelta < 0) pendingWheelDelta = 0
+      // Accumulate small gestures until they survive PDF.js scale rounding.
+      pendingWheelDelta = Math.max(-100, Math.min(100, pendingWheelDelta + delta))
+      const previousScale = viewer.currentScale
       viewer.updateScale({
-        scaleFactor: Math.exp(-event.deltaY / 100),
+        scaleFactor: Math.exp(-pendingWheelDelta / 1000),
         origin: [event.clientX, event.clientY],
         drawingDelay: 100
       })
+      if (viewer.currentScale !== previousScale) pendingWheelDelta = 0
     },
     { passive: false, signal: lifetime.signal }
   )

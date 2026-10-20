@@ -41,12 +41,12 @@ const scale = () =>
   evaluate(
     `Number(document.querySelector('.visible .pdfViewer').style.getPropertyValue('--scale-factor'))`
   )
-const wheel = (deltaY, ctrlKey) =>
+const wheel = (deltaY, ctrlKey, deltaMode = 0) =>
   evaluate(`(() => {
   const container = document.querySelector('.visible .pdf-viewer-container')
   const bounds = container.getBoundingClientRect()
   const event = new WheelEvent('wheel', {
-    deltaY: ${deltaY}, ctrlKey: ${ctrlKey}, bubbles: true, cancelable: true,
+    deltaY: ${deltaY}, ctrlKey: ${ctrlKey}, deltaMode: ${deltaMode}, bubbles: true, cancelable: true,
     clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2
   })
   container.dispatchEvent(event)
@@ -76,6 +76,31 @@ app
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     const before = await scale()
+    for (let i = 0; i < 20; i++) await wheel(-1, true)
+    assert.ok((await scale()) > before, 'Small trackpad gestures must accumulate into zoom')
+    for (let i = 0; i < 20; i++) await wheel(1, true)
+    assert.ok(
+      Math.abs((await scale()) - before) < 0.02,
+      'Small reverse gestures must restore scale'
+    )
+    for (const [deltaY, deltaMode] of [
+      [-100, 0],
+      [-1200, 0],
+      [-3, 1],
+      [-1, 2]
+    ]) {
+      await wheel(deltaY, true, deltaMode)
+      const ratio = (await scale()) / before
+      assert.ok(
+        ratio > 1 && ratio <= 1.11,
+        `One wheel event must zoom by at most 11%, got ${ratio}`
+      )
+      await wheel(-deltaY, true, deltaMode)
+      assert.ok(
+        Math.abs((await scale()) - before) < 0.001,
+        'Reversing the wheel must restore scale'
+      )
+    }
     await wheel(-50, true)
     assert.ok((await scale()) > before, 'Trackpad pinch must increase PDF scale')
     assert.equal(await wheel(50, true), true, 'Pinch must suppress browser zoom')
@@ -90,7 +115,7 @@ app
     await evaluate(
       `window.beforeHighZoom = document.querySelector('.visible .canvasWrapper canvas')`
     )
-    await wheel(-300, true)
+    for (let i = 0; i < 30; i++) await wheel(-100, true)
     const zoomDeadline = Date.now() + 10000
     while (
       !(await evaluate(
