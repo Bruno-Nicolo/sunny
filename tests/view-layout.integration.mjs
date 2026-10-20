@@ -57,6 +57,15 @@ async function waitFor(code, timeout = 15000) {
   }
 }
 const command = (id) => win.webContents.send(`menu:${id}`)
+async function openViewMenu() {
+  await evaluate(`(() => {
+    const button = document.querySelector('[aria-label="PDF view"]')
+    button.focus()
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+  })()`)
+  await waitFor(`document.querySelector('[role="menuitemcheckbox"]') !== null`)
+}
+const clickViewItem = (role) => evaluate(`document.querySelector('[role="${role}"]').click()`)
 const orientation = () =>
   evaluate(`(() => {
     const page = document.querySelector('.visible .page').getBoundingClientRect()
@@ -122,11 +131,28 @@ app
     assert.equal(await orientation(), 'portrait')
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="Rotate clockwise"], [aria-label="Two-page view"]') === null`
+        `document.querySelector('[aria-label="PDF view"]') !== null && document.querySelector('[role="menu"]') === null`
       ),
       true,
-      'View commands must not occupy the document toolbar'
+      'View commands must be grouped in a dedicated toolbar menu'
     )
+    await openViewMenu()
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[role="menuitemcheckbox"]').getAttribute('aria-checked')`
+      ),
+      'false'
+    )
+    await clickViewItem('menuitem')
+    await waitFor(
+      `document.querySelector('.visible .page').getBoundingClientRect().width > document.querySelector('.visible .page').getBoundingClientRect().height`
+    )
+    for (let i = 0; i < 3; i++) {
+      command('rotate-clockwise')
+      await waitFor(
+        `document.querySelector('.visible .page').getBoundingClientRect().width ${i === 1 ? '>' : '<'} document.querySelector('.visible .page').getBoundingClientRect().height`
+      )
+    }
     await evaluate(`(() => {
       const input = document.querySelector('[aria-label="Current page"]')
       input.focus()
@@ -156,7 +182,8 @@ app
       'Four rotations must return to the original orientation'
     )
 
-    command('toggle-two-page-view')
+    await openViewMenu()
+    await clickViewItem('menuitemcheckbox')
     await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
 
     const layout = await evaluate(`(() => {
@@ -187,7 +214,15 @@ app
     await evaluate(`document.querySelector('[aria-label="layout.pdf"]').click()`)
     await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
     assert.equal(await orientation(), 'landscape', 'Switching tabs must preserve rotation')
-    command('toggle-two-page-view')
+    await openViewMenu()
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[role="menuitemcheckbox"]').getAttribute('aria-checked')`
+      ),
+      'true',
+      'The view menu must reflect the active tab layout'
+    )
+    await clickViewItem('menuitemcheckbox')
     await waitFor(`document.querySelectorAll('.visible .spread').length === 0`)
     assert.equal(
       await evaluate(`document.querySelectorAll('.visible .pdfViewer > .page').length`),
@@ -195,7 +230,7 @@ app
     )
 
     console.log(
-      'PASS: vertical scrolling without viewer focus, input guards, rotation, paired pages, fit scale, and tab isolation'
+      'PASS: view menu, vertical scrolling without viewer focus, input guards, rotation, paired pages, fit scale, and tab isolation'
     )
   })
   .then(() => finish(0))

@@ -250,6 +250,8 @@ function App(): React.JSX.Element {
           onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
           onZoomIn={() => getActiveViewer()?.zoomIn()}
           onZoomOut={() => getActiveViewer()?.zoomOut()}
+          onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
+          onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
         />
       </header>
 
