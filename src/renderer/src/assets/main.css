@@ -61,29 +61,16 @@
   -webkit-app-region: no-drag;
 }
 
-.document-tab-active::before,
-.document-tab-active::after {
+.document-tab[data-active='false'] + .document-tab[data-active='false']::before {
   content: '';
   position: absolute;
-  bottom: 0;
-  width: 8px;
-  height: 8px;
+  top: 50%;
+  left: -5px;
+  width: 1px;
+  height: 20px;
+  transform: translateY(-50%);
+  background: var(--border);
   pointer-events: none;
-  background: radial-gradient(
-    circle at top left,
-    transparent 7px,
-    var(--border) 7px 8px,
-    var(--background) 8px
-  );
-}
-
-.document-tab-active::before {
-  left: -8px;
-}
-
-.document-tab-active::after {
-  right: -8px;
-  transform: scaleX(-1);
 }
 
 .pdf-viewer-container {

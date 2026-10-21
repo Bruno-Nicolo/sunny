@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
@@ -52,6 +53,18 @@ export function TabBar({
   onCycleTheme
 }: Props): React.JSX.Element {
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor
+  const tabStripRef = useRef<HTMLDivElement>(null)
+  const openButtonRef = useRef<HTMLButtonElement>(null)
+  const [hasMoreTabs, setHasMoreTabs] = useState(false)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setHasMoreTabs(entry.intersectionRatio < 1),
+      { root: tabStripRef.current, threshold: 1 }
+    )
+    observer.observe(openButtonRef.current!)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <DragDropProvider
@@ -62,12 +75,12 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 -mb-px flex h-11 min-w-0 items-center pr-3 pl-[92px]">
+      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[92px]">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="titlebar-no-drag"
               disabled={!activeId}
               aria-label="Toggle PDF sidebar"
@@ -79,32 +92,44 @@ export function TabBar({
           </TooltipTrigger>
           <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} (⌘\)</TooltipContent>
         </Tooltip>
-        <div className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-2">
-          {tabs.map((tab, index) => (
-            <SortableTab
-              key={tab.id}
-              tab={tab}
-              index={index}
-              active={tab.id === activeId}
-              onSelect={onSelect}
-              onClose={onClose}
+        <div className="relative flex h-full min-w-0 flex-1">
+          <div
+            ref={tabStripRef}
+            className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none]"
+          >
+            {tabs.map((tab, index) => (
+              <SortableTab
+                key={tab.id}
+                tab={tab}
+                index={index}
+                active={tab.id === activeId}
+                onSelect={onSelect}
+                onClose={onClose}
+              />
+            ))}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button ref={openButtonRef} variant="ghost" size="icon" onClick={onOpen}>
+                  <Plus />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Open PDF (⌘O)</TooltipContent>
+            </Tooltip>
+          </div>
+          {hasMoreTabs && (
+            <div
+              aria-hidden="true"
+              data-slot="tab-overflow-hint"
+              className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-sidebar/70 backdrop-blur-[2px] [mask-image:linear-gradient(to_right,transparent,black)]"
             />
-          ))}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onOpen}>
-                <Plus />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Open PDF (⌘O)</TooltipContent>
-          </Tooltip>
+          )}
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-sm"
-              className="titlebar-no-drag shrink-0"
+              size="icon"
+              className="titlebar-no-drag"
               aria-label={`Change theme: ${theme}`}
               onClick={onCycleTheme}
             >
@@ -117,8 +142,8 @@ export function TabBar({
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-sm"
-              className="titlebar-no-drag shrink-0"
+              size="icon"
+              className="titlebar-no-drag"
               disabled={!activeId}
               aria-label="Toggle AI chat"
               aria-expanded={chatOpen && Boolean(activeId)}
@@ -156,15 +181,16 @@ function SortableTab({
       type="button"
       onClick={() => onSelect(tab.id)}
       className={cn(
-        'group relative flex select-none max-w-72 shrink-0 items-center gap-2 border px-3 text-left text-sm transition-colors',
+        'document-tab group relative flex h-9 select-none max-w-72 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-sm transition-colors',
         active
-          ? 'document-tab-active z-10 h-[38px] self-end rounded-t-md border-b-0 bg-background pb-[7px] text-foreground'
-          : 'h-8 rounded-md border-transparent text-muted-foreground',
+          ? 'bg-background text-foreground shadow-xs'
+          : 'border-transparent text-muted-foreground',
         !active && (isDragSource ? 'bg-muted' : 'bg-transparent hover:bg-muted/65')
       )}
       title={tab.path}
       aria-label={tab.name}
       aria-pressed={active}
+      data-active={active}
     >
       {tab.dirty && <span className="size-2 shrink-0 rounded-full bg-foreground" />}
       <span className="flex min-w-0 items-baseline gap-2 leading-5">

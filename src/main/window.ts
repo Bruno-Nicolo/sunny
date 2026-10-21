@@ -38,7 +38,7 @@ export function createWindow(): BrowserWindow {
     show: false,
     title: 'Lepis',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 15 },
+    trafficLightPosition: { x: 16, y: 17 },
     backgroundColor: '#f4f4f5',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
