@@ -48,7 +48,14 @@ export function createChatSelection({
     captureAbort?.abort()
     captureAbort = null
     regionCallback = callback
-    container.classList.toggle('chat-region-mode', Boolean(callback))
+    for (const name of [
+      'chat-region-mode',
+      'cursor-crosshair!',
+      'select-none!',
+      '[&_*]:cursor-crosshair!',
+      '[&_*]:select-none!'
+    ])
+      container.classList.toggle(name, Boolean(callback))
     clearDrag()
   }
   const renderCitation = (): void => {
@@ -62,7 +69,8 @@ export function createChatSelection({
         ...page.viewport.convertToViewportPoint(rect[2], rect[3])
       ]
       const element = window.document.createElement('div')
-      element.className = 'chat-citation'
+      element.className =
+        'chat-citation pointer-events-none absolute z-20 border border-[#4f46e5] bg-[#6366f1]/22 animate-[chat-citation-fade_var(--chat-citation-duration)_cubic-bezier(0.2,0,0,1)_forwards]'
       element.style.setProperty('--chat-citation-duration', `${citationDuration}ms`)
       Object.assign(element.style, {
         animationDelay: `${citationStartedAt - performance.now()}ms`,
@@ -94,7 +102,8 @@ export function createChatSelection({
       event.stopImmediatePropagation()
       const bounds = element.getBoundingClientRect()
       const box = window.document.createElement('div')
-      box.className = 'chat-region-drag'
+      box.className =
+        'chat-region-drag pointer-events-none absolute z-20 border-2 border-dashed border-[#4f46e5] bg-[#6366f1]/22'
       element.append(box)
       drag = {
         page: Number(element.dataset.pageNumber),

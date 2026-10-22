@@ -132,7 +132,7 @@ export function ChatDock({
           aria-valuemax={640}
           aria-valuenow={width}
           tabIndex={0}
-          className="chat-resizer"
+          className="chat-resizer relative z-25 -mx-0.5 w-[5px] shrink-0 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-0.5 after:w-px after:content-[''] hover:after:bg-ring focus-visible:after:bg-ring"
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
               event.preventDefault()

@@ -190,6 +190,9 @@ app
         return JSON.stringify({ scope: 'passages', queries: ['photosynthesis', 'chlorophyll'] })
       const sources = service.store.sources(indexed.at(-1).version)
       const answer = `The document discusses plant energy [[${sources[0].id}]].\n\nThe formula is $E=mc^2$.`
+      request.onReasoning?.('Checking the passages about plant energy. ')
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      request.onReasoning?.('The selected evidence supports the explanation.')
       request.onText(answer.slice(0, 30))
       if (cancelAnswer)
         await new Promise((resolve, reject) =>
@@ -520,12 +523,95 @@ app
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     })()`)
     await waitFor(
+      `document.querySelector('[aria-label="Model reasoning"]')?.getAttribute('aria-busy') === 'true'`
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Response activity"]')`),
+      null,
+      'work is not collapsible while the response is running'
+    )
+    assert.ok(
+      await evaluate(
+        `document.querySelector('[aria-label="Model reasoning"]').textContent.includes('Checking the passages')`
+      )
+    )
+    assert.match(
+      await evaluate(
+        `document.querySelector('[aria-label="Response work"] [role="status"] [data-slot="trace-title"]').textContent`
+      ),
+      /^Working for \d+s$/
+    )
+    fs.writeFileSync('/tmp/lepis-chat-reasoning.png', (await win.webContents.capturePage()).toPNG())
+    await waitFor(
       `document.querySelector('.chat-source') && document.querySelector('.katex') && document.querySelector('[aria-label="Send message"]')`
     )
     await waitFor(
       `document.querySelector('[aria-label="Rename conversation"]').textContent === 'Explain photosynthesis'`
     )
     await waitFor(`!document.querySelector('[aria-label="Rename conversation"]').disabled`)
+    await waitFor(
+      `document.querySelector('[aria-label="Response activity"]').getAttribute('aria-expanded') === 'false'`
+    )
+    await click('Response activity')
+    await waitFor(
+      `document.querySelector('[aria-label="Model reasoning"]').textContent.includes('selected evidence')`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="Show tool call: search_document"]').getAttribute('aria-expanded')`
+      ),
+      'false'
+    )
+    await click('Show tool call: search_document')
+    await waitFor(
+      `document.querySelector('[aria-label="Tool call: search_document"]').textContent.includes('photosynthesis')`
+    )
+    await click('Show tool call: search_document')
+    fs.writeFileSync('/tmp/lepis-chat-tools.png', (await win.webContents.capturePage()).toPNG())
+    await click('Response activity')
+    assert.equal(
+      await evaluate(
+        `document.querySelectorAll('[aria-label="Response work"] > [data-slot="trace-collapsible"] > [data-slot="trace-collapsible-trigger"]').length`
+      ),
+      1,
+      'one outer toggle for all work'
+    )
+    assert.ok(
+      await evaluate(
+        `document.querySelector('[aria-label="Response activity"]').textContent.startsWith('Worked for ')`
+      )
+    )
+    const recorded = service.store.get(service.store.list('first.pdf')[0].id).messages.at(-1)
+    assert.ok(
+      recorded.work.parts.some(
+        (part) => part.type === 'reasoning' && part.text.includes('selected evidence')
+      )
+    )
+    assert.ok(recorded.work.durationMs > 0)
+    assert.deepEqual(
+      recorded.work.parts.filter((part) => part.type === 'tool').map((part) => part.tool.name),
+      ['read_document', 'search_document']
+    )
+    console.log(
+      'PASS: live reasoning before the answer, auto-collapse, inspectable tools and persistence'
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Your message"]').dataset.align`),
+      'end',
+      'user messages align to the right'
+    )
+    await waitFor(
+      `document.querySelector('[aria-label="Response activity"]')?.getAttribute('aria-expanded') === 'false'`
+    )
+    await click('Response activity')
+    await waitFor(
+      `document.querySelector('[data-slot="trace-collapsible-content"]')?.textContent.includes('selected evidence')`
+    )
+    await click('Response activity')
+    await click('Copy answer')
+    await waitFor(`document.querySelector('[aria-label="Answer copied"]')`)
+    assert.ok(electron.clipboard.readText().includes('The document discusses'))
+    console.log('PASS: aligned messages, collapsible response activity and answer copy feedback')
     await click('Rename conversation')
 
     await waitFor(`document.activeElement?.getAttribute('aria-label') === 'Conversation title'`)

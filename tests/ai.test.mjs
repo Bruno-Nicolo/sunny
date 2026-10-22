@@ -13,6 +13,13 @@ const { AiProviders } = modules.load('providers')
 const { CredentialStore } = modules.load('credentials')
 const { validateAttachments, validatedAnswer, historyTurns, parseSearchPlan } =
   modules.load('context')
+const reasoningText = (message) =>
+  message.work?.parts
+    .filter((part) => part.type === 'reasoning')
+    .map((part) => part.text)
+    .join('') || undefined
+const toolCalls = (message) =>
+  message.work?.parts.filter((part) => part.type === 'tool').map((part) => part.tool) ?? []
 const version = 'a'.repeat(64)
 const sources = [
   {
@@ -29,6 +36,65 @@ const sources = [
   }
 ]
 const document = { version, path: '/test/biology.pdf', name: 'biology.pdf', pages: 2, sources }
+
+test('work preserves reasoning/tool/reasoning order and updates a tool without moving it', () => {
+  const { applyChatEvent } = modules.loadShared('chat-work')
+  const base = { requestId: 'request', conversationId: 'chat', messageId: 'assistant' }
+  const assistant = {
+    ...userMessage(),
+    id: 'assistant',
+    role: 'assistant',
+    text: '',
+    status: 'streaming',
+    work: { parts: [], durationMs: 0 }
+  }
+  const events = [
+    { ...base, type: 'message', message: assistant },
+    { ...base, type: 'reasoning-delta', text: 'I need more evidence. ' },
+    { ...base, type: 'reasoning-delta', text: 'Searching the document.' },
+    {
+      ...base,
+      type: 'tool',
+      tool: {
+        id: 'search',
+        name: 'search_document',
+        input: { queries: ['energy'] },
+        status: 'running'
+      }
+    },
+    { ...base, type: 'reasoning-delta', text: 'Comparing the available passages.' },
+    {
+      ...base,
+      type: 'tool',
+      tool: {
+        id: 'search',
+        name: 'search_document',
+        input: { queries: ['energy'] },
+        status: 'complete',
+        output: 'Two passages found.'
+      }
+    },
+    { ...base, type: 'reasoning-delta', text: ' The result supports the answer.' }
+  ]
+  const messages = events.reduce(applyChatEvent, [])
+  const work = messages[0].work
+  assert.deepEqual(
+    work.parts.map((part) => part.type),
+    ['reasoning', 'tool', 'reasoning']
+  )
+  assert.equal(work.parts[0].text, 'I need more evidence. Searching the document.')
+  assert.equal(work.parts[1].tool.status, 'complete')
+  assert.equal(
+    work.parts[2].text,
+    'Comparing the available passages. The result supports the answer.'
+  )
+  assert.equal(assistant.work.parts.length, 0, 'stream updates never mutate the original event')
+  const finished = { ...messages[0], status: 'complete', work: { ...work, durationMs: 71000 } }
+  assert.deepEqual(
+    applyChatEvent(messages, { ...base, type: 'finished', message: finished })[0].work,
+    finished.work
+  )
+})
 
 function setup(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lepis-ai-'))
@@ -144,6 +210,8 @@ test('chat streams, validates references, persists selections and remains isolat
     calls.push(request)
     if (request.instructions.startsWith('Write ONLY'))
       return JSON.stringify({ scope: 'passages', queries: ['photosynthesis', 'chlorophyll'] })
+    request.onReasoning('Checking the cited passages. ')
+    request.onReasoning('The evidence supports the answer.')
     request.onText('Light becomes energy [[p1s1]]. ')
     request.onText('Unsupported [[invented]].')
     return 'ignored: streaming is authoritative'
@@ -158,6 +226,21 @@ test('chat streams, validates references, persists selections and remains isolat
   assert.equal(saved.messages.length, 2)
   assert.deepEqual(saved.messages[0].attachments, [attachment])
   assert.equal(saved.messages[1].status, 'complete')
+  assert.equal(
+    reasoningText(saved.messages[1]),
+    'Checking the cited passages. The evidence supports the answer.'
+  )
+  assert.equal(events.filter((event) => event.type === 'reasoning-delta').length, 2)
+  assert.deepEqual(
+    toolCalls(saved.messages[1]).map((tool) => [tool.name, tool.status]),
+    [
+      ['read_document', 'complete'],
+      ['search_document', 'complete']
+    ]
+  )
+  assert.equal(events.filter((event) => event.type === 'tool').length, 4)
+  assert.ok(toolCalls(saved.messages[1])[1].input.queries.includes('photosynthesis'))
+  assert.ok(toolCalls(saved.messages[1])[1].output.includes('Chlorophyll'))
   assert.match(saved.messages[1].text, /\[\[p1s1\]\]/)
   assert.match(saved.messages[1].text, /reference unavailable/)
   assert.deepEqual(saved.messages[1].sources, [sources[0]])
@@ -202,6 +285,27 @@ test('consent, attachment budgets and changed document versions block requests b
   assert.throws(() => service.store.get(chat.id), /not found/)
 })
 
+test('tool failures are streamed and saved with the failed assistant response', async (t) => {
+  const service = setup(t)
+  service.providers.generate = async () => JSON.stringify({ scope: 'passages', queries: ['plant'] })
+  service.store.search = () => {
+    throw new Error('Search index unavailable')
+  }
+  const chat = service.store.create(version, 'openai', document.path)
+  const events = []
+  await service.send(request(chat), (event) => events.push(structuredClone(event)))
+  const answer = service.store.get(chat.id).messages.at(-1)
+  assert.equal(answer.status, 'error')
+  assert.equal(toolCalls(answer).at(-1).status, 'error')
+  assert.equal(toolCalls(answer).at(-1).error, 'Search index unavailable')
+  assert.deepEqual(
+    events
+      .filter((event) => event.type === 'tool' && event.tool.name === 'search_document')
+      .map((event) => event.tool.status),
+    ['running', 'error']
+  )
+})
+
 test('stop stores an interrupted answer and retry replaces it without duplicating the user', async (t) => {
   const service = setup(t)
   const chat = service.store.create(version, 'openai', document.path)
@@ -209,7 +313,7 @@ test('stop stores an interrupted answer and retry replaces it without duplicatin
   service.providers.generate = async (params) => {
     if (params.instructions.startsWith('Write ONLY'))
       return JSON.stringify({ scope: 'passages', queries: ['photosynthesis'] })
-    params.onText('Partial [[p1s1]]')
+    params.onReasoning('Partial reasoning')
     service.stop(sending.requestId)
     params.signal.throwIfAborted()
     return ''
@@ -217,6 +321,8 @@ test('stop stores an interrupted answer and retry replaces it without duplicatin
   await service.send(sending, () => {})
   let saved = service.store.get(chat.id)
   assert.equal(saved.messages.at(-1).status, 'stopped')
+  assert.equal(reasoningText(saved.messages.at(-1)), 'Partial reasoning')
+  assert.equal(saved.messages.at(-1).text, '')
   const retryMessageId = saved.messages.at(-1).id
   service.providers.generate = async (params) => {
     if (params.instructions.startsWith('Write ONLY'))
@@ -228,6 +334,7 @@ test('stop stores an interrupted answer and retry replaces it without duplicatin
   saved = service.store.get(chat.id)
   assert.equal(saved.messages.length, 2)
   assert.equal(saved.messages.at(-1).status, 'complete')
+  assert.equal(reasoningText(saved.messages.at(-1)), undefined)
   assert.equal(saved.messages[0].text, sending.text)
 })
 
@@ -280,6 +387,10 @@ test('restart retains conversations and converts unfinished responses to interru
     id: 'answer',
     role: 'assistant',
     text: 'Partial',
+    work: {
+      parts: [{ type: 'reasoning', text: 'Checking evidence before interruption.' }],
+      durationMs: 2500
+    },
     attachments: [],
     sources: [],
     status: 'streaming',
@@ -290,6 +401,10 @@ test('restart retains conversations and converts unfinished responses to interru
   store.close()
   store = new ChatStore(directory)
   assert.equal(store.get(chat.id).messages[1].status, 'stopped')
+  assert.equal(
+    reasoningText(store.get(chat.id).messages[1]),
+    'Checking evidence before interruption.'
+  )
   store.rename(chat.id, 'Study notes')
   assert.equal(store.list(document.path)[0].title, 'Study notes')
   store.remove(chat.id)
@@ -442,10 +557,57 @@ test('official SDK adapters send inline images and require terminal completion',
     )
   globalThis.fetch = async (input, options) => {
     const url = String(input)
+    if (!options.body) {
+      if (url.includes('api.anthropic.com'))
+        return Response.json({
+          data: [
+            {
+              id: 'test-model',
+              display_name: 'Test',
+              lifecycle: 'active',
+              max_tokens: 8192,
+              capabilities: {
+                image_input: { supported: true },
+                thinking: { types: { adaptive: { supported: true } } }
+              }
+            }
+          ],
+          has_more: false
+        })
+      if (url.includes('generativelanguage.googleapis.com'))
+        return Response.json({
+          models: [
+            {
+              name: 'models/test-model',
+              displayName: 'Test',
+              thinking: true,
+              supportedGenerationMethods: ['generateContent']
+            }
+          ]
+        })
+      if (url.includes('openrouter.ai'))
+        return Response.json({
+          data: [
+            {
+              id: 'test-model',
+              name: 'Test',
+              architecture: { input_modalities: ['text', 'image'] },
+              supported_parameters: ['reasoning']
+            }
+          ]
+        })
+      throw new Error(`Unexpected catalog ${url}`)
+    }
     const body = JSON.parse(options.body)
     calls.push({ url, body })
     if (url.endsWith('/responses'))
       return sse([
+        {
+          type: 'response.reasoning_summary_text.delta',
+          item_id: 'r1',
+          summary_index: 0,
+          delta: 'Checking evidence.'
+        },
         { type: 'response.output_text.delta', delta: 'Answer' },
         { type: incomplete ? 'response.incomplete' : 'response.completed', response: {} }
       ])
@@ -464,9 +626,25 @@ test('official SDK adapters send inline images and require terminal completion',
             usage: { input_tokens: 1, output_tokens: 0 }
           }
         },
-        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
-        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Answer' } },
+        {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'thinking', thinking: '', signature: '' }
+        },
+        {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'thinking_delta', thinking: 'Checking evidence.' }
+        },
+        {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'signature_delta', signature: 'private-signature' }
+        },
         { type: 'content_block_stop', index: 0 },
+        { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'Answer' } },
+        { type: 'content_block_stop', index: 1 },
         {
           type: 'message_delta',
           delta: { stop_reason: 'end_turn', stop_sequence: null },
@@ -480,7 +658,13 @@ test('official SDK adapters send inline images and require terminal completion',
           candidates: [
             {
               index: 0,
-              content: { role: 'model', parts: [{ text: 'Answer' }] },
+              content: {
+                role: 'model',
+                parts: [
+                  { text: 'Checking evidence.', thought: true },
+                  { text: 'Answer', thoughtSignature: 'private-signature' }
+                ]
+              },
               finishReason: 'STOP'
             }
           ]
@@ -493,7 +677,13 @@ test('official SDK adapters send inline images and require terminal completion',
           object: 'chat.completion.chunk',
           created: 1,
           model: 'test',
-          choices: [{ index: 0, delta: { content: 'Answer' }, finish_reason: null }]
+          choices: [
+            {
+              index: 0,
+              delta: { reasoning: 'Checking evidence.', content: 'Answer' },
+              finish_reason: null
+            }
+          ]
         },
         {
           id: 'test',
@@ -505,25 +695,33 @@ test('official SDK adapters send inline images and require terminal completion',
       ])
     throw new Error(`Unexpected endpoint ${url}`)
   }
+  for (const provider of ['anthropic', 'google', 'openrouter'])
+    assert.equal((await adapters.models(provider)).length, 1, provider)
   for (const provider of ['chatgpt', 'openai', 'anthropic', 'google', 'openrouter']) {
     let streamed = ''
+    let reasoning = ''
     const result = await adapters.generate({
       provider,
-      model: 'test-model',
+      model: provider === 'chatgpt' || provider === 'openai' ? 'gpt-5' : 'test-model',
       instructions: 'Use citations',
       turns: [{ role: 'user', text: 'Explain', images: ['data:image/png;base64,AAAA'] }],
       signal: new AbortController().signal,
       onText: (text) => {
         streamed += text
+      },
+      onReasoning: (text) => {
+        reasoning += text
       }
     })
     assert.equal(result, 'Answer', provider)
     assert.equal(streamed, 'Answer', provider)
+    assert.equal(reasoning, 'Checking evidence.', provider)
   }
   for (const call of calls.slice(0, 2)) {
     assert.equal(call.url, 'https://api.openai.com/v1/responses')
     assert.equal(call.body.store, false)
     assert.equal(call.body.stream, true)
+    assert.deepEqual(call.body.reasoning, { summary: 'auto' })
     assert.equal(call.body.input[0].content[1].image_url, 'data:image/png;base64,AAAA')
     for (const field of [
       'previous_response_id',
@@ -535,8 +733,11 @@ test('official SDK adapters send inline images and require terminal completion',
       assert.equal(field in call.body, false)
   }
   assert.equal(calls[2].body.messages[0].content[1].source.media_type, 'image/png')
+  assert.deepEqual(calls[2].body.thinking, { type: 'adaptive', display: 'summarized' })
   assert.equal(calls[3].body.contents[0].parts[1].inlineData.mimeType, 'image/png')
+  assert.deepEqual(calls[3].body.generationConfig.thinkingConfig, { includeThoughts: true })
   assert.equal(calls[4].body.messages[1].content[1].image_url.url, 'data:image/png;base64,AAAA')
+  assert.deepEqual(calls[4].body.reasoning, { enabled: true, exclude: false })
   incomplete = true
   await assert.rejects(
     adapters.generate({

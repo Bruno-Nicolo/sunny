@@ -60,6 +60,9 @@ import { providerNames, providerSections } from './labels'
 import { ProviderLogo } from './ProviderLogo'
 import { ConversationHistory } from './ConversationHistory'
 import { ChatMessageView } from './ChatMessageView'
+import { MessageGroup } from '@/components/ui/message'
+import { ChatActivity } from './ChatActivity'
+import { applyChatEvent } from '../../../../shared/chat-work'
 import './chat.css'
 
 type Props = {
@@ -102,7 +105,6 @@ export function ChatPanel({
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [summarize, setSummarize] = useState(false)
   const [requestId, setRequestId] = useState<string | null>(null)
-  const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const [rename, setRename] = useState<string | null>(null)
   const [scrollPinned, setScrollPinned] = useState(true)
@@ -323,47 +325,24 @@ export function ChatPanel({
           setRequestId(event.requestId)
           requestRef.current = event.requestId
         }
-        if (event.type === 'progress') {
-          setProgress(event.text)
-          setRequestId(event.requestId)
-          requestRef.current = event.requestId
-          return
-        }
-        if (event.type === 'delta') {
-          setConversation((current) =>
-            current
-              ? {
-                  ...current,
-                  messages: current.messages.map((message) =>
-                    message.id === event.messageId
-                      ? { ...message, text: message.text + event.text }
-                      : message
-                  )
-                }
-              : current
-          )
-        } else {
-          const message = event.message
-          setConversation((current) =>
-            current
-              ? {
-                  ...current,
-                  title:
-                    !current.messages.length && message.role === 'user'
-                      ? message.text.slice(0, 70)
-                      : current.title,
-                  messages: current.messages.some((item) => item.id === message.id)
-                    ? current.messages.map((item) => (item.id === message.id ? message : item))
-                    : [...current.messages, message]
-                }
-              : current
-          )
-          if (event.type === 'finished') {
-            setRequestId(null)
-            requestRef.current = null
-            setProgress('')
-            void reloadList().catch(showError)
-          }
+        setConversation((current) =>
+          current
+            ? {
+                ...current,
+                title:
+                  !current.messages.length &&
+                  event.type === 'message' &&
+                  event.message.role === 'user'
+                    ? event.message.text.slice(0, 70)
+                    : current.title,
+                messages: applyChatEvent(current.messages, event)
+              }
+            : current
+        )
+        if (event.type === 'finished') {
+          setRequestId(null)
+          requestRef.current = null
+          void reloadList().catch(showError)
         }
       }),
     [reloadList]
@@ -371,7 +350,7 @@ export function ChatPanel({
 
   useEffect(() => {
     if (scrollPinned) messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight })
-  }, [conversation, progress, scrollPinned])
+  }, [conversation, scrollPinned])
 
   const resetConversation = (): void => {
     conversationRef.current = null
@@ -455,7 +434,6 @@ export function ChatPanel({
       if (retry) setConversation({ ...chat, messages: chat.messages.slice(0, -1) })
       requestRef.current = id
       setRequestId(id)
-      setProgress('Preparing request…')
       const pending = window.lepis.ai.send({
         requestId: id,
         conversationId: chat.id,
@@ -488,16 +466,18 @@ export function ChatPanel({
     } finally {
       setRequestId(null)
       requestRef.current = null
-      setProgress('')
     }
   }
-  const cite = (source: DocumentSource): void => {
-    if (!document || stale) return
-    onShowDocument()
-    requestAnimationFrame(() => {
-      if (activeRef.current) getViewer(tab.id)?.showCitation(source)
-    })
-  }
+  const cite = useCallback(
+    (source: DocumentSource): void => {
+      if (!document || stale) return
+      onShowDocument()
+      requestAnimationFrame(() => {
+        if (activeRef.current) getViewer(tab.id)?.showCitation(source)
+      })
+    },
+    [document, stale, onShowDocument, getViewer, tab.id]
+  )
   const chooseModel = async (value: string): Promise<void> => {
     if (!status || busy || modelChanging || !value) return
     const group = catalog.find((group) =>
@@ -791,32 +771,38 @@ export function ChatPanel({
                 </div>
               )
             )}
-            {!historyOpen &&
-              conversation?.messages.map((message, index) => (
-                <ChatMessageView
-                  key={message.id}
-                  message={message}
-                  stale={stale || !document}
-                  retry={
-                    !busy &&
-                    !stale &&
-                    index === conversation.messages.length - 1 &&
-                    message.status !== 'streaming'
-                  }
-                  onCitation={cite}
-                  onRetry={() => void send(message)}
-                  onError={setError}
-                />
-              ))}
-            {busy && (
-              <p
-                role="status"
-                className="flex items-center gap-2 py-2 text-xs text-muted-foreground"
-              >
-                <LoaderCircle className="size-3 animate-spin" />
-                {progress || 'Response in progress…'}
-              </p>
-            )}
+            <MessageGroup className="gap-7">
+              {!historyOpen &&
+                conversation?.messages.map((message, index) => (
+                  <ChatMessageView
+                    key={message.id}
+                    message={message}
+                    stale={stale || !document}
+                    retry={
+                      !busy &&
+                      !stale &&
+                      index === conversation.messages.length - 1 &&
+                      message.status !== 'streaming'
+                    }
+                    onCitation={cite}
+                    onRetry={() => void send(message)}
+                    onError={setError}
+                  />
+                ))}
+            </MessageGroup>
+            {busy &&
+              !historyOpen &&
+              !conversation?.messages.some((message) => message.status === 'streaming') && (
+                <div role="status" className="py-2">
+                  <ChatActivity
+                    work={{
+                      parts: [],
+                      durationMs: 0
+                    }}
+                    running
+                  />
+                </div>
+              )}
           </div>
           {error && (
             <div

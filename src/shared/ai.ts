@@ -20,10 +20,22 @@ export type ChatDocument = {
   pages: number
   sources: DocumentSource[]
 }
+export type ChatToolCall = {
+  id: string
+  name: 'read_document' | 'search_document'
+  input: Record<string, unknown>
+  output?: string
+  status: 'running' | 'complete' | 'error'
+  error?: string
+}
+export type ChatWorkPart =
+  { type: 'reasoning'; text: string } | { type: 'tool'; tool: ChatToolCall }
+export type ChatWork = { parts: ChatWorkPart[]; durationMs: number }
 export type ChatMessage = {
   id: string
   role: 'user' | 'assistant'
   text: string
+  work?: ChatWork
   attachments: ChatAttachment[]
   sources: DocumentSource[]
   status: 'complete' | 'streaming' | 'stopped' | 'error'
@@ -81,9 +93,10 @@ export type ChatEvent = {
   requestId: string
   conversationId: string
 } & (
-  | { type: 'progress'; text: string }
   | { type: 'message'; message: ChatMessage }
   | { type: 'delta'; messageId: string; text: string }
+  | { type: 'reasoning-delta'; messageId: string; text: string }
+  | { type: 'tool'; messageId: string; tool: ChatToolCall }
   | { type: 'finished'; message: ChatMessage }
 )
 

@@ -18,10 +18,14 @@ export type GenerateRequest = {
   turns: ModelTurn[]
   signal: AbortSignal
   onText(text: string): void
+  onReasoning?(text: string): void
 }
 
 export class AiProviders {
   private anthropicOutputLimits = new Map<string, number>()
+  private anthropicThinking = new Map<string, Anthropic.ThinkingConfigParam>()
+  private googleThinking = new Set<string>()
+  private openrouterThinking = new Set<string>()
   constructor(
     private credentials: CredentialStore,
     private chatgpt: ChatgptAuth
@@ -60,6 +64,15 @@ export class AiProviders {
         if (model.lifecycle !== 'active' || model.capabilities?.image_input.supported === false)
           continue
         if (model.max_tokens !== null) this.anthropicOutputLimits.set(model.id, model.max_tokens)
+        const thinking = model.capabilities?.thinking
+        if (thinking?.types.adaptive.supported)
+          this.anthropicThinking.set(model.id, { type: 'adaptive', display: 'summarized' })
+        else if (thinking?.types.enabled.supported)
+          this.anthropicThinking.set(model.id, {
+            type: 'enabled',
+            budget_tokens: 2048,
+            display: 'summarized'
+          })
         result.push({ id: model.id, name: model.display_name })
       }
       return result
@@ -68,11 +81,14 @@ export class AiProviders {
       const models = await new GoogleGenAI({ apiKey: key }).models.list()
       const result: AiModel[] = []
       for await (const model of models) {
-        if (model.name && model.supportedActions?.includes('generateContent'))
+        if (model.name && model.supportedActions?.includes('generateContent')) {
+          const id = model.name.replace(/^models\//, '')
+          if (model.thinking) this.googleThinking.add(id)
           result.push({
-            id: model.name.replace(/^models\//, ''),
+            id,
             name: model.displayName ?? model.name
           })
+        }
       }
       return result
     }
@@ -84,8 +100,15 @@ export class AiProviders {
       if (!response.ok)
         throw new Error(`OpenRouter model catalog is unavailable (${response.status}).`)
       const body = (await response.json()) as {
-        data: { id: string; name: string; architecture: { input_modalities: string[] } }[]
+        data: {
+          id: string
+          name: string
+          architecture: { input_modalities: string[] }
+          supported_parameters?: string[]
+        }[]
       }
+      for (const model of body.data)
+        if (model.supported_parameters?.includes('reasoning')) this.openrouterThinking.add(model.id)
       return body.data
         .filter(
           (model) =>
@@ -106,7 +129,7 @@ export class AiProviders {
   }
 
   async generate(request: GenerateRequest): Promise<string> {
-    const { provider, model, instructions, turns, signal, onText } = request
+    const { provider, model, instructions, turns, signal, onText, onReasoning } = request
     signal.throwIfAborted()
     const key = await this.key(provider, signal)
     signal.throwIfAborted()
@@ -123,6 +146,11 @@ export class AiProviders {
           instructions,
           store: false,
           stream: true,
+          ...(onReasoning &&
+          /^(?:o[3-9](?:-|$)|gpt-[5-9](?:[.-]|$))/.test(model) &&
+          !model.includes('chat')
+            ? { reasoning: { summary: 'auto' as const } }
+            : {}),
           input: turns.map((turn) => ({
             role: turn.role,
             content:
@@ -141,8 +169,15 @@ export class AiProviders {
         { signal }
       )
       let complete = false
+      let reasoningPart: string | undefined
       for await (const event of stream) {
         if (event.type === 'response.output_text.delta') emit(event.delta)
+        if (event.type === 'response.reasoning_summary_text.delta') {
+          const part = `${event.item_id}:${event.summary_index}`
+          if (reasoningPart && reasoningPart !== part) onReasoning?.('\n\n')
+          reasoningPart = part
+          onReasoning?.(event.delta)
+        }
         if (event.type === 'response.completed') complete = true
         if (event.type === 'response.failed')
           throw new Error(
@@ -156,11 +191,13 @@ export class AiProviders {
       if (!complete) throw new Error('The AI connection ended before completion.')
     } else if (provider === 'anthropic') {
       const client = new Anthropic({ apiKey: key, maxRetries: 0, timeout: 120_000 })
+      const thinking = onReasoning ? this.anthropicThinking.get(model) : undefined
       const stream = client.messages.stream(
         {
           model,
           system: instructions,
           max_tokens: Math.min(8192, this.anthropicOutputLimits.get(model) ?? 8192),
+          ...(thinking ? { thinking } : {}),
           messages: turns.map((turn) => ({
             role: turn.role,
             content: [
@@ -178,16 +215,30 @@ export class AiProviders {
         },
         { signal }
       )
-      for await (const event of stream)
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta')
-          emit(event.delta.text)
+      let reasoningBlock = false
+      for await (const event of stream) {
+        if (event.type === 'content_block_start' && event.content_block.type === 'thinking') {
+          if (reasoningBlock) onReasoning?.('\n\n')
+          reasoningBlock = true
+        }
+        if (event.type === 'content_block_delta') {
+          if (event.delta.type === 'text_delta') emit(event.delta.text)
+          if (event.delta.type === 'thinking_delta') onReasoning?.(event.delta.thinking)
+        }
+      }
       const final = await stream.finalMessage()
       if (final.stop_reason !== 'end_turn')
         throw new Error(`The AI response stopped before completion (${final.stop_reason}).`)
     } else if (provider === 'google') {
       const stream = await new GoogleGenAI({ apiKey: key }).models.generateContentStream({
         model,
-        config: { systemInstruction: instructions, abortSignal: signal },
+        config: {
+          systemInstruction: instructions,
+          abortSignal: signal,
+          ...(onReasoning && this.googleThinking.has(model)
+            ? { thinkingConfig: { includeThoughts: true } }
+            : {})
+        },
         contents: turns.map((turn) => ({
           role: turn.role === 'assistant' ? 'model' : 'user',
           parts: [
@@ -201,7 +252,11 @@ export class AiProviders {
       let finish: string | undefined
       for await (const chunk of stream) {
         signal.throwIfAborted()
-        if (chunk.text) emit(chunk.text)
+        for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
+          if (!part.text) continue
+          if (part.thought) onReasoning?.(part.text)
+          else emit(part.text)
+        }
         finish = chunk.candidates?.[0]?.finishReason ?? finish
       }
       if (finish !== 'STOP')
@@ -217,6 +272,9 @@ export class AiProviders {
         {
           model,
           stream: true,
+          ...(onReasoning && this.openrouterThinking.has(model)
+            ? { reasoning: { enabled: true, exclude: false } }
+            : {}),
           messages: [
             { role: 'system', content: instructions },
             ...turns.map((turn) =>
@@ -241,6 +299,9 @@ export class AiProviders {
       for await (const chunk of stream) {
         if ('error' in chunk) throw new Error('OpenRouter reported an error during the response.')
         if (chunk.choices[0]?.delta.content) emit(chunk.choices[0].delta.content)
+        const delta = chunk.choices[0]?.delta
+        if (delta && 'reasoning' in delta && typeof delta.reasoning === 'string')
+          onReasoning?.(delta.reasoning)
         finish = chunk.choices[0]?.finish_reason ?? finish
       }
       if (finish !== 'stop')

@@ -60,10 +60,34 @@ The assistant is instructed to distinguish PDF evidence, interpretation and exte
 knowledge. It can identify possible document errors with appropriate uncertainty. It has no web
 search and must not claim external verification.
 
+## Reasoning and tool calls
+
+Each assistant message stores an ordered work timeline alongside the answer. One disclosure contains
+tool calls and reasoning in their arrival order, including tools between reasoning
+segments. It reads **Working for <time>** with a timer updated each second throughout the request, and finally
+**Worked for <time>** with the elapsed request time saved by the main process. Durations use
+seconds, minutes and hours as needed. It opens during the
+request without a toggle and closes at completion. Only the finished timeline can be toggled;
+its chevron sits directly beside the elapsed-time label. Tool details have their own
+disclosures, initially closed even while running. Reasoning appears directly in the work timeline.
+The app does not insert preparation, search or writing status sentences into the timeline.
+Answers and reasoning share one Markdown renderer. The running timer updates only its label;
+unchanged Markdown and tool records do not need to render again for each stream event.
+
+OpenAI requests reasoning summaries on reasoning models; Anthropic, Gemini and OpenRouter use the
+capabilities advertised by their model catalogs. Encrypted reasoning and signatures are not
+displayed or saved. Only answer text and cited sources enter subsequent conversation context.
+
+`read_document` reads passages from the local index; `search_document` runs the local full-text
+search. Each invocation exposes its actual input, a result preview, and completion or error state.
+These are application operations, not model-issued remote tool calls. Reasoning and tool records
+are saved with the assistant message, including interrupted responses, and remain available in
+conversation history.
+
 ## Full-document requests
 
 **Summarize PDF**, or a request classified as requiring a whole-document synthesis, processes all
-groups of extractable text with visible progress, then combines the section summaries. This may
+groups of extractable text while the Working indicator remains visible, then combines the section summaries. This may
 make multiple requests. Groups are bounded to about 20,000 text characters, at most 100 groups;
 intermediate summaries are reduced in bounded rounds. Oversized context stops with an explicit
 error. Pages without extractable text are not interpreted automatically; the answer must disclose

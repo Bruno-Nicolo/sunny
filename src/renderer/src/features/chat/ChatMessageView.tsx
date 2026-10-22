@@ -1,9 +1,11 @@
-import { Copy, RotateCcw } from 'lucide-react'
-import Markdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
+import { useEffect, useRef, useState } from 'react'
+import { Check, Copy, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ChatActivity } from './ChatActivity'
+import { ChatMarkdown } from './ChatMarkdown'
 import type { ChatMessage, DocumentSource } from '../../../../shared/ai'
 
 type Props = {
@@ -23,120 +25,122 @@ export function ChatMessageView({
   onRetry,
   onError
 }: Props): React.JSX.Element {
-  const content = message.text.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (_match, id: string) => {
-    const source = message.sources.find((source) => source.id === id)
-    return source ? `[p. ${source.page}](#source/${id})` : '(reference unavailable)'
-  })
+  const [copied, setCopied] = useState(false)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+    },
+    []
+  )
   return (
-    <article
-      className={`chat-message ${message.role === 'user' ? 'chat-message-user' : ''}`}
+    <Message
+      align={message.role === 'user' ? 'end' : 'start'}
+      className="chat-message select-text wrap-anywhere"
       aria-label={message.role === 'user' ? 'Your message' : 'AI answer'}
     >
-      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{message.role === 'user' ? 'You' : 'Assistant'}</span>
-        {message.role === 'assistant' && (
-          <span className="truncate" title={message.model}>
-            {message.model}
-          </span>
+      <MessageContent>
+        {message.role === 'assistant' && message.work && (
+          <ChatActivity work={message.work} running={message.status === 'streaming'} />
         )}
-      </div>
-      {message.attachments.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {message.attachments.map((attachment) => (
-            <button
-              key={attachment.id}
-              className="chat-saved-selection"
-              disabled={stale}
-              title={attachment.text || `Region on page ${attachment.page}`}
-              onClick={() => onCitation(attachment)}
-            >
-              {attachment.image && (
-                <img src={attachment.image} alt={`Selected region on page ${attachment.page}`} />
-              )}
-              <span>
-                Page {attachment.page}
-                {attachment.kind === 'text' ? ' · Text' : ' · Region'}
-              </span>
-              {!attachment.image && (
-                <span className="line-clamp-2 text-muted-foreground">{attachment.text}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="chat-markdown">
-        <Markdown
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[rehypeKatex]}
-          skipHtml
-          urlTransform={(url) =>
-            url.startsWith('#source/') || url.startsWith('https://') ? url : ''
-          }
-          components={{
-            a: ({ href, children }) => {
-              if (href?.startsWith('#source/')) {
-                const source = message.sources.find((source) => source.id === href.slice(8))
-                return source ? (
-                  <button
-                    className="chat-source"
-                    disabled={stale}
-                    title={stale ? 'This citation belongs to an older PDF version.' : source.text}
-                    onClick={() => onCitation(source)}
-                  >
-                    {children}
-                  </button>
-                ) : (
-                  <span>(reference unavailable)</span>
-                )
-              }
-              return (
-                <a href={href} target="_blank" rel="noreferrer">
-                  {children}
-                </a>
-              )
-            },
-            img: () => <span>[External image omitted]</span>
-          }}
-        >
-          {content}
-        </Markdown>
-      </div>
-      {message.status === 'stopped' && (
-        <p className="mt-2 text-xs text-muted-foreground">Response interrupted.</p>
-      )}
-      {message.status === 'error' && (
-        <p role="alert" className="mt-2 text-xs text-destructive">
-          {message.error}
-        </p>
-      )}
-      {message.role === 'assistant' && message.status !== 'streaming' && (
-        <div className="mt-2 flex gap-1">
-          <Button
-            variant="ghost"
-            size="xs"
-            aria-label="Copy answer"
-            onClick={() => {
-              void navigator.clipboard
-                .writeText(
-                  message.text.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (_match, id: string) => {
-                    const source = message.sources.find((source) => source.id === id)
-                    return source ? `(p. ${source.page})` : '(reference unavailable)'
-                  })
-                )
-                .catch(() => onError('The answer could not be copied.'))
-            }}
+        {message.attachments.length > 0 && (
+          <div
+            className={`flex max-w-[90%] flex-wrap gap-2 ${message.role === 'user' ? 'self-end justify-end' : ''}`}
           >
-            <Copy />
-            Copy
-          </Button>
-          {retry && (
-            <Button variant="ghost" size="xs" onClick={onRetry}>
-              <RotateCcw />
-              Retry
-            </Button>
-          )}
-        </div>
-      )}
-    </article>
+            {message.attachments.map((attachment) => (
+              <button
+                key={attachment.id}
+                className="chat-saved-selection max-w-40 rounded-[6px] border border-border p-[5px] text-left text-[11px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&_img]:mb-1 [&_img]:max-h-20 [&_img]:object-contain [&_span]:block"
+                disabled={stale}
+                title={attachment.text || `Region on page ${attachment.page}`}
+                onClick={() => onCitation(attachment)}
+              >
+                {attachment.image && (
+                  <img src={attachment.image} alt={`Selected region on page ${attachment.page}`} />
+                )}
+                <span>
+                  Page {attachment.page}
+                  {attachment.kind === 'text' ? ' · Text' : ' · Region'}
+                </span>
+                {!attachment.image && (
+                  <span className="line-clamp-2 text-muted-foreground">{attachment.text}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        <Bubble
+          align={message.role === 'user' ? 'end' : 'start'}
+          variant={message.role === 'user' ? 'muted' : 'ghost'}
+          className={message.role === 'user' ? 'max-w-[90%]' : 'w-full'}
+        >
+          <BubbleContent
+            className={
+              message.role === 'user' ? 'rounded-2xl px-4 py-2.5' : 'w-full overflow-visible'
+            }
+          >
+            <ChatMarkdown
+              text={message.text}
+              streaming={message.status === 'streaming'}
+              sources={message.sources}
+              stale={stale}
+              onCitation={onCitation}
+            />
+          </BubbleContent>
+        </Bubble>
+        {message.status === 'stopped' && (
+          <p className="mt-2 text-xs text-muted-foreground">Response interrupted.</p>
+        )}
+        {message.status === 'error' && (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            {message.error}
+          </p>
+        )}
+        {message.role === 'assistant' && message.status !== 'streaming' && (
+          <MessageFooter className="gap-0.5 px-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={copied ? 'Answer copied' : 'Copy answer'}
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(
+                        message.text.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (_match, id: string) => {
+                          const source = message.sources.find((source) => source.id === id)
+                          return source ? `(p. ${source.page})` : '(reference unavailable)'
+                        })
+                      )
+                      .then(() => {
+                        setCopied(true)
+                        if (copyTimer.current) clearTimeout(copyTimer.current)
+                        copyTimer.current = setTimeout(() => setCopied(false), 2000)
+                      })
+                      .catch(() => onError('The answer could not be copied.'))
+                  }}
+                >
+                  {copied ? <Check /> : <Copy />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{copied ? 'Copied' : 'Copy answer'}</TooltipContent>
+            </Tooltip>
+            {retry && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label="Retry" onClick={onRetry}>
+                    <RotateCcw />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Retry response</TooltipContent>
+              </Tooltip>
+            )}
+            <span className="ml-2 truncate text-xs text-muted-foreground/70" title={message.model}>
+              {message.model}
+            </span>
+          </MessageFooter>
+        )}
+      </MessageContent>
+    </Message>
   )
 }

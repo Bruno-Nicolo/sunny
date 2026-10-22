@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A lightweight, local-first PDF editor for macOS",
   "main": "./out/main/index.js",
-  "author": "Nicolò Bruno",
+  "author": "Nicol\u00f2 Bruno",
   "license": "MIT",
   "engines": {
     "node": ">=22.13"
@@ -67,6 +67,7 @@
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/hast": "^3.0.5",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

@@ -28,6 +28,9 @@ export function aiModules() {
     load(name) {
       return require(path.join(directory, 'src/main/ai', `${name}.js`))
     },
+    loadShared(name) {
+      return require(path.join(directory, 'src/shared', `${name}.js`))
+    },
     dispose() {
       fs.rmSync(directory, { recursive: true, force: true })
     }
