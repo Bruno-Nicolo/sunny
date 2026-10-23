@@ -116,9 +116,10 @@ export function ChatMessageView({
                   if (!editable || saving || (!editText.trim() && !message.attachments.length))
                     return
                   setSaving(true)
+                  setEditing(false)
                   void onEdit(editText)
                     .then((accepted) => {
-                      if (accepted) setEditing(false)
+                      if (!accepted) setEditing(true)
                     })
                     .finally(() => setSaving(false))
                 }}
@@ -160,7 +161,7 @@ export function ChatMessageView({
               </form>
             ) : (
               <ChatMarkdown
-                text={message.text}
+                text={saving ? editText : message.text}
                 streaming={message.status === 'streaming'}
                 sources={message.sources}
                 stale={stale}

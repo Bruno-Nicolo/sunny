@@ -1118,7 +1118,23 @@ app
       `Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Save & send').click()`
     )
     await waitFor(
-      `!document.querySelector('textarea[aria-label="Message text"]') && document.querySelector('[aria-label="Send message"]')`
+      `document.querySelector('[aria-label="Model reasoning"]')?.getAttribute('aria-busy') === 'true'`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) textarea[aria-label="Message text"]')`
+      ),
+      null,
+      'an accepted edit immediately closes the editor while the replacement answer streams'
+    )
+    assert.ok(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Your message"]').textContent.includes('Explain the plant energy evidence')`
+      ),
+      'the edited user bubble immediately shows the replacement text'
+    )
+    await waitFor(
+      `document.querySelector('aside:not(.hidden) [aria-label="Fork conversation"]')?.disabled === false`
     )
     const editedChat = service.store.get(originalChat.id)
     assert.equal(editedChat.messages.length, 2)
