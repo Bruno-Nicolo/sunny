@@ -7,11 +7,12 @@ import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ChatActivity } from './ChatActivity'
 import { ChatMarkdown } from './ChatMarkdown'
-import type { ChatMessage, DocumentSource } from '../../../../shared/ai'
+import type { AiProvider, ChatMessage, DocumentSource } from '../../../../shared/ai'
 import { formatChatMessageTime, formatChatMessageTimeTitle } from '../../../../shared/chat-time'
 
 type Props = {
   message: ChatMessage
+  provider: AiProvider
   stale: boolean
   retry: boolean
   editable: boolean
@@ -25,6 +26,7 @@ type Props = {
 
 export function ChatMessageView({
   message,
+  provider,
   stale,
   retry,
   editable,
@@ -73,7 +75,12 @@ export function ChatMessageView({
     >
       <MessageContent>
         {message.role === 'assistant' && message.work && (
-          <ChatActivity work={message.work} running={message.status === 'streaming'} />
+          <ChatActivity
+            work={message.work}
+            running={message.status === 'streaming'}
+            provider={provider}
+            model={message.model}
+          />
         )}
         {message.attachments.length > 0 && (
           <div
@@ -273,19 +280,13 @@ export function ChatMessageView({
                 </Tooltip>
               )}
             </div>
-            <div className="ml-2 flex min-w-0 items-center gap-1 text-[11px] font-normal text-muted-foreground/70">
-              <span className="truncate" title={message.model}>
-                {message.model}
-              </span>
-              <span aria-hidden="true">·</span>
-              <time
-                className="shrink-0"
-                dateTime={new Date(message.createdAt).toISOString()}
-                title={timestampTitle}
-              >
-                {timestamp}
-              </time>
-            </div>
+            <time
+              className="ml-2 shrink-0 text-[11px] font-normal text-muted-foreground/70"
+              dateTime={new Date(message.createdAt).toISOString()}
+              title={timestampTitle}
+            >
+              {timestamp}
+            </time>
           </MessageFooter>
         )}
       </MessageContent>

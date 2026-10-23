@@ -7,9 +7,11 @@ import {
   TraceLine,
   TraceTitle
 } from '@/components/ui/trace'
-import type { ChatWork } from '../../../../shared/ai'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { AiProvider, ChatWork } from '../../../../shared/ai'
 import { ChatMarkdown } from './ChatMarkdown'
 import { ChatToolCallView } from './ChatToolCallView'
+import { ProviderLogo } from './ProviderLogo'
 
 function durationLabel(milliseconds: number): string {
   const seconds = Math.floor(milliseconds / 1000)
@@ -42,12 +44,26 @@ function WorkingTitle({ durationMs }: { durationMs: number }): React.JSX.Element
 /** One disclosure for the complete, ordered reasoning and tool timeline of a response. */
 export function ChatActivity({
   work,
-  running
+  running,
+  provider,
+  model
 }: {
   work: ChatWork
   running: boolean
+  provider: AiProvider
+  model: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const modelLogo = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          <ProviderLogo provider={provider} className="size-3.5" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{model}</TooltipContent>
+    </Tooltip>
+  )
   return (
     <Trace
       className="chat-activity [&_[data-slot=trace-line]]:text-xs/5"
@@ -58,6 +74,7 @@ export function ChatActivity({
         {running ? (
           <div className="border-b pb-2">
             <TraceLine status="running" role="status">
+              {modelLogo}
               <WorkingTitle durationMs={work.durationMs} />
             </TraceLine>
           </div>
@@ -67,6 +84,7 @@ export function ChatActivity({
             className="w-full justify-start rounded-none border-b pb-2 [&>[data-slot=trace-icon]]:opacity-100"
           >
             <TraceLine>
+              {modelLogo}
               <TraceTitle>{`Worked for ${durationLabel(work.durationMs)}`}</TraceTitle>
             </TraceLine>
           </TraceCollapsibleTrigger>

@@ -837,6 +837,7 @@ export function ChatPanel({
                   <ChatMessageView
                     key={message.id}
                     message={message}
+                    provider={conversation.provider}
                     stale={stale || !document}
                     retry={
                       !busy &&
@@ -864,6 +865,8 @@ export function ChatPanel({
                       durationMs: 0
                     }}
                     running
+                    provider={provider}
+                    model={selectedModel}
                   />
                 </div>
               )}
