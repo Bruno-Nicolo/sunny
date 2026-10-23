@@ -1015,6 +1015,42 @@ app
     await waitFor(
       `document.querySelector('aside:not(.hidden) [aria-label="Stop response"]') && document.querySelector('aside:not(.hidden) [aria-label="AI answer"]')?.textContent.includes('The document')`
     )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').value`
+      ),
+      '',
+      'the sent message is removed from the composer as soon as generation starts'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').disabled`
+      ),
+      false,
+      'the composer remains editable while an answer streams'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="AI model"]').disabled`
+      ),
+      false,
+      'the model selector remains enabled while an answer streams'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Add attachment"]').disabled`
+      ),
+      false,
+      'attachments remain available while an answer streams'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Stop response"] svg').classList.contains('fill-current')`
+      ),
+      true,
+      'the stop control uses a filled square'
+    )
+    await setInput('Message AI', 'A follow-up drafted during generation')
     await evaluate(
       `document.querySelector('aside:not(.hidden) [aria-label="Stop response"]').click()`
     )
@@ -1024,6 +1060,13 @@ app
     assert.equal(
       service.store.get(service.store.list('second.pdf')[0].id).messages.at(-1).status,
       'stopped'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').value`
+      ),
+      'A follow-up drafted during generation',
+      'a draft written during generation survives completion'
     )
     cancelAnswer = false
     await click('first.pdf')

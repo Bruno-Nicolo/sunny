@@ -447,10 +447,19 @@ export function ChatPanel({
     )
       return false
     const id = crypto.randomUUID()
+    const composerSubmission = !retry && !edit
+    const submittedDraft = draft
+    const submittedAttachments = attachments
+    const submittedSummarize = summarize
     requestRef.current = id
     setRequestId(id)
     setError('')
     setScrollPinned(true)
+    if (composerSubmission) {
+      setDraft('')
+      setAttachments([])
+      setSummarize(false)
+    }
     try {
       const chat: Conversation = conversation ?? {
         id: crypto.randomUUID(),
@@ -474,22 +483,30 @@ export function ChatPanel({
           ? undefined
           : { version: document!.version, path: tab.path, provider },
         model: selectedModel,
-        text: edit?.text ?? draft,
-        attachments,
-        summarize,
+        text: edit?.text ?? submittedDraft,
+        attachments: submittedAttachments,
+        summarize: submittedSummarize,
         retryMessageId: retry?.id,
         editMessageId: edit?.message.id
       })
-      // Keep the draft until the main process accepts and stores the user message.
       await pending
-      if (!retry && !edit) {
-        setDraft('')
-        setAttachments([])
-        setSummarize(false)
-      }
       return true
     } catch (error) {
       showError(error)
+      if (composerSubmission) {
+        setDraft((current) =>
+          !current || current === submittedDraft
+            ? submittedDraft
+            : [submittedDraft, current].filter(Boolean).join('\n\n')
+        )
+        setAttachments((current) => [
+          ...submittedAttachments.filter(
+            (submitted) => !current.some((attachment) => attachment.id === submitted.id)
+          ),
+          ...current
+        ])
+        setSummarize((current) => current || submittedSummarize)
+      }
       if (!conversation && !conversationRef.current?.messages.length) {
         conversationRef.current = null
         setConversation(null)
@@ -516,12 +533,18 @@ export function ChatPanel({
     [document, stale, onShowDocument, getViewer, tab.id]
   )
   const chooseModel = async (value: string): Promise<void> => {
-    if (!status || busy || modelChanging || !value) return
+    if (!status || modelChanging || !value) return
     const group = catalog.find((group) =>
       group.models.some((model) => `${group.provider}:${model.id}` === value)
     )
     const model = group?.models.find((model) => `${group.provider}:${model.id}` === value)
-    if (!group || !model || !status.connected.includes(group.provider)) return
+    if (
+      !group ||
+      !model ||
+      !status.connected.includes(group.provider) ||
+      (busy && group.provider !== provider)
+    )
+      return
     setModelChanging(true)
     try {
       await window.lepis.ai.settings({
@@ -885,7 +908,6 @@ export function ChatPanel({
                             <button
                               className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5"
                               aria-label={`Remove selection on page ${attachment.page}`}
-                              disabled={busy}
                               onClick={() =>
                                 setAttachments((current) =>
                                   current.filter((item) => item.id !== attachment.id)
@@ -929,7 +951,6 @@ export function ChatPanel({
                         key={label}
                         variant="secondary"
                         size="xs"
-                        disabled={busy}
                         onClick={() => action(prompt)}
                       >
                         {label}
@@ -965,7 +986,7 @@ export function ChatPanel({
                     }
                     value={draft}
                     maxLength={16000}
-                    disabled={busy || Boolean(loginBusy)}
+                    disabled={Boolean(loginBusy)}
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={(event) => {
                       if (
@@ -991,7 +1012,7 @@ export function ChatPanel({
                             <InputGroupButton
                               size="icon-sm"
                               aria-label="Add attachment"
-                              disabled={busy || stale || !document}
+                              disabled={stale || !document}
                               onMouseDown={(event) => event.preventDefault()}
                             >
                               <Plus />
@@ -1031,7 +1052,6 @@ export function ChatPanel({
                           : ''
                       }
                       disabled={
-                        busy ||
                         modelChanging ||
                         modelsLoading ||
                         !catalog.some((group) => group.models.length)
@@ -1063,6 +1083,7 @@ export function ChatPanel({
                                     <SelectItem
                                       value={`${group.provider}:${model.id}`}
                                       key={model.id}
+                                      disabled={busy && group.provider !== provider}
                                     >
                                       <ProviderLogo provider={group.provider} />
                                       {model.name}
@@ -1088,7 +1109,7 @@ export function ChatPanel({
                               if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
                             }}
                           >
-                            <Square />
+                            <Square className="fill-current" />
                           </InputGroupButton>
                         </TooltipTrigger>
                         <TooltipContent>Stop response</TooltipContent>

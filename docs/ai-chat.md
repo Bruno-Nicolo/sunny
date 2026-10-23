@@ -14,6 +14,8 @@ same provider can change inside a conversation.
 New chat opens an unsaved draft. A conversation is persisted only when its first user message
 is accepted, including attachment-only messages. Empty or rejected requests do not add history
 entries. The placeholder title is not editable; the first message supplies the initial title.
+While an answer is generated, the composer remains available for preparing the next message,
+including its attachments and model. The next message cannot be sent until generation stops.
 
 Use **Edit message** below a user message to change its text. **Save & send** keeps its original
 selections, removes all later messages and generates a new answer with the selected model. Cancel
