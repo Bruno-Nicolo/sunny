@@ -603,14 +603,14 @@ app
     )
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="Your message"] time').textContent.startsWith('Today ')`
+        `/^\\d{1,2}:\\d{2} [AP]M$/.test(document.querySelector('[aria-label="Your message"] time').textContent)`
       ),
       true,
       'user messages show their local relative timestamp'
     )
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="AI answer"] time').textContent.startsWith('Today ')`
+        `/^\\d{1,2}:\\d{2} [AP]M$/.test(document.querySelector('[aria-label="AI answer"] time').textContent)`
       ),
       true,
       'assistant messages show their local relative timestamp'

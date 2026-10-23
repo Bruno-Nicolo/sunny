@@ -26,7 +26,7 @@ export function formatChatMessageTime(timestamp: number, now = Date.now()): stri
 
   const daysAgo = (localDayNumber(current) - localDayNumber(date)) / 86_400_000
   const time = timeFormatter.format(date)
-  if (daysAgo === 0) return `Today ${time}`
+  if (daysAgo === 0) return time
   if (daysAgo === 1) return `Yesterday ${time}`
   if (daysAgo > 1 && daysAgo < 7) return `${weekdayFormatter.format(date)} ${time}`
 

@@ -40,7 +40,7 @@ const document = { version, path: '/test/biology.pdf', name: 'biology.pdf', page
 
 test('message times use calendar-relative labels and include the year when needed', () => {
   const now = new Date(2026, 9, 23, 22, 0).getTime()
-  assert.equal(formatChatMessageTime(new Date(2026, 9, 23, 20, 30).getTime(), now), 'Today 8:30 PM')
+  assert.equal(formatChatMessageTime(new Date(2026, 9, 23, 20, 30).getTime(), now), '8:30 PM')
   assert.equal(
     formatChatMessageTime(new Date(2026, 9, 22, 20, 30).getTime(), now),
     'Yesterday 8:30 PM'
