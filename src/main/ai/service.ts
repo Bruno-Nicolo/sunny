@@ -125,6 +125,27 @@ export class AiService {
     await Promise.allSettled(jobs.map((job) => job.promise))
     this.store.remove(id)
   }
+  fork(id: string, messageId: string): Conversation {
+    if ([...this.jobs.values()].some((job) => job.conversationId === id))
+      throw new Error('Wait for the response to finish before forking.')
+    const original = this.store.get(id)
+    const index = original.messages.findIndex((message) => message.id === messageId)
+    const message = original.messages[index]
+    if (!message || message.role !== 'assistant' || message.status === 'streaming')
+      throw new Error('Choose a finished assistant message to fork.')
+    const fork: Conversation = {
+      ...original,
+      id: randomUUID(),
+      title: `${original.title.slice(0, 113)} (fork)`,
+      updatedAt: Date.now(),
+      messages: original.messages.slice(0, index + 1).map((message) => ({
+        ...message,
+        id: randomUUID()
+      }))
+    }
+    this.store.save(fork)
+    return fork
+  }
   stop(requestId: string): void {
     this.jobs.get(requestId)?.abort.abort()
   }
@@ -140,6 +161,13 @@ export class AiService {
       request.model.length > 200
     )
       throw new Error('Invalid AI request.')
+    if (
+      request.editMessageId !== undefined &&
+      (typeof request.editMessageId !== 'string' ||
+        !request.editMessageId ||
+        request.retryMessageId)
+    )
+      throw new Error('Invalid message edit.')
     validateAttachments(request.attachments)
     if (
       this.jobs.has(request.requestId) ||
@@ -154,7 +182,8 @@ export class AiService {
       (!aiProviders.includes(first.provider) ||
         typeof first.path !== 'string' ||
         typeof first.version !== 'string' ||
-        request.retryMessageId)
+        request.retryMessageId ||
+        request.editMessageId)
     )
       throw new Error('Invalid new conversation.')
     if (first && this.currentVersions.get(first.path) !== first.version)
@@ -196,6 +225,20 @@ export class AiService {
         throw new Error('Only the last finished or interrupted answer can be retried.')
       conversation.messages.pop()
       user = previous
+    } else if (request.editMessageId) {
+      const index = conversation.messages.findIndex(
+        (message) => message.id === request.editMessageId
+      )
+      const original = conversation.messages[index]
+      if (!original || original.role !== 'user') throw new Error('Choose a user message to edit.')
+      if (!request.text.trim() && !original.attachments.length)
+        throw new Error('Write a message or attach a selection.')
+      user = {
+        ...original,
+        text: request.text.trim() || 'Explain these selections.',
+        model: request.model
+      }
+      conversation.messages = [...conversation.messages.slice(0, index), user]
     } else {
       if (!request.text.trim() && !request.attachments.length)
         throw new Error('Write a message or attach a selection.')
@@ -228,7 +271,8 @@ export class AiService {
     conversation.messages.push(assistant)
     conversation.updatedAt = Date.now()
     this.store.save(conversation)
-    if (!request.retryMessageId) emit({ ...base, type: 'message', message: user })
+    if (request.editMessageId) emit({ ...base, type: 'edited', message: user })
+    else if (!request.retryMessageId) emit({ ...base, type: 'message', message: user })
     emit({ ...base, type: 'message', message: assistant })
     const workEvent = (event: Extract<ChatEvent, { type: 'reasoning-delta' | 'tool' }>): void => {
       assistant.work = updateChatWork(assistant.work, event)

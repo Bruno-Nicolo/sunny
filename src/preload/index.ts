@@ -14,6 +14,7 @@ const api: LepisApi = {
     index: (document) => ipcRenderer.invoke('ai:index', document),
     conversations: (path) => ipcRenderer.invoke('ai:conversations', path),
     conversation: (id) => ipcRenderer.invoke('ai:conversation', id),
+    forkConversation: (id, messageId) => ipcRenderer.invoke('ai:fork', id, messageId),
     renameConversation: (id, title) => ipcRenderer.invoke('ai:rename', id, title),
     deleteConversation: (id) => ipcRenderer.invoke('ai:delete', id),
     send: (request) => ipcRenderer.invoke('ai:send', request),

@@ -216,6 +216,7 @@ app
     })
     ai('conversations', (value) => service.store.list(value))
     ai('conversation', (id) => service.store.get(id))
+    ai('fork', (id, messageId) => service.fork(id, messageId))
     ai('rename', (id, title) => service.store.rename(id, title))
     ai('delete', (id) => service.remove(id))
     ai('send', (request) =>
@@ -1101,10 +1102,47 @@ app
     assert.equal(generated.at(-1).model, 'test-model')
     assert.equal(service.store.list('large.pdf')[0].provider, 'openai')
     console.log('PASS: choosing another provider preserves the draft and sends with its model')
+    const originalChat = service.store.get(service.store.list('large.pdf')[0].id)
+    await click('Edit message')
+    await setInput('Message text', 'Cancelled edit')
+    await evaluate(
+      `Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Cancel').click()`
+    )
+    assert.deepEqual(service.store.get(originalChat.id), originalChat)
+    await click('Edit message')
+    await setInput('Message text', 'Explain the plant energy evidence')
+    await evaluate(
+      `Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Save & send').click()`
+    )
+    await waitFor(
+      `!document.querySelector('textarea[aria-label="Message text"]') && document.querySelector('[aria-label="Send message"]')`
+    )
+    const editedChat = service.store.get(originalChat.id)
+    assert.equal(editedChat.messages.length, 2)
+    assert.equal(editedChat.messages[0].text, 'Explain the plant energy evidence')
+    await click('Fork conversation')
+    await waitFor(
+      `document.querySelector('aside:not(.hidden) [aria-label="New chat"]').disabled === false && document.body.innerText.includes('(fork)')`
+    )
+    const forkedChat = service.store.list('large.pdf').find((chat) => chat.id !== originalChat.id)
+    assert.ok(forkedChat)
+    assert.equal(service.store.get(forkedChat.id).messages.length, 2)
+    await setInput('Message AI', 'Continue in the fork')
+    await click('Send message')
+    await waitFor(
+      `document.querySelectorAll('aside:not(.hidden) [aria-label="AI answer"]').length === 2 && document.querySelector('aside:not(.hidden) [aria-label="Send message"]')`
+    )
+    assert.equal(service.store.get(forkedChat.id).messages.length, 4)
+    assert.deepEqual(service.store.get(originalChat.id), editedChat)
+    console.log(
+      'PASS: inline edit cancellation, save and resend, fork and independent continuation'
+    )
     assert.deepEqual(rendererErrors, [])
     fs.writeFileSync('/tmp/lepis-chat.png', (await win.webContents.capturePage()).toPNG())
     await click('AI model')
-    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await waitFor(
+      `Array.from(document.querySelectorAll('[role="option"]')).filter(option => option.getBoundingClientRect().width > 0).length === 2`
+    )
     await evaluate(
       `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
     )

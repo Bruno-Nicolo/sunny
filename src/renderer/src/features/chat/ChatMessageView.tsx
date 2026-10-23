@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy, RotateCcw } from 'lucide-react'
+import { Check, Copy, Pencil, RotateCcw, Split } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
@@ -12,6 +13,10 @@ type Props = {
   message: ChatMessage
   stale: boolean
   retry: boolean
+  editable: boolean
+  forkable: boolean
+  onEdit(text: string): Promise<boolean>
+  onFork(): void
   onCitation(source: DocumentSource): void
   onRetry(): void
   onError(message: string): void
@@ -21,10 +26,17 @@ export function ChatMessageView({
   message,
   stale,
   retry,
+  editable,
+  forkable,
+  onEdit,
+  onFork,
   onCitation,
   onRetry,
   onError
 }: Props): React.JSX.Element {
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState(message.text)
+  const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(
@@ -79,15 +91,88 @@ export function ChatMessageView({
               message.role === 'user' ? 'rounded-2xl px-4 py-2.5' : 'w-full overflow-visible'
             }
           >
-            <ChatMarkdown
-              text={message.text}
-              streaming={message.status === 'streaming'}
-              sources={message.sources}
-              stale={stale}
-              onCitation={onCitation}
-            />
+            {editing ? (
+              <form
+                className="min-w-0 space-y-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!editable || saving || (!editText.trim() && !message.attachments.length))
+                    return
+                  setSaving(true)
+                  void onEdit(editText)
+                    .then((accepted) => {
+                      if (accepted) setEditing(false)
+                    })
+                    .finally(() => setSaving(false))
+                }}
+              >
+                <Textarea
+                  autoFocus
+                  aria-label="Message text"
+                  value={editText}
+                  maxLength={16000}
+                  disabled={saving}
+                  onChange={(event) => setEditText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape' && !saving) setEditing(false)
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Sending replaces this message and removes all later messages.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => setEditing(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={
+                      !editable || saving || (!editText.trim() && !message.attachments.length)
+                    }
+                  >
+                    Save & send
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <ChatMarkdown
+                text={message.text}
+                streaming={message.status === 'streaming'}
+                sources={message.sources}
+                stale={stale}
+                onCitation={onCitation}
+              />
+            )}
           </BubbleContent>
         </Bubble>
+        {message.role === 'user' && !editing && (
+          <MessageFooter className="justify-end gap-0.5 px-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Edit message"
+                  disabled={!editable}
+                  onClick={() => {
+                    setEditText(message.text)
+                    setEditing(true)
+                  }}
+                >
+                  <Pencil />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit message</TooltipContent>
+            </Tooltip>
+          </MessageFooter>
+        )}
         {message.status === 'stopped' && (
           <p className="mt-2 text-xs text-muted-foreground">Response interrupted.</p>
         )}
@@ -124,6 +209,20 @@ export function ChatMessageView({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{copied ? 'Copied' : 'Copy answer'}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Fork conversation"
+                  disabled={!forkable}
+                  onClick={onFork}
+                >
+                  <Split />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Fork conversation from here</TooltipContent>
             </Tooltip>
             {retry && (
               <Tooltip>

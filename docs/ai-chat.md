@@ -15,6 +15,15 @@ New chat opens an unsaved draft. A conversation is persisted only when its first
 is accepted, including attachment-only messages. Empty or rejected requests do not add history
 entries. The placeholder title is not editable; the first message supplies the initial title.
 
+Use **Edit message** below a user message to change its text. **Save & send** keeps its original
+selections, removes all later messages and generates a new answer with the selected model. Cancel
+leaves the conversation unchanged. Editing is available when the conversation is ready to send.
+
+Use **Fork conversation** below a finished assistant response to open a separate saved chat with
+all messages through that response, including sources, selections and work history. Later messages
+stay in the original chat. Forks appear in conversation history with “(fork)” in their title and can
+be continued, renamed or deleted independently. Message actions wait for an active response to finish.
+
 ## Selecting context
 
 - Select text in the PDF, then choose **Attach text**. Selections spanning pages produce one
@@ -156,6 +165,6 @@ accounts and representative PDFs.
 - Selecting whole pages from sidebar previews.
 - Explicit attachment of annotations and notes.
 - Web verification with external sources.
-- Chat export, message branching and cloud synchronization.
+- Chat export and cloud synchronization.
 - Retrieval quality evaluation on multi-column, multilingual and scientific documents, including
   whether a semantic index adds enough value to justify its local model/runtime cost.

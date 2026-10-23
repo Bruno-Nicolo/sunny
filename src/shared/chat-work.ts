@@ -21,6 +21,10 @@ export function updateChatWork(work: ChatWork | undefined, event: WorkEvent): Ch
 
 /** Applies streamed message updates to a conversation. */
 export function applyChatEvent(messages: ChatMessage[], event: ChatEvent): ChatMessage[] {
+  if (event.type === 'edited') {
+    const index = messages.findIndex((message) => message.id === event.message.id)
+    return [...messages.slice(0, index < 0 ? messages.length : index), event.message]
+  }
   if (event.type === 'message' || event.type === 'finished') {
     const index = messages.findIndex((message) => message.id === event.message.id)
     if (index === -1) return [...messages, event.message]

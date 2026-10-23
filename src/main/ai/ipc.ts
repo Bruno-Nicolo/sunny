@@ -65,6 +65,7 @@ export function registerAiIpc(directory: string): void {
   handle('index', (document: ChatDocument) => service.index(document))
   handle('conversations', (path: string) => service.store.list(path))
   handle('conversation', (id: string) => service.store.get(id))
+  handle('fork', (id: string, messageId: string) => service.fork(id, messageId))
   handle('rename', (id: string, title: string) => service.store.rename(id, title))
   handle('delete', (id: string) => service.remove(id))
   handle('send', (request: ChatSendRequest) =>

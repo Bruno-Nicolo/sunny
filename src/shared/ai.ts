@@ -87,12 +87,14 @@ export type ChatSendRequest = {
   text: string
   attachments: ChatAttachment[]
   summarize: boolean
+  editMessageId?: string
   retryMessageId?: string
 }
 export type ChatEvent = {
   requestId: string
   conversationId: string
 } & (
+  | { type: 'edited'; message: ChatMessage }
   | { type: 'message'; message: ChatMessage }
   | { type: 'delta'; messageId: string; text: string }
   | { type: 'reasoning-delta'; messageId: string; text: string }
@@ -111,6 +113,7 @@ export interface AiApi {
   index(document: ChatDocument): Promise<void>
   conversations(path: string): Promise<ConversationSummary[]>
   conversation(id: string): Promise<Conversation>
+  forkConversation(id: string, messageId: string): Promise<Conversation>
   renameConversation(id: string, title: string): Promise<void>
   deleteConversation(id: string): Promise<void>
   send(request: ChatSendRequest): Promise<void>

@@ -105,6 +105,8 @@ export function ChatPanel({
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [summarize, setSummarize] = useState(false)
   const [requestId, setRequestId] = useState<string | null>(null)
+  const [forking, setForking] = useState(false)
+  const forkingRef = useRef(false)
   const [error, setError] = useState('')
   const [rename, setRename] = useState<string | null>(null)
   const [scrollPinned, setScrollPinned] = useState(true)
@@ -230,6 +232,7 @@ export function ChatPanel({
     document && conversation && conversation.documentVersion !== document.version
   )
   const busy =
+    forking ||
     requestId !== null ||
     conversation?.messages.some((message) => message.status === 'streaming') === true
   const loginBusy = Boolean(status && !['idle', 'error'].includes(status.chatgptLogin.phase))
@@ -411,8 +414,38 @@ export function ChatPanel({
     setError('')
     composerRef.current?.focus()
   }
-  const send = async (retry?: ChatMessage): Promise<void> => {
-    if (!ready || requestRef.current || (!retry && !draft.trim() && !attachments.length)) return
+  const forkConversation = async (messageId: string): Promise<void> => {
+    const current = conversationRef.current
+    if (!current || busy || modelChanging || requestRef.current || forkingRef.current) return
+    forkingRef.current = true
+    setForking(true)
+    setError('')
+    try {
+      const fork = await window.lepis.ai.forkConversation(current.id, messageId)
+      conversationRef.current = fork
+      setConversation(fork)
+      setRename(null)
+      setScrollPinned(true)
+      await reloadList()
+      composerRef.current?.focus()
+    } catch (error) {
+      showError(error)
+    } finally {
+      forkingRef.current = false
+      setForking(false)
+    }
+  }
+  const send = async (
+    retry?: ChatMessage,
+    edit?: { message: ChatMessage; text: string }
+  ): Promise<boolean> => {
+    if (
+      !ready ||
+      requestRef.current ||
+      forkingRef.current ||
+      (!retry && !edit && !draft.trim() && !attachments.length)
+    )
+      return false
     const id = crypto.randomUUID()
     requestRef.current = id
     setRequestId(id)
@@ -441,28 +474,32 @@ export function ChatPanel({
           ? undefined
           : { version: document!.version, path: tab.path, provider },
         model: selectedModel,
-        text: draft,
+        text: edit?.text ?? draft,
         attachments,
         summarize,
-        retryMessageId: retry?.id
+        retryMessageId: retry?.id,
+        editMessageId: edit?.message.id
       })
       // Keep the draft until the main process accepts and stores the user message.
       await pending
-      if (!retry) {
+      if (!retry && !edit) {
         setDraft('')
         setAttachments([])
         setSummarize(false)
       }
+      return true
     } catch (error) {
       showError(error)
       if (!conversation && !conversationRef.current?.messages.length) {
         conversationRef.current = null
         setConversation(null)
       }
-      if (retry && conversation) {
+      if ((retry || edit) && conversation) {
         const latest = await window.lepis.ai.conversation(conversation.id)
+        conversationRef.current = latest
         setConversation(latest)
       }
+      return false
     } finally {
       setRequestId(null)
       requestRef.current = null
@@ -784,6 +821,10 @@ export function ChatPanel({
                       index === conversation.messages.length - 1 &&
                       message.status !== 'streaming'
                     }
+                    editable={ready}
+                    forkable={!busy && !modelChanging}
+                    onEdit={(text) => send(undefined, { message, text })}
+                    onFork={() => void forkConversation(message.id)}
                     onCitation={cite}
                     onRetry={() => void send(message)}
                     onError={setError}

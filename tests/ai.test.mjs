@@ -751,3 +751,120 @@ test('official SDK adapters send inline images and require terminal completion',
     /incomplete/
   )
 })
+
+test('editing truncates later turns, preserves selections and streams the replacement history', async (t) => {
+  const service = setup(t)
+  const { applyChatEvent } = modules.loadShared('chat-work')
+  const chat = service.store.create(version, 'openai', document.path)
+  const selection = { ...sources[0], id: 'selection', kind: 'text' }
+  const first = { ...userMessage('Original'), attachments: [selection] }
+  chat.messages = [
+    first,
+    { ...userMessage('Old answer'), role: 'assistant' },
+    userMessage('Later question'),
+    { ...userMessage('Later answer'), role: 'assistant' }
+  ]
+  service.store.save(chat)
+  let rendered = chat.messages
+  const calls = []
+  service.providers.generate = async (params) => {
+    calls.push(params)
+    if (params.instructions.startsWith('Write ONLY'))
+      return JSON.stringify({ scope: 'passages', queries: ['photosynthesis'] })
+    params.onText('Replacement [[p1s1]]')
+    return 'Replacement [[p1s1]]'
+  }
+  await service.send(
+    request(chat, { newConversation: undefined, editMessageId: first.id, text: 'Edited question' }),
+    (event) => {
+      rendered = applyChatEvent(rendered, event)
+    }
+  )
+  const saved = service.store.get(chat.id)
+  assert.deepEqual(rendered, saved.messages)
+  assert.equal(saved.messages.length, 2)
+  assert.equal(saved.messages[0].id, first.id)
+  assert.equal(saved.messages[0].text, 'Edited question')
+  assert.deepEqual(saved.messages[0].attachments, [selection])
+  assert.equal(saved.messages[1].status, 'complete')
+  assert.ok(calls.at(-1).turns.at(-1).text.includes(selection.text))
+  assert.ok(!JSON.stringify(calls.at(-1).turns).includes('Later question'))
+  for (const overrides of [
+    { editMessageId: 'missing' },
+    { editMessageId: saved.messages[1].id },
+    { editMessageId: first.id, retryMessageId: saved.messages[1].id },
+    { editMessageId: first.id, text: 'x'.repeat(16001) }
+  ]) {
+    await assert.rejects(
+      service.send(request(chat, { newConversation: undefined, ...overrides }), () => {})
+    )
+    assert.deepEqual(service.store.get(chat.id), saved)
+  }
+})
+
+test('fork copies only the selected assistant prefix and persists independently', async (t) => {
+  const service = setup(t)
+  const chat = service.store.create(version, 'openai', document.path)
+  chat.title = 'Biology'
+  chat.messages = [
+    userMessage(),
+    {
+      ...userMessage('Answer [[p1s1]]'),
+      role: 'assistant',
+      sources,
+      work: { parts: [{ type: 'reasoning', text: 'Evidence' }], durationMs: 1234 }
+    },
+    userMessage('Later')
+  ]
+  service.store.save(chat)
+  const fork = service.fork(chat.id, chat.messages[1].id)
+  assert.notEqual(fork.id, chat.id)
+  assert.equal(fork.title, 'Biology (fork)')
+  assert.equal(fork.documentVersion, chat.documentVersion)
+  assert.equal(fork.provider, chat.provider)
+  assert.deepEqual(
+    fork.messages.map(({ id, ...message }) => message),
+    chat.messages.slice(0, 2).map(({ id, ...message }) => message)
+  )
+  assert.ok(fork.messages.every((message, index) => message.id !== chat.messages[index].id))
+  assert.deepEqual(service.store.get(fork.id), fork)
+  assert.deepEqual(service.store.get(chat.id), chat)
+  assert.throws(() => service.fork(chat.id, chat.messages[0].id), /assistant/)
+  assert.throws(() => service.fork(chat.id, 'missing'), /assistant/)
+  await service.remove(chat.id)
+  assert.deepEqual(service.store.get(fork.id), fork)
+})
+
+test('edits and forks reject an active response without changing its saved prefix', async (t) => {
+  const service = setup(t)
+  const chat = service.store.create(version, 'openai', document.path)
+  chat.messages = [userMessage(), { ...userMessage('Previous answer'), role: 'assistant' }]
+  service.store.save(chat)
+  let release
+  const waiting = new Promise((resolve) => {
+    release = resolve
+  })
+  service.providers.generate = async (params) => {
+    await waiting
+    if (params.instructions.startsWith('Write ONLY'))
+      return JSON.stringify({ scope: 'passages', queries: ['photosynthesis'] })
+    params.onText('Complete')
+    return 'Complete'
+  }
+  const pending = service.send(request(chat, { newConversation: undefined }), () => {})
+  const saved = service.store.get(chat.id)
+  try {
+    assert.throws(() => service.fork(chat.id, chat.messages[1].id), /Wait/)
+    await assert.rejects(
+      service.send(
+        request(chat, { newConversation: undefined, editMessageId: chat.messages[0].id }),
+        () => {}
+      ),
+      /already running/
+    )
+    assert.deepEqual(service.store.get(chat.id), saved)
+  } finally {
+    release()
+    await pending
+  }
+})
