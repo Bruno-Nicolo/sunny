@@ -13,6 +13,7 @@ const { AiProviders } = modules.load('providers')
 const { CredentialStore } = modules.load('credentials')
 const { validateAttachments, validatedAnswer, historyTurns, parseSearchPlan } =
   modules.load('context')
+const { formatChatMessageTime } = modules.loadShared('chat-time')
 const reasoningText = (message) =>
   message.work?.parts
     .filter((part) => part.type === 'reasoning')
@@ -36,6 +37,27 @@ const sources = [
   }
 ]
 const document = { version, path: '/test/biology.pdf', name: 'biology.pdf', pages: 2, sources }
+
+test('message times use calendar-relative labels and include the year when needed', () => {
+  const now = new Date(2026, 9, 23, 22, 0).getTime()
+  assert.equal(formatChatMessageTime(new Date(2026, 9, 23, 20, 30).getTime(), now), 'Today 8:30 PM')
+  assert.equal(
+    formatChatMessageTime(new Date(2026, 9, 22, 20, 30).getTime(), now),
+    'Yesterday 8:30 PM'
+  )
+  assert.equal(
+    formatChatMessageTime(new Date(2026, 9, 20, 20, 30).getTime(), now),
+    'Tuesday 8:30 PM'
+  )
+  assert.equal(
+    formatChatMessageTime(new Date(2026, 9, 10, 20, 30).getTime(), now),
+    'Oct 10, 8:30 PM'
+  )
+  assert.equal(
+    formatChatMessageTime(new Date(2025, 9, 10, 20, 30).getTime(), now),
+    'Oct 10, 2025, 8:30 PM'
+  )
+})
 
 test('work preserves reasoning/tool/reasoning order and updates a tool without moving it', () => {
   const { applyChatEvent } = modules.loadShared('chat-work')
@@ -823,8 +845,8 @@ test('fork copies only the selected assistant prefix and persists independently'
   assert.equal(fork.documentVersion, chat.documentVersion)
   assert.equal(fork.provider, chat.provider)
   assert.deepEqual(
-    fork.messages.map(({ id, ...message }) => message),
-    chat.messages.slice(0, 2).map(({ id, ...message }) => message)
+    fork.messages.map((message) => ({ ...message, id: 'normalized' })),
+    chat.messages.slice(0, 2).map((message) => ({ ...message, id: 'normalized' }))
   )
   assert.ok(fork.messages.every((message, index) => message.id !== chat.messages[index].id))
   assert.deepEqual(service.store.get(fork.id), fork)

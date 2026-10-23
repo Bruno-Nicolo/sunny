@@ -601,6 +601,20 @@ app
       'end',
       'user messages align to the right'
     )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="Your message"] time').textContent.startsWith('Today ')`
+      ),
+      true,
+      'user messages show their local relative timestamp'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="AI answer"] time').textContent.startsWith('Today ')`
+      ),
+      true,
+      'assistant messages show their local relative timestamp'
+    )
     await waitFor(
       `document.querySelector('[aria-label="Response activity"]')?.getAttribute('aria-expanded') === 'false'`
     )

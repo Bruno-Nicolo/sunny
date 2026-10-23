@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ChatActivity } from './ChatActivity'
 import { ChatMarkdown } from './ChatMarkdown'
 import type { ChatMessage, DocumentSource } from '../../../../shared/ai'
+import { formatChatMessageTime, formatChatMessageTimeTitle } from '../../../../shared/chat-time'
 
 type Props = {
   message: ChatMessage
@@ -39,6 +40,8 @@ export function ChatMessageView({
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timestamp = formatChatMessageTime(message.createdAt)
+  const timestampTitle = formatChatMessageTimeTitle(message.createdAt)
   useEffect(
     () => () => {
       if (copyTimer.current) clearTimeout(copyTimer.current)
@@ -172,6 +175,13 @@ export function ChatMessageView({
         </Bubble>
         {message.role === 'user' && !editing && (
           <MessageFooter className="pointer-events-none justify-end gap-0.5 px-0 opacity-0 transition-opacity group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100">
+            <time
+              dateTime={new Date(message.createdAt).toISOString()}
+              title={timestampTitle}
+              className="mr-1 text-[11px] font-normal"
+            >
+              {timestamp}
+            </time>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -263,9 +273,19 @@ export function ChatMessageView({
                 </Tooltip>
               )}
             </div>
-            <span className="ml-2 truncate text-xs text-muted-foreground/70" title={message.model}>
-              {message.model}
-            </span>
+            <div className="ml-2 flex min-w-0 items-center gap-1 text-[11px] font-normal text-muted-foreground/70">
+              <span className="truncate" title={message.model}>
+                {message.model}
+              </span>
+              <span aria-hidden="true">·</span>
+              <time
+                className="shrink-0"
+                dateTime={new Date(message.createdAt).toISOString()}
+                title={timestampTitle}
+              >
+                {timestamp}
+              </time>
+            </div>
           </MessageFooter>
         )}
       </MessageContent>
