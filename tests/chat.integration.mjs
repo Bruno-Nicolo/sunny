@@ -609,10 +609,13 @@ app
       `document.querySelector('[data-slot="trace-collapsible-content"]')?.textContent.includes('selected evidence')`
     )
     await click('Response activity')
+    await click('Copy message')
+    await waitFor(`document.querySelector('[aria-label="Message copied"]')`)
+    assert.equal(electron.clipboard.readText(), 'Explain photosynthesis')
     await click('Copy answer')
     await waitFor(`document.querySelector('[aria-label="Answer copied"]')`)
     assert.ok(electron.clipboard.readText().includes('The document discusses'))
-    console.log('PASS: aligned messages, collapsible response activity and answer copy feedback')
+    console.log('PASS: aligned messages, collapsible response activity and message copy feedback')
     await click('Rename conversation')
 
     await waitFor(`document.activeElement?.getAttribute('aria-label') === 'Conversation title'`)

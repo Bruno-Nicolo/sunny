@@ -45,6 +45,23 @@ export function ChatMessageView({
     },
     []
   )
+  const copyMessage = (): void => {
+    const text =
+      message.role === 'assistant'
+        ? message.text.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (_match, id: string) => {
+            const source = message.sources.find((source) => source.id === id)
+            return source ? `(p. ${source.page})` : '(reference unavailable)'
+          })
+        : message.text
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true)
+        if (copyTimer.current) clearTimeout(copyTimer.current)
+        copyTimer.current = setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(() => onError('The message could not be copied.'))
+  }
   return (
     <Message
       align={message.role === 'user' ? 'end' : 'start'}
@@ -153,12 +170,27 @@ export function ChatMessageView({
           </BubbleContent>
         </Bubble>
         {message.role === 'user' && !editing && (
-          <MessageFooter className="justify-end gap-0.5 px-0">
+          <MessageFooter className="pointer-events-none justify-end gap-0.5 px-0 opacity-0 transition-opacity group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon-xs"
+                  className="size-7 [&_svg:not([class*='size-'])]:size-3.5"
+                  aria-label={copied ? 'Message copied' : 'Copy message'}
+                  onClick={copyMessage}
+                >
+                  {copied ? <Check /> : <Copy />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{copied ? 'Copied' : 'Copy message'}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-7 [&_svg:not([class*='size-'])]:size-3.5"
                   aria-label="Edit message"
                   disabled={!editable}
                   onClick={() => {
@@ -182,58 +214,54 @@ export function ChatMessageView({
           </p>
         )}
         {message.role === 'assistant' && message.status !== 'streaming' && (
-          <MessageFooter className="gap-0.5 px-0">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={copied ? 'Answer copied' : 'Copy answer'}
-                  onClick={() => {
-                    void navigator.clipboard
-                      .writeText(
-                        message.text.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (_match, id: string) => {
-                          const source = message.sources.find((source) => source.id === id)
-                          return source ? `(p. ${source.page})` : '(reference unavailable)'
-                        })
-                      )
-                      .then(() => {
-                        setCopied(true)
-                        if (copyTimer.current) clearTimeout(copyTimer.current)
-                        copyTimer.current = setTimeout(() => setCopied(false), 2000)
-                      })
-                      .catch(() => onError('The answer could not be copied.'))
-                  }}
-                >
-                  {copied ? <Check /> : <Copy />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{copied ? 'Copied' : 'Copy answer'}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Fork conversation"
-                  disabled={!forkable}
-                  onClick={onFork}
-                >
-                  <Split />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Fork conversation from here</TooltipContent>
-            </Tooltip>
-            {retry && (
+          <MessageFooter className="pointer-events-none gap-0.5 px-0 opacity-0 transition-opacity group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100">
+            <div className="flex gap-0.5">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label="Retry" onClick={onRetry}>
-                    <RotateCcw />
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="size-7 [&_svg:not([class*='size-'])]:size-3.5"
+                    aria-label={copied ? 'Answer copied' : 'Copy answer'}
+                    onClick={copyMessage}
+                  >
+                    {copied ? <Check /> : <Copy />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Retry response</TooltipContent>
+                <TooltipContent>{copied ? 'Copied' : 'Copy answer'}</TooltipContent>
               </Tooltip>
-            )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="size-7 [&_svg:not([class*='size-'])]:size-3.5"
+                    aria-label="Fork conversation"
+                    disabled={!forkable}
+                    onClick={onFork}
+                  >
+                    <Split />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Fork conversation from here</TooltipContent>
+              </Tooltip>
+              {retry && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="size-7 [&_svg:not([class*='size-'])]:size-3.5"
+                      aria-label="Retry"
+                      onClick={onRetry}
+                    >
+                      <RotateCcw />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Retry response</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <span className="ml-2 truncate text-xs text-muted-foreground/70" title={message.model}>
               {message.model}
             </span>
