@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronDown, Highlighter } from 'lucide-react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
@@ -57,10 +57,7 @@ export function HighlightControls({
         disabled={disabled}
         onClick={() => onToolChange(selected ? 'none' : 'highlight')}
       >
-        <Highlighter
-          className="[&_path:first-child]:fill-(--highlight-color)"
-          style={{ '--highlight-color': highlightColor } as CSSProperties}
-        />
+        <Highlighter />
       </ToolbarButton>
       <Popover open={open && !disabled} onOpenChange={setOpen}>
         <PopoverTrigger asChild>

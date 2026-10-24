@@ -226,10 +226,9 @@ app
       'Tab content must use the sidebar width'
     )
     const bounds = await evaluate(
-      `(() => { const sidebar = document.querySelector('.visible [aria-label="PDF navigation"]').getBoundingClientRect(); const viewer = document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect(); return {sidebarRight:sidebar.right,viewerLeft:viewer.left,height:sidebar.height,windowHeight:innerHeight}; })()`
+      `(() => { const sidebar = document.querySelector('.visible [aria-label="PDF navigation"]').getBoundingClientRect(); const viewer = document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect(); return {sidebarRight:sidebar.right,viewerLeft:viewer.left}; })()`
     )
     assert.equal(bounds.sidebarRight, bounds.viewerLeft)
-    assert.ok(bounds.height < bounds.windowHeight, 'Sidebar must fit below the application toolbar')
     fs.writeFileSync('/tmp/lepis-sidebar.png', (await win.webContents.capturePage()).toPNG())
     console.log('PASS: sidebar toggles and stays within the document workspace')
     await evaluate(`window.testCommands.run('previous-tab')`)

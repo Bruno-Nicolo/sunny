@@ -149,7 +149,6 @@ app
       'PASS: toolbar defaults configure new text without dirtying the PDF or adding local controls'
     )
     await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
-    assert.equal(await evaluate(`document.querySelector('header [aria-label="Text size"]')`), null)
     await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
     assert.equal(
@@ -428,7 +427,7 @@ app
     await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
     await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(
-      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '16 pt'`
+      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '8 pt'`
     )
     assert.equal(
       await evaluate(

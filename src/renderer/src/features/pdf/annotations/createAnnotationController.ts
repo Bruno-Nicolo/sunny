@@ -58,7 +58,7 @@ export function createAnnotationController({
   let historyAction = false
   let pointerSelection = false
   let selectionFrame: number | null = null
-  const defaults = { color: '#000000', size: 16 }
+  const defaults = { color: '#000000', size: 8 }
   let textContext: CanvasRenderingContext2D | null = null
   const pages = new Map<number, AnnotationLayer>()
   const imports = new Map<number, Promise<void>>()
