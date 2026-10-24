@@ -42,7 +42,7 @@ export function DocumentToolbar({
   onStartPresentation
 }: Props): React.JSX.Element {
   return (
-    <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 border-t px-3">
+    <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 bg-background px-3">
       {activeTab && (
         <>
           <div className="flex items-center gap-1">

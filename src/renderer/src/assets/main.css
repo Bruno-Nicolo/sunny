@@ -61,18 +61,6 @@
   -webkit-app-region: no-drag;
 }
 
-.document-tab[data-active='false'] + .document-tab[data-active='false']::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: -5px;
-  width: 1px;
-  height: 20px;
-  transform: translateY(-50%);
-  background: var(--border);
-  pointer-events: none;
-}
-
 .pdf-viewer-container {
   background: color-mix(in oklab, var(--muted) 70%, var(--background));
 }

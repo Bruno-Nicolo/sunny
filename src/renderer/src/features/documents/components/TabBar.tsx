@@ -75,7 +75,7 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[92px]">
+      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[92px] shadow-[inset_0_-1px_0_var(--border)]">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -95,7 +95,7 @@ export function TabBar({
         <div className="relative flex h-full min-w-0 flex-1">
           <div
             ref={tabStripRef}
-            className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none]"
+            className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-2 [scrollbar-width:none]"
           >
             {tabs.map((tab, index) => (
               <SortableTab
@@ -109,7 +109,14 @@ export function TabBar({
             ))}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button ref={openButtonRef} variant="ghost" size="icon" onClick={onOpen}>
+                <Button
+                  ref={openButtonRef}
+                  variant="ghost"
+                  size="icon"
+                  className="mr-1 -ml-1"
+                  aria-label="Open PDF"
+                  onClick={onOpen}
+                >
                   <Plus />
                 </Button>
               </TooltipTrigger>
@@ -181,21 +188,31 @@ function SortableTab({
       type="button"
       onClick={() => onSelect(tab.id)}
       className={cn(
-        'document-tab group relative flex h-9 select-none max-w-72 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-sm transition-colors',
+        'document-tab group relative flex h-9 min-w-[120px] max-w-60 flex-1 basis-60 select-none items-center gap-2 rounded-md border border-transparent py-1 pr-[5px] pl-3 text-left text-sm outline-offset-[-4px]',
+        '[&:has(+button:is([data-active=true],:hover,[data-dragging=true]))>[data-slot=tab-separator]]:opacity-0',
+        '[&:not(:has(+.document-tab))>[data-slot=tab-separator]]:hidden',
         active
-          ? 'bg-background text-foreground shadow-xs'
-          : 'border-transparent text-muted-foreground',
-        !active && (isDragSource ? 'bg-muted' : 'bg-transparent hover:bg-muted/65')
+          ? 'border-border bg-background text-foreground'
+          : 'text-muted-foreground hover:bg-foreground/7 data-[dragging=true]:bg-foreground/7'
       )}
       title={tab.path}
       aria-label={tab.name}
       aria-pressed={active}
       data-active={active}
+      data-dragging={isDragSource}
     >
+      <span
+        data-slot="tab-separator"
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute top-1/2 -right-1 h-4 w-px -translate-y-1/2 bg-muted-foreground/30 group-hover:opacity-0 group-data-[dragging=true]:opacity-0',
+          active && 'opacity-0'
+        )}
+      />
       {tab.dirty && <span className="size-2 shrink-0 rounded-full bg-foreground" />}
-      <span className="flex min-w-0 items-baseline gap-2 leading-5">
-        <span className="max-w-36 truncate font-medium">{tab.name}</span>
-        <span className="max-w-24 truncate text-[11px] leading-none text-muted-foreground">
+      <span className="flex min-w-0 flex-1 items-baseline gap-2 leading-5">
+        <span className="min-w-0 truncate font-medium">{tab.name}</span>
+        <span className="max-w-24 shrink-[2] truncate text-[11px] leading-none text-muted-foreground">
           {tab.directoryName}
         </span>
       </span>
@@ -215,7 +232,7 @@ function SortableTab({
             onClose(tab.id)
           }
         }}
-        className="ml-auto grid size-5 place-items-center rounded opacity-0 hover:bg-muted group-hover:opacity-100"
+        className="ml-auto grid size-5 shrink-0 place-items-center rounded-full opacity-0 group-hover:opacity-100 hover:bg-foreground/10 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
       >
         <X className="size-3.5" />
       </span>

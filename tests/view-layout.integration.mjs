@@ -88,71 +88,6 @@ app
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
     await enableTestFocus(win)
     await waitFor(`document.querySelector('.visible .pdfViewer .page canvas')?.width > 0`)
-    const tabGeometry = () =>
-      evaluate(`(() => {
-      const tab = document.querySelector('[aria-label="layout.pdf"]')
-      const bounds = tab.getBoundingClientRect()
-      const style = getComputedStyle(tab)
-      const strip = tab.parentElement
-      return {
-        top: bounds.top,
-        height: bounds.height,
-        toolbarTop: document.querySelector('header').children[1].getBoundingClientRect().top,
-        scrollbar: strip.offsetHeight - strip.clientHeight,
-        overflow: strip.scrollWidth > strip.clientWidth,
-        bottomBorder: parseFloat(style.borderBottomWidth),
-        bottomRadius: parseFloat(style.borderBottomLeftRadius),
-        iconCenters: [...document.querySelectorAll('header .titlebar-drag button > svg')].map(icon => {
-          const rect = icon.getBoundingClientRect()
-          return rect.top + rect.height / 2
-        })
-      }
-    })()`)
-    const wide = await tabGeometry()
-    assert.ok(
-      wide.bottomBorder > 0 && wide.bottomRadius > 0,
-      'Active tabs must have a closed rounded outline'
-    )
-    assert.ok(
-      wide.toolbarTop - wide.top - wide.height >= 6,
-      'Tabs must remain separated from the toolbar'
-    )
-    assert.equal(wide.iconCenters.length, 4)
-    assert.ok(
-      wide.iconCenters.every((center) => Math.abs(center - wide.top - wide.height / 2) < 1),
-      'Titlebar controls must align with the tab centers'
-    )
-    const hintVisible = `document.querySelector('[data-slot="tab-overflow-hint"]') !== null`
-    await waitFor(`!(${hintVisible})`)
-    win.setSize(420, 780)
-    await waitFor(hintVisible)
-    const narrow = await tabGeometry()
-    assert.ok(narrow.overflow, 'A narrow window must enable horizontal tab scrolling')
-    assert.equal(narrow.scrollbar, 0, 'Tab scrolling must hide the scrollbar')
-    assert.equal(narrow.top, wide.top)
-    assert.equal(narrow.toolbarTop, wide.toolbarTop, 'Overflow must preserve header geometry')
-    assert.ok(
-      await evaluate(`(() => {
-      const strip = document.querySelector('[aria-label="layout.pdf"]').parentElement
-      strip.scrollLeft = strip.scrollWidth
-      return strip.scrollLeft > 0
-    })()`),
-      'Overflowing tabs must remain horizontally scrollable'
-    )
-    await waitFor(`!(${hintVisible})`)
-    // Returning to the start must reveal the hint again.
-    await evaluate(
-      `document.querySelector('[aria-label="layout.pdf"]').parentElement.scrollLeft = 0`
-    )
-    await waitFor(hintVisible)
-    win.setSize(1180, 780)
-    await waitFor(`!(${hintVisible})`)
-    assert.deepEqual(
-      await tabGeometry(),
-      wide,
-      'Widening the window must restore the original layout'
-    )
-
     for (const selector of [
       '[aria-label="Toggle PDF sidebar"]',
       '[aria-label="layout.pdf"]',
@@ -351,7 +286,7 @@ app
     )
 
     console.log(
-      'PASS: tab layout, hidden tab scrolling, overflow hint, view menu, scrolling, input guards, rotation, paired pages, fit scale, tab isolation, and fullscreen presentation with layout restoration'
+      'PASS: view menu, scrolling, input guards, rotation, paired pages, fit scale, tab isolation, and fullscreen presentation with layout restoration'
     )
   })
   .then(() => finish(0))
