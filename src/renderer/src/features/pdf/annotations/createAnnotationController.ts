@@ -318,7 +318,7 @@ export function createAnnotationController({
         pageIndex,
         rotation: 0,
         color: options.highlightColor,
-        opacity: 0.4,
+        opacity: 0.9,
         quads,
         rect: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
       })

@@ -68,7 +68,7 @@ export async function readPageAnnotations(page: PDFPageProxy): Promise<Annotatio
         ...common,
         kind: 'highlight',
         color: hexColor(data.color, '#ffff00'),
-        opacity: data.opacity ?? 0.4,
+        opacity: data.opacity ?? 0.9,
         quads: Array.from(data.quadPoints)
       }
     } else if (

@@ -50,7 +50,7 @@ function serialize(record: Annotation): Record<string, unknown> {
       return {
         ...data,
         annotationType: AnnotationEditorType.HIGHLIGHT,
-        opacity: record.opacity ?? 0.4,
+        opacity: record.opacity ?? 0.9,
         quadPoints: quads,
         outlines
       }

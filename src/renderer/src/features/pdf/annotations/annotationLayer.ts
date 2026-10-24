@@ -180,7 +180,7 @@ export class AnnotationLayer {
         }
         highlightPath.setAttribute('d', paths.join(' '))
         highlightPath.style.fill = record.color
-        highlightPath.style.opacity = String(record.opacity ?? 0.4)
+        highlightPath.style.opacity = String(record.opacity ?? 0.9)
       }
       const canvas = editor.querySelector<HTMLCanvasElement>('canvas')
       if (canvas)
