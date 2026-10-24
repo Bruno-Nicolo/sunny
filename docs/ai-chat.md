@@ -161,6 +161,13 @@ recovery and login progress while settings are closed and reopened. It does not 
 provider credits. Live account admission and answer quality still need validation with eligible
 accounts and representative PDFs.
 
+## Provider logos
+
+Monochrome logos explicitly use black in light mode and white in dark mode instead of inheriting
+muted control colors. OpenAI's [brand guidelines](https://openai.com/brand/) specify a monochrome
+Blossom. Gemini uses the full-color [official favicon](https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png),
+bundled locally. OpenRouter's glyph comes from its [official brand assets](https://openrouter.ai/brand).
+
 ## Deferred work
 
 - OCR for scanned PDFs.
