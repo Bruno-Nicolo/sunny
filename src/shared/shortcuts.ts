@@ -30,6 +30,7 @@ export const shortcuts = [
     accelerator: 'CmdOrCtrl+\\',
     keys: [{ key: '\\', modifier: 'command' }]
   },
+  { id: 'toggle-chat', label: 'Toggle AI Chat', accelerator: 'CmdOrCtrl+L' },
   {
     id: 'zoom-in',
     label: 'Zoom In',

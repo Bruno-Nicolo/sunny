@@ -165,6 +165,9 @@ function App(): React.JSX.Element {
       'toggle-sidebar': () => {
         if (activeTab) setSidebarOpen((open) => !open)
       },
+      'toggle-chat': () => {
+        if (activeTab) setChatOpen((open) => !open)
+      },
       'zoom-in': () => withViewer((viewer) => viewer.zoomIn()),
       'zoom-out': () => withViewer((viewer) => viewer.zoomOut()),
       'rotate-clockwise': () => withViewer((viewer) => viewer.rotateClockwise()),

@@ -153,7 +153,7 @@ export function TabBar({
               <PanelRight />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{chatOpen ? 'Hide AI chat' : 'Show AI chat'}</TooltipContent>
+          <TooltipContent>{chatOpen ? 'Hide AI chat' : 'Show AI chat'} (⌘L)</TooltipContent>
         </Tooltip>
       </div>
     </DragDropProvider>
