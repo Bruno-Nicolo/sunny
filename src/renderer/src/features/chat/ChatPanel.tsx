@@ -5,10 +5,11 @@ import {
   ChevronLeft,
   Crop,
   LoaderCircle,
+  Paperclip,
   Plus,
   Settings,
   Square,
-  TextSelect,
+  Type,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -1018,7 +1019,7 @@ export function ChatPanel({
                               disabled={stale || !document}
                               onMouseDown={(event) => event.preventDefault()}
                             >
-                              <Plus />
+                              <Paperclip />
                             </InputGroupButton>
                           </DropdownMenuTrigger>
                         </TooltipTrigger>
@@ -1035,7 +1036,7 @@ export function ChatPanel({
                             addAttachments(selectedTextRef.current)
                           }}
                         >
-                          <TextSelect />
+                          <Type />
                           Attach text
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -1044,7 +1045,7 @@ export function ChatPanel({
                           }
                         >
                           <Crop />
-                          Attach selection
+                          Attach pdf region
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -1064,7 +1065,7 @@ export function ChatPanel({
                       <SelectTrigger
                         aria-label="AI model"
                         size="sm"
-                        className="min-w-24 max-w-[calc(100%-6rem)] border-0 bg-transparent px-2 shadow-none dark:bg-transparent"
+                        className="ml-auto min-w-24 max-w-[calc(100%-6rem)] border-0 bg-transparent px-2 shadow-none dark:bg-transparent"
                       >
                         <SelectValue
                           placeholder={modelsLoading ? 'Loading models…' : 'Choose model'}
@@ -1106,7 +1107,6 @@ export function ChatPanel({
                             type="button"
                             variant="default"
                             size="icon-sm"
-                            className="ml-auto"
                             aria-label="Stop response"
                             onClick={() => {
                               if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
@@ -1124,7 +1124,6 @@ export function ChatPanel({
                             type="submit"
                             variant="default"
                             size="icon-sm"
-                            className="ml-auto"
                             aria-label="Send message"
                             disabled={!ready || (!draft.trim() && !attachments.length)}
                           >
