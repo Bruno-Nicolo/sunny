@@ -35,6 +35,7 @@ export type PdfDocumentHandle = {
   openSearch(): void
   snapshotDocument(previousHash?: string): Promise<PdfSnapshot | null>
   saveDocument(): Promise<Uint8Array>
+  print(): Promise<void>
   setPage(page: number): void
   setScale(scale: string): void
   zoomIn(): void

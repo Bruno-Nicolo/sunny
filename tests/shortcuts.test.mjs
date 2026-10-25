@@ -98,6 +98,7 @@ test('native accelerators cover zoom, closing, and all nine tab positions', () =
   assert.equal(accelerator('zoom-in'), 'CmdOrCtrl+Plus')
   assert.equal(accelerator('zoom-out'), 'CmdOrCtrl+-')
   assert.equal(accelerator('close-tab'), 'CmdOrCtrl+W')
+  assert.equal(accelerator('print'), 'CmdOrCtrl+P')
   assert.equal(accelerator('toggle-sidebar'), 'CmdOrCtrl+\\')
   assert.equal(accelerator('next-tab'), 'Ctrl+Tab')
   assert.equal(accelerator('previous-tab'), 'Ctrl+Shift+Tab')

@@ -217,6 +217,9 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         return controllerRef.current.saveDocument()
       },
       setPage: (page) => controllerRef.current?.setPage(page),
+      async print() {
+        await controllerRef.current?.print()
+      },
       setScale: (scale) => controllerRef.current?.setScale(scale),
       zoomIn: () => controllerRef.current?.zoomIn(),
       zoomOut: () => controllerRef.current?.zoomOut(),

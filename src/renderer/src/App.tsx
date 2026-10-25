@@ -156,6 +156,12 @@ function App(): React.JSX.Element {
       save: () => {
         if (activeId) void saveTab(activeId)
       },
+      print: () =>
+        withViewer((viewer) => {
+          void viewer.print().catch((error: unknown) => {
+            showMessage(error instanceof Error ? error.message : 'The PDF could not be printed.')
+          })
+        }),
       'close-tab': () => {
         if (activeId) void closeTab(activeId)
       },
@@ -190,7 +196,17 @@ function App(): React.JSX.Element {
       'navigate-up': () => withViewer((viewer) => viewer.scrollVertically(-1)),
       'navigate-down': () => withViewer((viewer) => viewer.scrollVertically(1))
     }
-  }, [activeId, activeTab, closeTab, getActiveViewer, openDialog, saveTab, selectTab, tabs])
+  }, [
+    activeId,
+    activeTab,
+    closeTab,
+    getActiveViewer,
+    openDialog,
+    saveTab,
+    selectTab,
+    showMessage,
+    tabs
+  ])
 
   useAppShortcuts(
     shortcutHandlers,

@@ -24,6 +24,7 @@ import type { AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 import { createKeyboardScroll } from './keyboardScroll'
 import { createPresentationMode } from './createPresentationMode'
+import { printPdf } from './printPdf'
 import { createChatSelection } from './createChatSelection'
 import type {
   PasswordRequest,
@@ -98,6 +99,7 @@ export function createPdfViewer({
   let document: PDFDocumentProxy | null = null
   let destroyed = false
   let loading = true
+  let password: string | undefined
   const releasePage = (page: PDFPageProxy): void => {
     if (
       destroyed ||
@@ -312,8 +314,9 @@ export function createPdfViewer({
     if (destroyed) return
     onPasswordRequest({
       incorrect: reason === PasswordResponses.INCORRECT_PASSWORD,
-      submit: (password) => {
-        if (!destroyed) submit(password)
+      submit: (value) => {
+        password = value
+        if (!destroyed) submit(value)
       }
     })
   }
@@ -343,6 +346,13 @@ export function createPdfViewer({
     })
 
   return {
+    async print() {
+      if (destroyed || loading || !document) return
+      await printPdf(async () => {
+        annotations.commit()
+        return annotations.save()
+      }, password)
+    },
     async startPresentation() {
       if (destroyed || loading) return
       try {

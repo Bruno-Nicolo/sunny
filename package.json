@@ -23,6 +23,7 @@
     "test:search": "pnpm build && electron tests/search.integration.mjs",
     "test:view-layout": "pnpm build && electron tests/view-layout.integration.mjs",
     "test:zoom": "pnpm build && electron tests/zoom.integration.mjs",
+    "test:print": "pnpm build && electron tests/print.integration.mjs",
     "test:keyboard-scroll": "pnpm build && electron tests/keyboard-scroll.integration.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",

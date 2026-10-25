@@ -1,5 +1,17 @@
 # Shortcut verification — 2026-10-02
 
+## Printing — 2026-10-25
+
+Verified the production renderer with a disposable two-page PDF and zero configured
+printers on macOS. The `print` menu command opened the native dialog through
+`window.print()`. Cancel closed the dialog; PDF → Save as PDF produced a valid two-page
+PDF. The print container was removed after `afterprint`, and the document remained open.
+`webContents.print()` reproduced “No printers available on the network” in the same
+environment and is no longer used. `pnpm test:print` covers page content, mixed page
+sizes, duplicate commands and cleanup after a thrown print error without requiring a printer.
+
+## Other shortcuts
+
 Verified through native computer-use input on macOS in the production renderer build.
 The application used a temporary profile and nine disposable two-page PDF copies in
 `/tmp/lepis-shortcut-check`. A generated blue PNG supplied the annotation fixture.

@@ -30,6 +30,7 @@ export function createMenu(): void {
       submenu: [
         shortcutMenuItem('open'),
         shortcutMenuItem('save'),
+        shortcutMenuItem('print'),
         { type: 'separator' },
         shortcutMenuItem('close-tab')
       ]
