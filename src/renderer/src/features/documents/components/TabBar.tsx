@@ -75,7 +75,7 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[88px] shadow-[inset_0_-1px_0_var(--border)]">
+      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[92px] shadow-[inset_0_-1px_0_var(--border)]">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
