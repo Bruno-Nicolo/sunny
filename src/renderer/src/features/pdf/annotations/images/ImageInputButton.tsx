@@ -33,7 +33,7 @@ export function ImageInputButton({ disabled, onAddImages }: Props): React.JSX.El
             <ImagePlus />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Add image (or paste with ⌘V)</TooltipContent>
+        <TooltipContent>Add image</TooltipContent>
       </Tooltip>
     </>
   )

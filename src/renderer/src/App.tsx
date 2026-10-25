@@ -14,7 +14,7 @@ import { DocumentWorkspace } from '@/features/documents/components/DocumentWorks
 import { CloseDocumentsDialog } from '@/features/documents/components/CloseDocumentsDialog'
 import { RecoveryDialog } from '@/features/documents/components/RecoveryDialog'
 import { FileConflictDialog } from '@/features/documents/components/FileConflictDialog'
-import { useImageInsertion } from '@/features/pdf/annotations/images/useImageInsertion'
+import { useAnnotationInsertion } from '@/features/pdf/annotations/useAnnotationInsertion'
 import { defaultHighlightColor } from '@/features/pdf/annotations/highlight/colors'
 import { ChatDock } from '@/features/chat/ChatDock'
 
@@ -114,7 +114,7 @@ function App(): React.JSX.Element {
     showMessage
   })
 
-  const { addImages, onImageDrop } = useImageInsertion({
+  const { addImages, onImageDrop } = useAnnotationInsertion({
     enabled: !!activeTab?.view.canAnnotate && !closeRequest && !conflictId,
     getActiveViewer,
     onToolChange: setAnnotationTool,

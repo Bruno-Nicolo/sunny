@@ -165,6 +165,78 @@ app
     await waitFor(count(2))
     assert.equal(await evaluate(`document.querySelectorAll('.invisible .stampEditor').length`), 0)
     console.log('PASS: clipboard image goes only to active tab')
+    await evaluate(`(() => {
+      const transfer = new DataTransfer();
+      transfer.setData('text/plain', 'Pasted text\\r\\nSecond line');
+      transfer.setData('text/html', '<b>Pasted text</b><br>Second line');
+      document.querySelector('.visible .pdf-viewer-container').dispatchEvent(
+        new ClipboardEvent('paste', {clipboardData:transfer, bubbles:true, cancelable:true})
+      );
+    })()`)
+    await waitFor(
+      `document.querySelector('.visible .freeTextEditor .internal')?.innerText === 'Pasted text\\nSecond line'`
+    )
+    assert.equal(await evaluate(`document.querySelectorAll('.freeTextEditor').length`), 1)
+    assert.equal(
+      await evaluate(`document.querySelector('.visible .freeTextEditor .internal b')`),
+      null
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('.visible .freeTextEditor .internal').isContentEditable`
+      ),
+      false,
+      'Pasted text must be selected for moving before editing'
+    )
+    const textLeft = await evaluate(`document.querySelector('.visible .freeTextEditor').style.left`)
+    await evaluate(`(() => {
+      const input = document.querySelector('.visible .freeTextEditor .internal');
+      input.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, button:0, pointerId:1, clientX:100, clientY:100}));
+      window.dispatchEvent(new PointerEvent('pointermove', {pointerId:1, clientX:120, clientY:110}));
+      window.dispatchEvent(new PointerEvent('pointerup', {button:0, pointerId:1}));
+    })()`)
+    assert.notEqual(
+      await evaluate(`document.querySelector('.visible .freeTextEditor').style.left`),
+      textLeft
+    )
+    await evaluate(`window.testCommands.run('undo')`)
+    await waitFor(
+      `document.querySelector('.visible .freeTextEditor').style.left === ${JSON.stringify(textLeft)}`
+    )
+    await evaluate(
+      `document.querySelector('.visible .freeTextEditor .internal').dispatchEvent(new MouseEvent('dblclick', {bubbles:true}))`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('.visible .freeTextEditor .internal').isContentEditable`
+      ),
+      true,
+      'Double-clicking pasted text must start editing'
+    )
+    for (const selector of ['.visible .freeTextEditor .internal', '[aria-label="Current page"]']) {
+      assert.equal(
+        await evaluate(`(() => {
+        const transfer = new DataTransfer();
+        transfer.setData('text/plain', 'Inline paste');
+        return document.querySelector(${JSON.stringify(selector)}).dispatchEvent(
+          new ClipboardEvent('paste', {clipboardData:transfer, bubbles:true, cancelable:true})
+        );
+      })()`),
+        true,
+        'Text fields must retain native paste behavior'
+      )
+    }
+    await evaluate(`window.testCommands.run('undo')`)
+    await waitFor(`document.querySelector('.freeTextEditor') === null`)
+    await evaluate(`window.testCommands.run('redo')`)
+    await waitFor(
+      `document.querySelector('.visible .freeTextEditor .internal')?.innerText === 'Pasted text\\nSecond line'`
+    )
+    await evaluate(`window.testCommands.run('undo')`)
+    await waitFor(`document.querySelector('.freeTextEditor') === null`)
+    console.log(
+      'PASS: plain text paste targets the active tab, preserves editing and supports undo/redo'
+    )
     await evaluate(`window.testCommands.run('undo')`)
     await waitFor(count(1))
     await evaluate(`window.testCommands.run('redo')`)

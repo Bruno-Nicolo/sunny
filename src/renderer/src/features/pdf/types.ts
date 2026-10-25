@@ -47,6 +47,7 @@ export type PdfDocumentHandle = {
   scrollVertically(direction: -1 | 1): void
   setHighlightColor(color: string): void
   addImage(file: File): Promise<void>
+  addText(text: string): Promise<void>
   undo(): void
   redo(): void
 }

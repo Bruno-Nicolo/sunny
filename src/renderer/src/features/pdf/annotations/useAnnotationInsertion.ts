@@ -1,6 +1,6 @@
 import { useCallback, useEffect, type DragEvent } from 'react'
-import type { PdfDocumentHandle } from '../../types'
-import type { AnnotationTool } from '../types'
+import type { PdfDocumentHandle } from '../types'
+import type { AnnotationTool } from './types'
 
 type Options = {
   enabled: boolean
@@ -10,19 +10,25 @@ type Options = {
 }
 
 // Route file input, clipboard and drop insertion to the active document only.
-export function useImageInsertion({ enabled, getActiveViewer, onToolChange, onError }: Options): {
+export function useAnnotationInsertion({
+  enabled,
+  getActiveViewer,
+  onToolChange,
+  onError
+}: Options): {
   addImages(files: File[]): Promise<void>
   onImageDrop(event: DragEvent<HTMLElement>): void
 } {
-  const addImages = useCallback(
-    async (files: File[]): Promise<void> => {
+  const insert = useCallback(
+    async (content: File[] | string): Promise<void> => {
       const viewer = getActiveViewer()
       if (!enabled || !viewer) return
       onToolChange('none')
       try {
-        for (const file of files) await viewer.addImage(file)
+        if (typeof content === 'string') await viewer.addText(content)
+        else for (const file of content) await viewer.addImage(file)
       } catch (error) {
-        onError(error instanceof Error ? error.message : 'The image could not be added.')
+        onError(error instanceof Error ? error.message : 'The annotation could not be added.')
       }
     },
     [enabled, getActiveViewer, onToolChange, onError]
@@ -33,20 +39,23 @@ export function useImageInsertion({ enabled, getActiveViewer, onToolChange, onEr
       const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
         file.type.startsWith('image/')
       )
-      if (!files.length) return
-      // Capture image pastes before PDF.js's document listeners in the other tabs.
+      const text = event.clipboardData?.getData('text/plain') ?? ''
+      if (!files.length && !text.trim()) return
+      // Capture annotation pastes before PDF.js's document listeners in the other tabs.
       event.stopImmediatePropagation()
       if (
         event.target instanceof Element &&
-        event.target.closest('input, textarea, select, [contenteditable], [role="dialog"]')
+        event.target.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"]'
+        )
       )
         return
       event.preventDefault()
-      if (enabled) void addImages(files)
+      void insert(files.length ? files : text)
     }
     window.addEventListener('paste', onPaste, true)
     return () => window.removeEventListener('paste', onPaste, true)
-  }, [enabled, addImages])
+  }, [insert])
 
   const onImageDrop = (event: DragEvent<HTMLElement>): void => {
     const files = Array.from(event.dataTransfer.files).filter((file) =>
@@ -55,8 +64,8 @@ export function useImageInsertion({ enabled, getActiveViewer, onToolChange, onEr
     if (!files.length) return
     event.preventDefault()
     event.stopPropagation()
-    if (enabled) void addImages(files)
+    void insert(files)
   }
 
-  return { addImages, onImageDrop }
+  return { addImages: insert, onImageDrop }
 }

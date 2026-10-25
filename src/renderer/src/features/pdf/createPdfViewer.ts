@@ -456,6 +456,7 @@ export function createPdfViewer({
     },
     setHighlightColor: annotations.setHighlightColor,
     addImage: annotations.addImage,
+    addText: annotations.addText,
     undo: annotations.undo,
     redo: annotations.redo,
     setAnnotationOptions(options) {

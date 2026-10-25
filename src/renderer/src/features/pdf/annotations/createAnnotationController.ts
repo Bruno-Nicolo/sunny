@@ -30,6 +30,7 @@ type AnnotationController = {
   setOptions(options: AnnotationOptions): void
   setHighlightColor(color: string): void
   addImage(file: File): Promise<void>
+  addText(text: string): Promise<void>
   commit(): void
   commitDraft(): void
   undo(): void
@@ -150,7 +151,7 @@ export function createAnnotationController({
     if (record.text !== text) model.change(record, layoutText(record, text), true)
   }
 
-  function createText(pageIndex: number, x: number, y: number): void {
+  function createText(pageIndex: number, x: number, y: number, text = ''): void {
     const record = layoutText(
       {
         key: crypto.randomUUID(),
@@ -161,12 +162,14 @@ export function createAnnotationController({
         color: defaults.color,
         fontSize: defaults.size
       },
-      ''
+      text
     )
     select(null)
     selected = record.key
     model.change(undefined, record, true)
-    pages.get(pageIndex)?.edit(record.key)
+    const layer = pages.get(pageIndex)
+    if (text) layer?.editors.get(record.key)?.focus({ preventScroll: true })
+    else layer?.edit(record.key)
     refreshText()
   }
 
@@ -441,6 +444,17 @@ export function createAnnotationController({
       if (record?.kind === 'highlight' && record.color.toLowerCase() !== color.toLowerCase()) {
         model.change(record, { ...record, color })
       }
+    },
+    async addText(text: string): Promise<void> {
+      if (!canEdit()) throw new Error('This PDF is not ready for editing.')
+      if (!text.trim()) return
+      const pageIndex = viewer.currentPageNumber - 1
+      const pending = imports.get(pageIndex)
+      if (pending) await pending
+      if (!canEdit()) return
+      const viewport = viewer.getPageView(pageIndex).viewport
+      const [x, y] = viewport.convertToPdfPoint(viewport.width / 4, viewport.height / 4)
+      createText(pageIndex, x, y, text.replace(/\r\n?/g, '\n'))
     },
     async addImage(file: File): Promise<void> {
       if (!canEdit()) throw new Error('This PDF is not ready for editing.')
