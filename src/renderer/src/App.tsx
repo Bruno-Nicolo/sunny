@@ -223,41 +223,45 @@ function App(): React.JSX.Element {
         void openPaths(paths)
       }}
     >
-      <header className="shrink-0 border-b bg-background/95 backdrop-blur">
-        <TabBar
-          tabs={tabs}
-          activeId={activeId}
-          sidebarOpen={sidebarOpen}
-          theme={theme}
-          chatOpen={chatOpen}
-          onToggleChat={() => setChatOpen((open) => !open)}
-          onToggleSidebar={() => setSidebarOpen((open) => !open)}
-          onSelect={selectTab}
-          onReorder={reorderTab}
-          onClose={(id) => void closeTab(id)}
-          onOpen={() => void openDialog()}
-          onCycleTheme={cycleTheme}
-        />
-        <DocumentToolbar
-          activeTab={activeTab}
-          annotationTool={annotationTool}
-          highlightColor={highlightColor}
-          textSettings={textEditor?.id === activeId ? textEditor.settings : null}
-          onAnnotationToolChange={setAnnotationTool}
-          onHighlightColorChange={(color) => {
-            getActiveViewer()?.setHighlightColor(color)
-            setHighlightColor(color)
-          }}
-          onAddImages={(files) => void addImages(files)}
-          onPageChange={(page) => getActiveViewer()?.setPage(page)}
-          onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
-          onZoomIn={() => getActiveViewer()?.zoomIn()}
-          onZoomOut={() => getActiveViewer()?.zoomOut()}
-          onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
-          onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
-          onStartPresentation={() => void getActiveViewer()?.startPresentation()}
-        />
-      </header>
+      {tabs.length > 0 ? (
+        <header className="shrink-0 border-b bg-background/95 backdrop-blur">
+          <TabBar
+            tabs={tabs}
+            activeId={activeId}
+            sidebarOpen={sidebarOpen}
+            theme={theme}
+            chatOpen={chatOpen}
+            onToggleChat={() => setChatOpen((open) => !open)}
+            onToggleSidebar={() => setSidebarOpen((open) => !open)}
+            onSelect={selectTab}
+            onReorder={reorderTab}
+            onClose={(id) => void closeTab(id)}
+            onOpen={() => void openDialog()}
+            onCycleTheme={cycleTheme}
+          />
+          <DocumentToolbar
+            activeTab={activeTab}
+            annotationTool={annotationTool}
+            highlightColor={highlightColor}
+            textSettings={textEditor?.id === activeId ? textEditor.settings : null}
+            onAnnotationToolChange={setAnnotationTool}
+            onHighlightColorChange={(color) => {
+              getActiveViewer()?.setHighlightColor(color)
+              setHighlightColor(color)
+            }}
+            onAddImages={(files) => void addImages(files)}
+            onPageChange={(page) => getActiveViewer()?.setPage(page)}
+            onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
+            onZoomIn={() => getActiveViewer()?.zoomIn()}
+            onZoomOut={() => getActiveViewer()?.zoomOut()}
+            onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
+            onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
+            onStartPresentation={() => void getActiveViewer()?.startPresentation()}
+          />
+        </header>
+      ) : (
+        <div aria-hidden="true" className="titlebar-drag absolute inset-x-0 top-0 z-10 h-12" />
+      )}
 
       <ChatDock
         open={chatOpen}
