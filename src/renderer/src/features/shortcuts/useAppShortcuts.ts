@@ -30,6 +30,15 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
 
     const cleanups = shortcuts.map(({ id }) => window.lepis.onCommand(id, () => dispatch(id)))
     const isMac = navigator.platform.startsWith('Mac')
+    const selectionShortcut = shortcuts.find((shortcut) => shortcut.id === 'deactivate-tool')!
+    // Deactivate tools even when editors or popovers consume Escape; let them handle it too.
+    const onToolEscape = (event: KeyboardEvent): void => {
+      if (
+        !event.isComposing &&
+        selectionShortcut.keys.some((binding) => matchesKeyBinding(event, binding, isMac))
+      )
+        dispatch(selectionShortcut.id)
+    }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.isComposing) return
       const target = event.target
@@ -44,6 +53,7 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
         target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
       for (const shortcut of shortcuts) {
         if (
+          shortcut.id !== selectionShortcut.id &&
           (!editing || shortcut.id === 'find') &&
           'keys' in shortcut &&
           shortcut.keys.some((binding) => matchesKeyBinding(event, binding, isMac))
@@ -54,9 +64,11 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
         }
       }
     }
+    window.addEventListener('keydown', onToolEscape, true)
     window.addEventListener('keydown', onKeyDown)
     return () => {
       cleanups.forEach((cleanup) => cleanup())
+      window.removeEventListener('keydown', onToolEscape, true)
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [enabled])

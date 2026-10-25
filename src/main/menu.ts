@@ -68,6 +68,14 @@ export function createMenu(): void {
       ]
     },
     {
+      label: 'Tools',
+      submenu: [
+        shortcutMenuItem('deactivate-tool'),
+        shortcutMenuItem('activate-highlight'),
+        shortcutMenuItem('activate-text')
+      ]
+    },
+    {
       label: 'Tabs',
       submenu: [
         shortcutMenuItem('next-tab'),

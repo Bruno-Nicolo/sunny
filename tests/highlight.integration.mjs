@@ -121,13 +121,40 @@ app
       await evaluate(
         `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed')`
       ),
-      'true',
-      'Escape in the palette must close it without deactivating the tool'
+      'false',
+      'Escape in the palette must close it and deactivate the tool'
+    )
+    pressKey('h')
+    await waitFor(
+      `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true'`
     )
     pressKey('Escape')
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'false'`
     )
+    pressKey('t')
+    await waitFor(
+      `document.querySelector('[aria-label="Add text"]').getAttribute('aria-pressed') === 'true'`
+    )
+    await evaluate(`(() => {
+      const input = document.createElement('textarea');
+      input.id = 'shortcut-input';
+      document.body.append(input);
+      input.focus();
+    })()`)
+    pressKey('h')
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="Add text"]').getAttribute('aria-pressed')`
+      ),
+      'true',
+      'Typing in a field must not switch tools'
+    )
+    pressKey('Escape')
+    await waitFor(
+      `document.querySelector('[aria-label="Add text"]').getAttribute('aria-pressed') === 'false'`
+    )
+    await evaluate(`document.querySelector('#shortcut-input').remove()`)
     await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true'`

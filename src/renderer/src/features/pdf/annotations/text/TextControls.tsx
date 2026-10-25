@@ -53,6 +53,8 @@ export function TextControls({
     >
       <ToolbarButton
         label="Add text"
+        tooltip="Add text (T)"
+        aria-keyshortcuts="t"
         pressed={selected}
         variant="ghost"
         disabled={disabled}

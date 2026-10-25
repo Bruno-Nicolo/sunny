@@ -45,6 +45,9 @@ export const shortcuts = [
   },
   { id: 'zoom-out', label: 'Zoom Out', accelerator: 'CmdOrCtrl+-' },
   { id: 'rotate-clockwise', label: 'Rotate View Clockwise', keys: [{ key: 'r' }] },
+  { id: 'activate-highlight', label: 'Highlight text', keys: [{ key: 'h' }] },
+  { id: 'activate-text', label: 'Add text', keys: [{ key: 't' }] },
+  { id: 'deactivate-tool', label: 'Selection Tool', keys: [{ key: 'Escape' }] },
   { id: 'toggle-two-page-view', label: 'Toggle Two-Page View' },
   {
     id: 'next-tab',

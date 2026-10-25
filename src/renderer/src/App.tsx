@@ -177,6 +177,13 @@ function App(): React.JSX.Element {
       'zoom-in': () => withViewer((viewer) => viewer.zoomIn()),
       'zoom-out': () => withViewer((viewer) => viewer.zoomOut()),
       'rotate-clockwise': () => withViewer((viewer) => viewer.rotateClockwise()),
+      'activate-highlight': () => {
+        if (activeTab?.view.canAnnotate) setAnnotationTool('highlight')
+      },
+      'activate-text': () => {
+        if (activeTab?.view.canAnnotate) setAnnotationTool('text')
+      },
+      'deactivate-tool': () => setAnnotationTool('none'),
       'toggle-two-page-view': () => withViewer((viewer) => viewer.toggleTwoPageView()),
       'next-tab': () => cycleTab(1),
       'previous-tab': () => cycleTab(-1),

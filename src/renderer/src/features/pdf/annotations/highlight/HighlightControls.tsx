@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown, Highlighter } from 'lucide-react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
@@ -29,15 +29,6 @@ export function HighlightControls({
   const selected = annotationTool === 'highlight'
   const colorName = highlightColors.find((color) => color.value === highlightColor)?.name
 
-  useEffect(() => {
-    if (!selected || open || disabled) return
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !event.defaultPrevented) onToolChange('none')
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [selected, open, disabled, onToolChange])
-
   return (
     <ButtonGroup
       aria-label="Highlight controls"
@@ -51,7 +42,8 @@ export function HighlightControls({
     >
       <ToolbarButton
         label="Highlight text"
-        tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text'}
+        tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text (H)'}
+        aria-keyshortcuts="h"
         variant="ghost"
         pressed={selected}
         disabled={disabled}
