@@ -75,7 +75,7 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[92px] shadow-[inset_0_-1px_0_var(--border)]">
+      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[88px] shadow-[inset_0_-1px_0_var(--border)]">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -95,7 +95,7 @@ export function TabBar({
         <div className="relative flex h-full min-w-0 flex-1">
           <div
             ref={tabStripRef}
-            className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-2 [scrollbar-width:none]"
+            className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pr-2 pl-3 [scrollbar-width:none]"
           >
             {tabs.map((tab, index) => (
               <SortableTab
@@ -188,7 +188,7 @@ function SortableTab({
       type="button"
       onClick={() => onSelect(tab.id)}
       className={cn(
-        'document-tab group relative flex h-9 min-w-[120px] max-w-60 flex-1 basis-60 select-none items-center gap-2 rounded-md border border-transparent py-1 pr-[5px] pl-3 text-left text-sm outline-offset-[-4px]',
+        'document-tab group relative flex h-9 min-w-[120px] max-w-60 flex-1 basis-60 select-none items-center gap-2 rounded-md border border-transparent px-3 py-1 text-left text-sm outline-offset-[-4px]',
         '[&:has(+button:is([data-active=true],:hover,[data-dragging=true]))>[data-slot=tab-separator]]:opacity-0',
         '[&:not(:has(+.document-tab))>[data-slot=tab-separator]]:hidden',
         active
@@ -232,7 +232,7 @@ function SortableTab({
             onClose(tab.id)
           }
         }}
-        className="ml-auto grid size-5 shrink-0 place-items-center rounded-full opacity-0 group-hover:opacity-100 hover:bg-foreground/10 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
+        className="ml-auto grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-ring"
       >
         <X className="size-3.5" />
       </span>
