@@ -205,7 +205,7 @@ function SortableTab({
         data-slot="tab-separator"
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute top-1/2 -right-1 h-4 w-px -translate-y-1/2 bg-muted-foreground/30 group-hover:opacity-0 group-data-[dragging=true]:opacity-0',
+          'pointer-events-none absolute top-1/2 -right-1 h-4 w-px -translate-y-1/2 bg-muted group-hover:opacity-0 group-data-[dragging=true]:opacity-0',
           active && 'opacity-0'
         )}
       />
