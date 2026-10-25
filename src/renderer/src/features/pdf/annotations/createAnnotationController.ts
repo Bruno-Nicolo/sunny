@@ -141,8 +141,8 @@ export function createAnnotationController({
     const context = (textContext ??= window.document.createElement('canvas').getContext('2d')!)
     context.font = `${record.fontSize}px Helvetica, Arial, sans-serif`
     const lines = text.split('\n')
-    const width = Math.max(16, ...lines.map((line) => context.measureText(line).width)) + 8
-    const height = Math.max(1, lines.length) * record.fontSize! * 1.35 + 8
+    const width = Math.max(16, ...lines.map((line) => context.measureText(line).width)) + 4
+    const height = Math.max(1, lines.length) * record.fontSize! * 1.35 + 4
     return { ...record, text, rect: textRect(record, width, height) }
   }
 
@@ -151,24 +151,18 @@ export function createAnnotationController({
   }
 
   function createText(pageIndex: number, x: number, y: number): void {
-    const viewport = viewer.getPageView(pageIndex).viewport
-    const [left, top] = viewport.convertToViewportPoint(x, y)
-    const record: Annotation = {
-      key: crypto.randomUUID(),
-      kind: 'text',
-      pageIndex,
-      rect: normalizedRect(
-        [x, y],
-        viewport.convertToPdfPoint(
-          left + 180 * viewport.scale,
-          top + (defaults.size * 1.35 + 8) * viewport.scale
-        )
-      ),
-      rotation: viewport.rotation,
-      color: defaults.color,
-      fontSize: defaults.size,
-      text: ''
-    }
+    const record = layoutText(
+      {
+        key: crypto.randomUUID(),
+        kind: 'text',
+        pageIndex,
+        rect: [x, y, x, y],
+        rotation: viewer.getPageView(pageIndex).viewport.rotation,
+        color: defaults.color,
+        fontSize: defaults.size
+      },
+      ''
+    )
     select(null)
     selected = record.key
     model.change(undefined, record, true)
