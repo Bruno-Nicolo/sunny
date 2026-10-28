@@ -62,7 +62,7 @@
 }
 
 .pdf-viewer-container {
-  background: color-mix(in oklab, var(--muted) 70%, var(--background));
+  background: var(--sidebar);
 }
 
 .pdf-viewer-container .pdfViewer {
