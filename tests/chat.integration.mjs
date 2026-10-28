@@ -170,6 +170,7 @@ app
   .then(async () => {
     await testAuthentication()
     service = new AiService(temp)
+    service.settings({ consent: false })
     const credentials = {
       hostId: 'test',
       keys: { openai: 'fixture-openai-key', anthropic: 'fixture-anthropic-key' },

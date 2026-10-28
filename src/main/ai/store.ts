@@ -12,7 +12,7 @@ import type {
 } from '../../shared/ai'
 
 export const defaultAiSettings: AiSettings = {
-  consent: false,
+  consent: true,
   panelWidth: 380,
   provider: 'chatgpt',
   models: {}

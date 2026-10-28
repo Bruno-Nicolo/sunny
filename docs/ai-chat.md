@@ -3,7 +3,8 @@
 Open a PDF and choose **AI chat**. The panel can be closed or resized; its width is saved. Below
 1000 px, the PDF and chat alternate. Drafts and attachments survive this switch and panel closure.
 
-Accept the app-wide data notice, then connect a service in **AI settings**. **Continue with
+AI requests are enabled by default. You can disable **Allow AI requests** in **AI settings**;
+the saved preference is retained. Connect a service in **AI settings**. **Continue with
 ChatGPT** opens the system browser and requests permission to use an eligible plan. It does not
 import personal ChatGPT conversations. Availability is controlled by OpenAI and account/workspace
 eligibility. API keys for OpenAI, Anthropic, Google Gemini and OpenRouter use separate provider
