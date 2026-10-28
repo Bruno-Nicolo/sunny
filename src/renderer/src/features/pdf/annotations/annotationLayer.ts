@@ -178,9 +178,14 @@ export class AnnotationLayer {
           })
           paths.push(`M${converted.join(' L')} Z`)
         }
-        highlightPath.setAttribute('d', paths.join(' '))
+        const path = paths.join(' ')
+        highlightPath.setAttribute('d', path)
         highlightPath.style.fill = record.color
         highlightPath.style.opacity = String(record.opacity ?? 0.9)
+        const contour = editor.querySelector('svg')!
+        const [x1, y1, x2, y2] = this.bounds(record.rect)
+        contour.setAttribute('viewBox', `${x1} ${y1} ${x2 - x1} ${y2 - y1}`)
+        contour.firstElementChild!.setAttribute('d', path)
       }
       const canvas = editor.querySelector<HTMLCanvasElement>('canvas')
       if (canvas)
@@ -336,6 +341,12 @@ export class AnnotationLayer {
         resizers.append(handle)
       }
       editor.append(resizers)
+    } else {
+      const contour = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      contour.classList.add('lepisHighlightContour')
+      contour.setAttribute('aria-hidden', 'true')
+      contour.append(document.createElementNS('http://www.w3.org/2000/svg', 'path'))
+      editor.append(contour)
     }
     editor.addEventListener(
       'focusin',

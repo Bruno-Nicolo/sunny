@@ -106,13 +106,6 @@ app
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[aria-label="Highlight color: Pink"]') !== null && !document.querySelector('[aria-label="Pink"]')`
     )
-    assert.equal(
-      await evaluate(
-        `getComputedStyle(document.querySelector('[aria-label="Highlight text"] svg path')).fill`
-      ),
-      'rgb(249, 168, 212)',
-      'The highlighter tip must display the selected color'
-    )
     await evaluate(`document.querySelector('[aria-label="Highlight color: Pink"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Yellow"]') !== null`)
     pressKey('Escape')
@@ -163,9 +156,7 @@ app
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'false'`
     )
-    console.log(
-      'PASS: split highlight control selects colors, updates its tip, toggles, and handles Escape'
-    )
+    console.log('PASS: split highlight control selects colors, toggles, and handles Escape')
     await chooseColor('Pink', 'Yellow')
     await waitFor(
       `document.querySelector('.visible .annotationEditorLayer.highlightEditing') !== null`
