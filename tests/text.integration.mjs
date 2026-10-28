@@ -75,7 +75,7 @@ async function save() {
   const previous = saveCount
   await evaluate(`window.testCommands.run('save')`)
   await waitFor(() => saveCount > previous)
-  await waitFor(`document.querySelector('.document-tab-active > .rounded-full') === null`)
+  await waitFor(`document.querySelector('.document-tab-active > .bg-foreground') === null`)
 }
 async function addText() {
   await waitFor(
@@ -130,7 +130,7 @@ app
     )
     assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 0)
     assert.equal(
-      await evaluate(`document.querySelector('[aria-label="second.pdf"] > .rounded-full')`),
+      await evaluate(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground')`),
       null
     )
     await click(`document.querySelector('header [aria-label="Text settings"]')`)
@@ -183,6 +183,19 @@ app
       await evaluate(`document.querySelectorAll('.invisible .freeTextEditor').length`),
       0
     )
+    const offset = await evaluate(`(() => {
+      const layer = document.querySelector('.visible .annotationEditorLayer').getBoundingClientRect();
+      const text = document.querySelector('.visible .freeTextEditor .internal').firstChild;
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(text, 1);
+      const firstLetter = range.getBoundingClientRect();
+      return [firstLetter.left - layer.left - 100, (firstLetter.top + firstLetter.bottom) / 2 - layer.top - 100];
+    })()`)
+    assert.ok(
+      offset.every((value) => Math.abs(value) <= 1),
+      `Text offset from cursor: ${offset}`
+    )
     console.log('PASS: click creates a multiline text editor only in the active tab')
 
     // Save while the caret is still in the text box: the pending content must be committed.
@@ -203,7 +216,7 @@ app
     await waitFor(`document.querySelectorAll('.visible .freeTextEditor').length === 1`)
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`
+        `document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`
       ),
       true,
       'Undo/redo after saving must mark the document dirty'
@@ -261,7 +274,7 @@ app
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`
+        `document.querySelector('[aria-label="second.pdf"] > .bg-foreground') === null`
       ),
       true,
       'Choosing an imported annotation current color must not add an edit'
@@ -348,7 +361,7 @@ app
     console.log(
       'PASS: saved text retains accented characters and can be edited and saved after reopening'
     )
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') === null`)
     await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(`document.querySelector('[aria-label="Text color"]') !== null`)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Blue"]')`)
@@ -357,7 +370,7 @@ app
     )
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`
+        `document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`
       ),
       true,
       'Changing only formatting after saving must mark the document dirty'
@@ -368,7 +381,7 @@ app
     await waitFor(
       `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
     )
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`)
     await save()
     assert.equal(
       [
@@ -388,7 +401,7 @@ app
     )
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`
+        `document.querySelector('[aria-label="second.pdf"] > .bg-foreground') === null`
       ),
       true,
       'Choosing the current formatting must not dirty the document'
@@ -399,7 +412,7 @@ app
     await click(
       `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '32 pt')`
     )
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`)
     await save()
     assert.equal(
       [
@@ -444,7 +457,7 @@ app
     win.webContents.focus()
     await waitFor(`document.hasFocus()`)
     await win.webContents.insertText('   ')
-    await waitFor(`document.querySelector('[aria-label="first.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="first.pdf"] > .bg-foreground') !== null`)
     await save()
     await waitFor(`document.querySelector('.visible .freeTextEditor') === null`)
     assert.doesNotMatch(saved.get('first.pdf').toString('latin1'), /\/Subtype\s*\/FreeText/)
@@ -477,7 +490,7 @@ app
     await waitFor(
       `document.querySelector('.visible .freeTextEditor .internal').innerText.includes('Testo da tastiera')`
     )
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`)
     await save()
     assert.match(saved.get('second.pdf').toString('latin1'), /Testo da tastiera/)
     console.log('PASS: real keyboard input after switching tabs is saved')
@@ -528,7 +541,7 @@ app
       await evaluate(`document.querySelector('.visible .freeTextEditor').style.left`),
       previousLeft
     )
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`)
     await save()
     assert.notEqual(saved.get('second.pdf').toString('latin1'), previousPdf)
     await evaluate(`window.testCommands.run('undo')`)

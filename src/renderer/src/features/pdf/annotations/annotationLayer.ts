@@ -11,7 +11,7 @@ type Options = {
   selected(): string | null
   select(key: string | null, editing?: boolean): void
   updateText(record: Annotation, text: string): void
-  createText(x: number, y: number): void
+  createText(left: number, top: number): void
 }
 
 export class AnnotationLayer {
@@ -48,8 +48,8 @@ export class AnnotationLayer {
         select(null)
         if (this.tool !== 'text') return
         event.preventDefault()
-        const [x, y] = this.point(event.clientX, event.clientY)
-        createText(x, y)
+        const rect = this.element.getBoundingClientRect()
+        createText(event.clientX - rect.left, event.clientY - rect.top)
       },
       { signal }
     )

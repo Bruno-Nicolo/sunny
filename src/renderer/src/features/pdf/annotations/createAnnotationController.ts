@@ -151,14 +151,20 @@ export function createAnnotationController({
     if (record.text !== text) model.change(record, layoutText(record, text), true)
   }
 
-  function createText(pageIndex: number, x: number, y: number, text = ''): void {
+  function createText(pageIndex: number, left: number, top: number, text = ''): void {
+    const viewport = viewer.getPageView(pageIndex).viewport
+    // Anchor the first line's caret at the insertion point, including the editor's padding.
+    const [x, y] = viewport.convertToPdfPoint(
+      left - 2 * viewport.scale,
+      top - (2 + (defaults.size * 1.35) / 2) * viewport.scale
+    )
     const record = layoutText(
       {
         key: crypto.randomUUID(),
         kind: 'text',
         pageIndex,
         rect: [x, y, x, y],
-        rotation: viewer.getPageView(pageIndex).viewport.rotation,
+        rotation: viewport.rotation,
         color: defaults.color,
         fontSize: defaults.size
       },
@@ -247,7 +253,7 @@ export function createAnnotationController({
                 selected: () => selected,
                 select,
                 updateText,
-                createText: (x, y) => createText(index, x, y)
+                createText: (left, top) => createText(index, left, top)
               })
               pages.set(index, layer)
             }
@@ -453,8 +459,7 @@ export function createAnnotationController({
       if (pending) await pending
       if (!canEdit()) return
       const viewport = viewer.getPageView(pageIndex).viewport
-      const [x, y] = viewport.convertToPdfPoint(viewport.width / 4, viewport.height / 4)
-      createText(pageIndex, x, y, text.replace(/\r\n?/g, '\n'))
+      createText(pageIndex, viewport.width / 4, viewport.height / 4, text.replace(/\r\n?/g, '\n'))
     },
     async addImage(file: File): Promise<void> {
       if (!canEdit()) throw new Error('This PDF is not ready for editing.')
