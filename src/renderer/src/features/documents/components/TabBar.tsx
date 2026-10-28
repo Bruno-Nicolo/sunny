@@ -56,6 +56,7 @@ export function TabBar({
   const tabStripRef = useRef<HTMLDivElement>(null)
   const openButtonRef = useRef<HTMLButtonElement>(null)
   const [hasMoreTabs, setHasMoreTabs] = useState(false)
+  const [hasPreviousTabs, setHasPreviousTabs] = useState(false)
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -95,6 +96,7 @@ export function TabBar({
         <div className="relative flex h-full min-w-0 flex-1">
           <div
             ref={tabStripRef}
+            onScroll={(event) => setHasPreviousTabs(event.currentTarget.scrollLeft > 0)}
             className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pr-2 pl-3 [scrollbar-width:none]"
           >
             {tabs.map((tab, index) => (
@@ -123,6 +125,13 @@ export function TabBar({
               <TooltipContent>Open PDF (⌘O)</TooltipContent>
             </Tooltip>
           </div>
+          {hasPreviousTabs && (
+            <div
+              aria-hidden="true"
+              data-slot="tab-overflow-hint"
+              className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-sidebar/70 backdrop-blur-[2px] [mask-image:linear-gradient(to_left,transparent,black)]"
+            />
+          )}
           {hasMoreTabs && (
             <div
               aria-hidden="true"
