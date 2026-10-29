@@ -233,7 +233,7 @@ app
       text.innerText = 'Text after recoloring a highlight';
       text.dispatchEvent(new InputEvent('input', {bubbles:true, inputType:'insertText'}));
     })()`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`)
     await evaluate(`void window.testCommands.run('save')`)
     await waitFor(() =>
       saved.get('second.pdf')?.toString('latin1').includes('Text after recoloring a highlight')

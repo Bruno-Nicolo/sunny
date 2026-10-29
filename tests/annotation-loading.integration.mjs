@@ -117,9 +117,7 @@ app
     )
     await waitFor(`document.querySelector('.visible .textLayer span') !== null`)
     assert.equal(
-      await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`
-      ),
+      await evaluate(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`),
       false
     )
     await waitFor(
@@ -176,9 +174,7 @@ app
       'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
     )
     assert.equal(
-      await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`
-      ),
+      await evaluate(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`),
       false,
       'Activating highlighting on an annotated PDF must not mark it modified'
     )
@@ -197,9 +193,7 @@ app
       'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
     )
     assert.equal(
-      await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`
-      ),
+      await evaluate(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`),
       false,
       'Repeated tool changes must leave existing annotations clean'
     )
@@ -221,14 +215,14 @@ app
       `document.querySelector('.visible .highlightEditor').dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, button:0}))`
     )
     await chooseColor('Yellow', 'Yellow')
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`)
     await evaluate(`void window.testCommands.run('save')`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') === null`)
     await highlightText('Second highlight', existingCount + 1)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`)
     await evaluate(`void window.testCommands.run('save')`)
     await waitFor(() => saved.has('second.pdf'))
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') === null`)
     for (let i = 0; i < 2; i++) {
       await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
       await waitFor(
@@ -243,9 +237,7 @@ app
       'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
     )
     assert.equal(
-      await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`
-      ),
+      await evaluate(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`),
       false,
       'Switching tools after saving must keep the document clean'
     )
@@ -254,16 +246,16 @@ app
     )
     await waitFor(`document.querySelector('.visible .highlightEditor.selectedEditor') !== null`)
     await chooseColor('Yellow', 'Green')
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`)
     await evaluate(`void window.testCommands.run('save')`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') === null`)
     await evaluate(`document.querySelector('.visible .highlightEditor.selectedEditor').focus()`)
     await waitFor(`document.hasFocus() && document.activeElement.matches('.highlightEditor')`)
     pressKey('Delete')
     await waitFor(
       `document.querySelectorAll('.visible .highlightEditor').length === ${existingCount}`
     )
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`)
     await evaluate(`void window.testCommands.run('undo')`)
     await waitFor(
       `document.querySelectorAll('.visible .highlightEditor').length === ${existingCount + 1}`
@@ -272,13 +264,13 @@ app
       'PASS: repeated tool changes stay clean, while insertion, recoloring and deletion mark actual edits'
     )
     await evaluate(`void window.testCommands.run('save')`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') === null`)
     await waitFor(`document.querySelector('.visible .annotationLayer input') !== null`)
     await evaluate(`(() => {
       const input = document.querySelector('.visible .annotationLayer input');
       input.value = 'updated form'; input.dispatchEvent(new Event('input', {bubbles:true}));
     })()`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`)
     await evaluate(`void window.testCommands.run('save')`)
     await waitFor(() => saved.get('second.pdf').toString('latin1').includes('updated form'))
     console.log('PASS: native form fields remain editable and are saved alongside annotations')
@@ -297,15 +289,13 @@ app
     releaseSave = null
     await waitFor(`document.body.textContent.includes('Newer changes are still unsaved')`)
     assert.equal(
-      await evaluate(
-        `document.querySelector('[aria-label="second.pdf"] > .rounded-full') !== null`
-      ),
+      await evaluate(`document.querySelector('[aria-label="second.pdf"] > span.size-2') !== null`),
       true
     )
     assert.ok(saved.get('second.pdf').toString('latin1').includes('before disk write'))
     assert.ok(!saved.get('second.pdf').toString('latin1').includes('after disk write started'))
     await evaluate(`void window.testCommands.run('save')`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') === null`)
     assert.ok(saved.get('second.pdf').toString('latin1').includes('after disk write started'))
     console.log('PASS: edits during disk saving remain dirty and persist in the next save')
   })

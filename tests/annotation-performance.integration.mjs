@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url'
 import { createPdf } from './fixtures/pdf.mjs'
 
 const { app, BrowserWindow, ipcMain, protocol } = electron
+app.on('window-all-closed', () => {})
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'lepis-pdf',
@@ -43,8 +44,8 @@ const filePath = path.join(temp, 'stress.pdf')
 let bytesRead = 0
 let sourceOpeningMs = 0
 let documentReads = 0
-const pageCount = 300
-const perPage = 200
+const pageCount = Number(process.env.LEPIS_PERF_PAGES ?? 300)
+const perPage = Number(process.env.LEPIS_PERF_ANNOTATIONS_PER_PAGE ?? 200)
 const densePage = 3000
 const visits = Number(process.env.LEPIS_PERF_VISITS ?? 60)
 let fileBytes
@@ -185,10 +186,49 @@ async function goTo(page) {
   await evaluate(frame)
   return performance.now() - start
 }
+async function measureThumbnailEdits() {
+  await waitFor(`document.querySelector('.visible [aria-label="Go to page 1"] canvas')?.width > 0`)
+  await new Promise((resolve) => setTimeout(resolve, 250))
+  await evaluate(`(() => {
+    window.thumbnailPaints=0;window.thumbnailEditTimes=[];window.pdfContentPaints=0;window.thumbnailEditStart=null;
+    const thumbnail=document.querySelector('.visible [aria-label="Go to page 1"] canvas');
+    const context=thumbnail.getContext('2d');const draw=context.drawImage;
+    context.drawImage=function(...args){const result=draw.apply(this,args);window.thumbnailPaints++;if(window.thumbnailEditStart!==null){queueMicrotask(()=>{window.thumbnailEditTimes.push(performance.now()-window.thumbnailEditStart);window.thumbnailEditStart=null})}return result};
+    const fill=CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText=function(...args){if(!this.canvas.isConnected)window.pdfContentPaints++;return fill.apply(this,args)};
+    document.querySelector('.visible .page[data-page-number="1"] .highlightEditor').dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
+  })()`)
+  const colors = ['Green', 'Pink', 'Yellow']
+  let current = 'Yellow'
+  for (let i = 0; i < 30; i++) {
+    await evaluate(`document.querySelector('[aria-label="Highlight color: ${current}"]').click()`)
+    const next = colors[i % colors.length]
+    await waitFor(`document.querySelector('[aria-label="${next}"]') !== null`)
+    await evaluate(
+      `window.thumbnailEditStart=performance.now();document.querySelector('[aria-label="${next}"]').click()`
+    )
+    await waitFor(`window.thumbnailEditTimes.length === ${i + 1}`)
+    current = next
+  }
+  const result = await evaluate(
+    `({times:window.thumbnailEditTimes,paints:window.thumbnailPaints,pdfContentPaints:window.pdfContentPaints})`
+  )
+  assert.equal(result.pdfContentPaints, 0, 'Editing annotations must reuse the PDF bitmap')
+  assert.equal(result.paints, 30, 'Each edit must redraw only the changed thumbnail')
+  assert.ok(percentile(result.times, 0.95) < 150, 'Thumbnail editing latency exceeded 150ms')
+  return {
+    thumbnailEditP95Ms: Math.round(percentile(result.times, 0.95)),
+    thumbnailEditMaxMs: Math.round(Math.max(...result.times)),
+    thumbnailEdits: 30,
+    pdfContentPaintsDuringEdits: result.pdfContentPaints
+  }
+}
 async function run(withAnnotations) {
   annotated = withAnnotations
   gcIntervals = []
-  console.log(`START: ${annotated ? '62,800 highlights' : 'unannotated baseline'}`)
+  console.log(
+    `START: ${annotated ? `${densePage + (pageCount - 1) * perPage} highlights` : 'unannotated baseline'}`
+  )
   const data = fixture(annotated)
   fs.writeFileSync(filePath, data)
   if (process.env.LEPIS_PERF_SPARSE_GB) {
@@ -274,6 +314,9 @@ async function run(withAnnotations) {
   // Revisit the same pages to distinguish retained imports from repeated DOM/listener leaks.
   for (let i = 0; i < visits; i++) await goTo(2 + Math.floor((i * (pageCount - 2)) / (visits - 1)))
   await goTo(1)
+  const documentCleanAfterNavigation = await evaluate(
+    `document.querySelector('[aria-label="stress.pdf"] > span.size-2') === null`
+  )
   const finalHeap = await heap()
   // Forced debugger GC is measurement overhead; exclude its pauses from UI latency.
   const probes = await evaluate('window.performanceProbe.stalls()')
@@ -333,11 +376,17 @@ async function run(withAnnotations) {
       "document.querySelectorAll('.lepisAnnotationLayer [data-annotation-key]').length"
     )
   }
+  if (process.env.LEPIS_PERF_THUMBNAIL_EDITS) {
+    Object.assign(result, await measureThumbnailEdits())
+  }
   console.log(JSON.stringify(result))
   if (process.env.LEPIS_PERF_REPORT)
     fs.writeFileSync(process.env.LEPIS_PERF_REPORT, JSON.stringify(result, null, 2))
   assert.equal(documentReads, 1, 'Focus and navigation must not reload an unchanged PDF')
-  assert.ok(openingBytes < 8 * 1024 * 1024, 'Opening read too much of the file')
+  assert.ok(
+    openingBytes < Number(process.env.LEPIS_PERF_OPENING_READ_MB ?? 8) * 1024 * 1024,
+    'Opening read too much of the file'
+  )
   assert.ok(result.orphanLayers === 0, 'Evicted pages retained annotation layers without a canvas')
   assert.ok(result.retainedLayers <= 8, 'Annotation DOM exceeded the page cache')
   assert.ok(result.maxLongTaskMs < 250, 'Startup or interface task exceeded 250ms')
@@ -349,8 +398,8 @@ async function run(withAnnotations) {
   assert.ok(result.maxEventLoopDelayMs < 500, 'Renderer stalled for more than 500ms')
   assert.ok(finalHeap - warmedHeap < 30, 'Repeated navigation retained more than 30MB')
   assert.equal(
-    await evaluate(`document.querySelector('[aria-label="stress.pdf"] > .rounded-full') !== null`),
-    false,
+    documentCleanAfterNavigation,
+    true,
     'Navigation and tools must leave the document clean'
   )
   win.webContents.debugger.detach()

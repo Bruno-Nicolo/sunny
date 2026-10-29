@@ -40,7 +40,8 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
           )}
           {document && props.sidebarOpen && (
             <PdfSidebar
-              document={document}
+              document={document.pdf}
+              annotations={document.annotations}
               tab={props.sidebarTab}
               onTabChange={props.onSidebarTabChange}
               page={page}

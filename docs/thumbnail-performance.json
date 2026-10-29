@@ -1,0 +1,323 @@
+{
+  "date": "2026-10-28",
+  "baselineCommit": "c996fdf6ffecebfab4afab3726009b55e3f868d8",
+  "samples": {
+    "before_300": {
+      "annotated": true,
+      "pages": 300,
+      "annotations": 62800,
+      "fileMB": 35.8,
+      "openingReadMB": 7.12,
+      "totalReadMB": 27.9,
+      "openingMs": 1376,
+      "documentReads": 1,
+      "sourceOpeningMs": 26,
+      "toolP95Ms": 102,
+      "toolMaxMs": 161,
+      "pageP95Ms": 217,
+      "slowestStalls": [
+        {
+          "ms": 192,
+          "phase": "opening"
+        },
+        {
+          "ms": 164,
+          "phase": "second round"
+        },
+        {
+          "ms": 148,
+          "phase": "tools"
+        }
+      ],
+      "maxEventLoopDelayMs": 192,
+      "maxLongTaskMs": 131,
+      "maxInteractiveLongTaskMs": 104,
+      "rendererResidentMB": 521.2,
+      "initialHeapMB": 14.5,
+      "warmedHeapMB": 28.2,
+      "finalHeapMB": 27.3,
+      "orphanLayers": 0,
+      "retainedLayers": 3,
+      "retainedEditors": 3400
+    },
+    "after_300": {
+      "annotated": true,
+      "pages": 300,
+      "annotations": 62800,
+      "fileMB": 35.8,
+      "openingReadMB": 7.18,
+      "totalReadMB": 27.4,
+      "openingMs": 1214,
+      "documentReads": 1,
+      "sourceOpeningMs": 8,
+      "toolP95Ms": 100,
+      "toolMaxMs": 120,
+      "pageP95Ms": 249,
+      "slowestStalls": [
+        {
+          "ms": 201,
+          "phase": "first round"
+        },
+        {
+          "ms": 189,
+          "phase": "second round"
+        },
+        {
+          "ms": 185,
+          "phase": "opening"
+        }
+      ],
+      "maxEventLoopDelayMs": 201,
+      "maxLongTaskMs": 129,
+      "maxInteractiveLongTaskMs": 129,
+      "rendererResidentMB": 395.2,
+      "initialHeapMB": 14,
+      "warmedHeapMB": 26.2,
+      "finalHeapMB": 27.5,
+      "orphanLayers": 0,
+      "retainedLayers": 2,
+      "retainedEditors": 3200
+    },
+    "before_1000_first": {
+      "annotated": true,
+      "pages": 1000,
+      "annotations": 22980,
+      "fileMB": 1113.1,
+      "openingReadMB": 17.12,
+      "totalReadMB": 32.69,
+      "openingMs": 1425,
+      "documentReads": 1,
+      "sourceOpeningMs": 10,
+      "toolP95Ms": 104,
+      "toolMaxMs": 146,
+      "pageP95Ms": 234,
+      "slowestStalls": [
+        {
+          "ms": 202,
+          "phase": "opening"
+        },
+        {
+          "ms": 186,
+          "phase": "first round"
+        },
+        {
+          "ms": 176,
+          "phase": "first round"
+        }
+      ],
+      "maxEventLoopDelayMs": 202,
+      "maxLongTaskMs": 138,
+      "maxInteractiveLongTaskMs": 114,
+      "rendererResidentMB": 460.6,
+      "initialHeapMB": 16.4,
+      "warmedHeapMB": 21,
+      "finalHeapMB": 21.2,
+      "orphanLayers": 0,
+      "retainedLayers": 3,
+      "retainedEditors": 3040
+    },
+    "before_1000_repeat": {
+      "annotated": true,
+      "pages": 1000,
+      "annotations": 22980,
+      "fileMB": 1113.1,
+      "openingReadMB": 17.06,
+      "totalReadMB": 32.64,
+      "openingMs": 1930,
+      "documentReads": 1,
+      "sourceOpeningMs": 16,
+      "toolP95Ms": 101,
+      "toolMaxMs": 158,
+      "pageP95Ms": 236,
+      "slowestStalls": [
+        {
+          "ms": 189,
+          "phase": "first round"
+        },
+        {
+          "ms": 184,
+          "phase": "opening"
+        },
+        {
+          "ms": 156,
+          "phase": "second round"
+        }
+      ],
+      "maxEventLoopDelayMs": 189,
+      "maxLongTaskMs": 119,
+      "maxInteractiveLongTaskMs": 112,
+      "rendererResidentMB": 477.1,
+      "initialHeapMB": 18.4,
+      "warmedHeapMB": 18.9,
+      "finalHeapMB": 21.5,
+      "orphanLayers": 0,
+      "retainedLayers": 3,
+      "retainedEditors": 3040
+    },
+    "after_1000": {
+      "annotated": true,
+      "pages": 1000,
+      "annotations": 22980,
+      "fileMB": 1113.1,
+      "openingReadMB": 17.2,
+      "totalReadMB": 33.7,
+      "openingMs": 1513,
+      "documentReads": 1,
+      "sourceOpeningMs": 8,
+      "toolP95Ms": 99,
+      "toolMaxMs": 112,
+      "pageP95Ms": 266,
+      "slowestStalls": [
+        {
+          "ms": 227,
+          "phase": "opening"
+        },
+        {
+          "ms": 210,
+          "phase": "first round"
+        },
+        {
+          "ms": 170,
+          "phase": "second round"
+        }
+      ],
+      "maxEventLoopDelayMs": 227,
+      "maxLongTaskMs": 151,
+      "maxInteractiveLongTaskMs": 129,
+      "rendererResidentMB": 498.9,
+      "initialHeapMB": 15.1,
+      "warmedHeapMB": 19.1,
+      "finalHeapMB": 20.1,
+      "orphanLayers": 0,
+      "retainedLayers": 3,
+      "retainedEditors": 3040
+    },
+    "after_300_opening_outlier_with_edits": {
+      "annotated": true,
+      "thumbnailEditP95Ms": 39,
+      "thumbnailEditMaxMs": 87,
+      "thumbnailEdits": 30,
+      "pdfContentPaintsDuringEdits": 0,
+      "pages": 300,
+      "annotations": 62800,
+      "fileMB": 35.8,
+      "openingReadMB": 7.18,
+      "totalReadMB": 35.81,
+      "openingMs": 2029,
+      "documentReads": 1,
+      "sourceOpeningMs": 10,
+      "toolP95Ms": 104,
+      "toolMaxMs": 116,
+      "pageP95Ms": 334,
+      "slowestStalls": [
+        {
+          "ms": 207,
+          "phase": "first round"
+        },
+        {
+          "ms": 203,
+          "phase": "opening"
+        },
+        {
+          "ms": 176,
+          "phase": "second round"
+        }
+      ],
+      "maxEventLoopDelayMs": 207,
+      "maxLongTaskMs": 138,
+      "maxInteractiveLongTaskMs": 131,
+      "rendererResidentMB": 736.5,
+      "initialHeapMB": 15.6,
+      "warmedHeapMB": 27.8,
+      "finalHeapMB": 28.6,
+      "orphanLayers": 0,
+      "retainedLayers": 3,
+      "retainedEditors": 3400
+    },
+    "after_300_confirmed": {
+      "annotated": true,
+      "pages": 300,
+      "annotations": 62800,
+      "fileMB": 35.8,
+      "openingReadMB": 7.21,
+      "totalReadMB": 28.23,
+      "openingMs": 1236,
+      "documentReads": 1,
+      "sourceOpeningMs": 12,
+      "toolP95Ms": 104,
+      "toolMaxMs": 140,
+      "pageP95Ms": 217,
+      "slowestStalls": [
+        {
+          "ms": 198,
+          "phase": "opening"
+        },
+        {
+          "ms": 161,
+          "phase": "first round"
+        },
+        {
+          "ms": 160,
+          "phase": "second round"
+        }
+      ],
+      "maxEventLoopDelayMs": 198,
+      "maxLongTaskMs": 132,
+      "maxInteractiveLongTaskMs": 105,
+      "rendererResidentMB": 574,
+      "initialHeapMB": 12.5,
+      "warmedHeapMB": 25.9,
+      "finalHeapMB": 26.6,
+      "orphanLayers": 0,
+      "retainedLayers": 3,
+      "retainedEditors": 3400,
+      "thumbnailEditP95Ms": 42,
+      "thumbnailEditMaxMs": 83,
+      "thumbnailEdits": 30,
+      "pdfContentPaintsDuringEdits": 0
+    },
+    "after_review_300": {
+      "date": "2026-10-29",
+      "annotated": true,
+      "pages": 300,
+      "annotations": 62800,
+      "fileMB": 35.8,
+      "openingReadMB": 7.28,
+      "totalReadMB": 27.07,
+      "openingMs": 1431,
+      "documentReads": 1,
+      "sourceOpeningMs": 10,
+      "toolP95Ms": 149,
+      "toolMaxMs": 199,
+      "pageP95Ms": 268,
+      "slowestStalls": [
+        {
+          "ms": 283,
+          "phase": "opening"
+        },
+        {
+          "ms": 267,
+          "phase": "first round"
+        },
+        {
+          "ms": 264,
+          "phase": "second round"
+        }
+      ],
+      "maxEventLoopDelayMs": 283,
+      "maxLongTaskMs": 196,
+      "maxInteractiveLongTaskMs": 167,
+      "rendererResidentMB": 758.5,
+      "initialHeapMB": 13.2,
+      "warmedHeapMB": 26.7,
+      "finalHeapMB": 28,
+      "orphanLayers": 0,
+      "retainedLayers": 3,
+      "retainedEditors": 3400,
+      "thumbnailEditP95Ms": 65,
+      "thumbnailEditMaxMs": 146,
+      "thumbnailEdits": 30,
+      "pdfContentPaintsDuringEdits": 0
+    }
+  }
+}

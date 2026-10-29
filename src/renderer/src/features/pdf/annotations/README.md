@@ -145,3 +145,21 @@ emulation, via `tests/fixtures/focus.mjs`. They retain native input events and a
 editing effects without stealing desktop focus or accepting unrelated keystrokes. The performance
 window is visible, non-focusable and ignores physical mouse input; its measured interactions use
 the app's actual toolbar and navigation handlers.
+
+## Sidebar annotation previews
+
+Visible thumbnails compose current annotation records over a cached PDF bitmap and coalesce
+page-specific changes in animation frames. Pages not yet imported by the editor keep their native
+PDF annotation rendering; thumbnails never trigger imports. Importing editable originals invalidates the page’s base
+bitmap once so they are not drawn twice. Pages without editable originals keep their bitmap. Offscreen thumbnails release their bitmap
+and subscription. The preview painter uses PDF.js viewport conversion for intrinsic page rotation.
+Editor layers update tool and selection state without reconciling annotation records when the
+model revision and viewport are unchanged.
+
+`test:sidebar` includes pixel regressions for highlights, formatted text and pasted images. Set
+`LEPIS_THUMBNAIL_ROTATION` to 90, 180 or 270 when running
+`tests/thumbnail-annotations.integration.mjs` for additional orientations.
+`LEPIS_PERF_THUMBNAIL_EDITS=1` adds a 30-edit thumbnail latency and PDF-render reuse check to the
+performance suite. The configurable larger fixture uses `LEPIS_PERF_PAGES`,
+`LEPIS_PERF_ANNOTATIONS_PER_PAGE` and `LEPIS_PERF_OPENING_READ_MB`.
+See [measurements and reproduction commands](../../../../../../docs/thumbnail-performance.md).

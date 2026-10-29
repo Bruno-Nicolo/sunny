@@ -30,7 +30,9 @@ export class AnnotationModel {
   private readonly sessionId = crypto.randomUUID()
   private pending: Change | null = null
 
-  constructor(private readonly notify: (changed: boolean, key?: string) => void) {}
+  constructor(
+    private readonly notify: (changed: boolean, key: string, pageIndex: number) => void
+  ) {}
 
   get hash(): string {
     return `${this.sessionId}:${this.revision}`
@@ -102,7 +104,7 @@ export class AnnotationModel {
     this.revision++
     const hasContent = (record?: Annotation): boolean =>
       !!record && (record.kind !== 'text' || !!record.text?.length)
-    this.notify(hasContent(before) || hasContent(after), key)
+    this.notify(hasContent(before) || hasContent(after), key, (after ?? before)!.pageIndex)
   }
 
   dispose(): void {

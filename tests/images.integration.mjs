@@ -276,7 +276,7 @@ app
     await evaluate(`window.testCommands.run('undo')`)
     await waitFor(count(2))
     await evaluate(`window.testCommands.run('save')`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') === null`)
     assert.equal(
       (
         saved
@@ -289,7 +289,7 @@ app
     await evaluate(`window.testCommands.run('redo')`)
     await waitFor(count(3))
     await evaluate(`window.testCommands.run('save')`)
-    await waitFor(`document.querySelector('[aria-label="second.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="second.pdf"] > span.size-2') === null`)
     assert.equal(
       (
         saved

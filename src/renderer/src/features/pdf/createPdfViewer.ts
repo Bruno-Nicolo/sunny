@@ -21,6 +21,7 @@ import {
 import { FileRangeTransport } from './fileRangeTransport'
 import { createAnnotationController } from './annotations/createAnnotationController'
 import type { AnnotationOptions } from './annotations/types'
+import type { ThumbnailAnnotations } from './annotations/thumbnailAnnotations'
 import type { TextEditorSettings } from './annotations/text/types'
 import { createKeyboardScroll } from './keyboardScroll'
 import { createPresentationMode } from './createPresentationMode'
@@ -48,7 +49,7 @@ type Options = {
   onLoadingChange(loading: boolean): void
   onPasswordRequest(request: PasswordRequest | null): void
   onError(message: string): void
-  onDocumentReady(document: PDFDocumentProxy): void
+  onDocumentReady(document: PDFDocumentProxy, thumbnails: ThumbnailAnnotations): void
   onTextEditorChange(settings: TextEditorSettings | null): void
   onSearchChange(snapshot: PdfSearchSnapshot): void
 }
@@ -336,7 +337,7 @@ export function createPdfViewer({
       annotations.setDocument(pdfDocument)
       linkService.setDocument(pdfDocument)
       viewer.setDocument(pdfDocument)
-      onDocumentReady(pdfDocument)
+      onDocumentReady(pdfDocument, annotations.thumbnails)
     })
     .catch((error: unknown) => {
       if (destroyed) return

@@ -12,6 +12,7 @@ import { textRect, normalizedRect } from './geometry'
 import { validateImage } from './images/imageFiles'
 import type { TextEditorSettings } from './text/types'
 import type { AnnotationOptions } from './types'
+import type { ThumbnailAnnotations } from './thumbnailAnnotations'
 
 type Options = {
   eventBus: EventBus
@@ -35,6 +36,7 @@ type AnnotationController = {
   commitDraft(): void
   undo(): void
   redo(): void
+  readonly thumbnails: ThumbnailAnnotations
   readonly hash: string
   save(): Promise<Uint8Array>
 }
@@ -53,6 +55,10 @@ export function createAnnotationController({
   let options = initialOptions
   let document: PDFDocumentProxy | null = null
   let formRevision = 0
+  let resolveInitialized!: () => void
+  const initialized = new Promise<void>((resolve) => {
+    resolveInitialized = resolve
+  })
   let ready = false
   let permitted = false
   let selected: string | null = null
@@ -64,22 +70,20 @@ export function createAnnotationController({
   const pages = new Map<number, AnnotationLayer>()
   const imports = new Map<number, Promise<void>>()
   const canEdit = (): boolean => ready && permitted && options.active && !signal.aborted
-  const model = new AnnotationModel((changed, key) => {
+  const thumbnailListeners = new Map<number, Set<(baseChanged: boolean) => void>>()
+  const model = new AnnotationModel((changed, key, pageIndex) => {
     if (signal.aborted) return
     if (selected && !model.records.has(selected)) selected = null
-    if (historyAction && key && model.records.has(key)) selected = key
-    render(key)
+    if (historyAction && model.records.has(key)) selected = key
+    render(pageIndex)
     refreshText()
+    for (const listener of [...(thumbnailListeners.get(pageIndex) ?? [])]) listener(false)
     if (changed) onDirtyChange(true)
   })
 
-  function render(key?: string): void {
-    const pageIndex = key
-      ? (model.records.get(key) ?? model.originals.get(key))?.pageIndex
-      : undefined
-    for (const [index, layer] of pages) {
-      if (pageIndex === undefined || pageIndex === index) layer.render(options.annotationTool)
-    }
+  function render(pageIndex?: number): void {
+    if (pageIndex !== undefined) pages.get(pageIndex)?.render(options.annotationTool)
+    else for (const layer of pages.values()) layer.render(options.annotationTool)
   }
 
   function refreshText(): void {
@@ -190,10 +194,12 @@ export function createAnnotationController({
     for (const record of records) {
       model.import(record)
     }
+    if (!records.length) return
     document.annotationStorage.setOverlayAnnotationIds(
       pageIndex,
       records.map((record) => record.originalId!)
     )
+    for (const listener of [...(thumbnailListeners.get(pageIndex) ?? [])]) listener(true)
   }
 
   function attachPages(): void {
@@ -231,8 +237,12 @@ export function createAnnotationController({
       page.draw = (): Promise<void> => {
         if (pending) return pending
         const drawGeneration = generation
-        const prepare = imports.get(index) ?? importPage(index)
-        imports.set(index, prepare)
+        let prepare = imports.get(index)
+        if (!prepare) {
+          prepare = importPage(index)
+          imports.set(index, prepare)
+          void prepare.catch(() => imports.delete(index))
+        }
         pending = prepare
           .then(async () => {
             if (signal.aborted || generation !== drawGeneration) return
@@ -403,9 +413,11 @@ export function createAnnotationController({
     'abort',
     () => {
       if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
+      resolveInitialized()
       model.dispose()
       pages.clear()
       imports.clear()
+      thumbnailListeners.clear()
       document = null
     },
     { once: true }
@@ -423,12 +435,30 @@ export function createAnnotationController({
   }
 
   return {
+    thumbnails: {
+      // Wait for an existing editor import; thumbnails alone keep originals on the PDF rendering path.
+      async prepare(pageIndex) {
+        await initialized
+        await imports.get(pageIndex)
+      },
+      forPage: (pageIndex) => model.forPage(pageIndex),
+      subscribe(pageIndex, listener) {
+        let listeners = thumbnailListeners.get(pageIndex)
+        if (!listeners) thumbnailListeners.set(pageIndex, (listeners = new Set()))
+        listeners.add(listener)
+        return () => {
+          listeners.delete(listener)
+          if (!listeners.size) thumbnailListeners.delete(pageIndex)
+        }
+      }
+    },
     setDocument(value: PDFDocumentProxy): void {
       document = value
     },
     initialize(canAnnotate: boolean): void {
       permitted = canAnnotate
       ready = true
+      resolveInitialized()
       attachPages()
       refreshText()
     },

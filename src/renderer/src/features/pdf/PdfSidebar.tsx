@@ -6,10 +6,15 @@ import { Sidebar, SidebarContent } from '@/components/ui/sidebar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import type { PdfDocumentViewProps } from './types'
+import {
+  paintThumbnailAnnotations,
+  type ThumbnailAnnotations
+} from './annotations/thumbnailAnnotations'
 
 type Outline = NonNullable<Awaited<ReturnType<PDFDocumentProxy['getOutline']>>>
 type Props = {
   document: PDFDocumentProxy
+  annotations: ThumbnailAnnotations
   tab: PdfDocumentViewProps['sidebarTab']
   onTabChange: PdfDocumentViewProps['onSidebarTabChange']
   page: number
@@ -24,6 +29,7 @@ type ThumbnailQueue = (render: () => Promise<void>) => Promise<void>
 
 const PageThumbnail = memo(function PageThumbnail({
   document,
+  annotations,
   number,
   selected,
   active,
@@ -32,6 +38,7 @@ const PageThumbnail = memo(function PageThumbnail({
   enqueue
 }: {
   document: PDFDocumentProxy
+  annotations: ThumbnailAnnotations
   number: number
   selected: boolean
   active: boolean
@@ -48,54 +55,89 @@ const PageThumbnail = memo(function PageThumbnail({
     const canvas = canvasRef.current
     if (!button || !canvas || !active) return
     let task: RenderTask | null = null
+    let redraw: (() => void) | null = null
+    let frame: number | null = null
+    const base = window.document.createElement('canvas')
+    base.width = base.height = 0
+    let unsubscribe: (() => void) | undefined
+    const scheduleRedraw = (): void => {
+      if (!redraw || frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        redraw?.()
+      })
+    }
     const cancel = (): void => {
+      unsubscribe?.()
+      unsubscribe = undefined
+      redraw = null
+      if (frame !== null) cancelAnimationFrame(frame)
+      frame = null
       task?.cancel()
       task = null
     }
     let generation = 0
     let visible = false
+    const render = (): void => {
+      const current = ++generation
+      cancel()
+      canvas.width = canvas.height = base.width = base.height = 0
+      if (!visible) return
+      unsubscribe = annotations.subscribe(number - 1, (baseChanged) => {
+        if (baseChanged) render()
+        else scheduleRedraw()
+      })
+      void enqueue(async () => {
+        if (current !== generation) return
+        await new Promise<void>((resolve) => requestIdleCallback(() => resolve(), { timeout: 100 }))
+        if (current !== generation) return
+        const pdfPage = await document.getPage(number)
+        if (current !== generation) {
+          onReleasePage(pdfPage)
+          return
+        }
+        try {
+          await annotations.prepare(number - 1)
+          if (current !== generation) return
+          setError(false)
+          const size = pdfPage.getViewport({ scale: 1 })
+          const viewport = pdfPage.getViewport({ scale: 150 / size.width })
+          button.style.setProperty('--page-ratio', `${viewport.width} / ${viewport.height}`)
+          const ratio = window.devicePixelRatio || 1
+          canvas.width = base.width = Math.ceil(viewport.width * ratio)
+          canvas.height = base.height = Math.ceil(viewport.height * ratio)
+          const renderTask = pdfPage.render({
+            canvas: base,
+            viewport,
+            transform: [ratio, 0, 0, ratio, 0, 0]
+          })
+          task = renderTask
+          await renderTask.promise
+          if (current !== generation) return
+          const context = canvas.getContext('2d')!
+          redraw = () => {
+            context.setTransform(1, 0, 0, 1, 0, 0)
+            context.clearRect(0, 0, canvas.width, canvas.height)
+            context.drawImage(base, 0, 0)
+            context.setTransform(ratio, 0, 0, ratio, 0, 0)
+            paintThumbnailAnnotations(context, viewport, annotations.forPage(number - 1))
+          }
+          redraw()
+        } finally {
+          task = null
+          onReleasePage(pdfPage)
+        }
+      }).catch((cause: unknown) => {
+        if (current !== generation) return
+        if (cause instanceof Error && cause.name === 'RenderingCancelledException') return
+        setError(true)
+      })
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting === visible) return
         visible = entry.isIntersecting
-        const current = ++generation
-        cancel()
-        canvas.width = canvas.height = 0
-        if (!visible) return
-        void enqueue(async () => {
-          if (current !== generation) return
-          await new Promise<void>((resolve) =>
-            requestIdleCallback(() => resolve(), { timeout: 100 })
-          )
-          if (current !== generation) return
-          const pdfPage = await document.getPage(number)
-          if (current !== generation) {
-            onReleasePage(pdfPage)
-            return
-          }
-          try {
-            const size = pdfPage.getViewport({ scale: 1 })
-            const viewport = pdfPage.getViewport({ scale: 150 / size.width })
-            button.style.setProperty('--page-ratio', `${viewport.width} / ${viewport.height}`)
-            const ratio = window.devicePixelRatio || 1
-            canvas.width = Math.ceil(viewport.width * ratio)
-            canvas.height = Math.ceil(viewport.height * ratio)
-            const renderTask = pdfPage.render({
-              canvas,
-              viewport,
-              transform: [ratio, 0, 0, ratio, 0, 0]
-            })
-            task = renderTask
-            await renderTask.promise
-          } finally {
-            task = null
-            onReleasePage(pdfPage)
-          }
-        }).catch((cause: unknown) => {
-          if (current !== generation) return
-          if (cause instanceof Error && cause.name === 'RenderingCancelledException') return
-          setError(true)
-        })
+        render()
       },
       { root: button.closest('[data-slot="tabs-content"]'), rootMargin: '200px' }
     )
@@ -104,9 +146,9 @@ const PageThumbnail = memo(function PageThumbnail({
       generation++
       observer.disconnect()
       cancel()
-      canvas.width = canvas.height = 0
+      canvas.width = canvas.height = base.width = base.height = 0
     }
-  }, [document, number, active, onReleasePage, enqueue])
+  }, [document, annotations, number, active, onReleasePage, enqueue])
 
   useEffect(() => {
     if (selected && active) buttonRef.current?.scrollIntoView({ block: 'nearest' })
@@ -222,6 +264,7 @@ function OutlineItems({
 
 export function PdfSidebar({
   document,
+  annotations,
   tab,
   onTabChange,
   page,
@@ -277,6 +320,7 @@ export function PdfSidebar({
               <PageThumbnail
                 key={index}
                 document={document}
+                annotations={annotations}
                 number={index + 1}
                 selected={page === index + 1}
                 active={active}

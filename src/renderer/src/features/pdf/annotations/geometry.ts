@@ -23,3 +23,24 @@ export function normalizedRect(first: number[], second: number[]): PdfRect {
     Math.max(first[1], second[1])
   ]
 }
+
+// Orient text and image content inside its axis-aligned page bounds.
+export function annotationOrientation(
+  record: Annotation,
+  rotation: number,
+  scale: number
+): { angle: number; width: number; height: number; x: number; y: number } {
+  const intrinsic = record.kind === 'text' ? record.rotation : (record.image?.rotation ?? 0)
+  const angle = (rotation - intrinsic + 360) % 360
+  const width =
+    (intrinsic % 180 ? record.rect[3] - record.rect[1] : record.rect[2] - record.rect[0]) * scale
+  const height =
+    (intrinsic % 180 ? record.rect[2] - record.rect[0] : record.rect[3] - record.rect[1]) * scale
+  return {
+    angle,
+    width,
+    height,
+    x: angle === 90 ? height : angle === 180 ? width : 0,
+    y: angle === 180 ? height : angle === 270 ? width : 0
+  }
+}

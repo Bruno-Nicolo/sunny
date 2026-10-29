@@ -1,7 +1,7 @@
 import type { PDFPageView } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import type { Annotation, AnnotationModel, PdfRect } from './model'
 import type { AnnotationTool } from './types'
-import { normalizedRect } from './geometry'
+import { annotationOrientation, normalizedRect } from './geometry'
 
 type Options = {
   page: PDFPageView
@@ -23,6 +23,7 @@ export class AnnotationLayer {
   private readonly lifetime = new AbortController()
   private readonly renderedRecords = new Map<string, Annotation>()
   private renderedViewport = ''
+  private renderedModelHash = ''
   private lastSelected: string | null = null
   private tool: AnnotationTool = 'none'
   private editingKey: string | null = null
@@ -104,6 +105,10 @@ export class AnnotationLayer {
       if (next) this.editors.get(next)?.classList.add('selectedEditor')
       this.lastSelected = next
     }
+    if (this.element.parentNode !== page.div) page.div.append(this.element)
+    const modelHash = model.hash
+    if (!viewportChanged && modelHash === this.renderedModelHash) return
+    this.renderedModelHash = modelHash
     for (const [key, element] of this.editors) {
       if (!model.records.has(key)) {
         element.remove()
@@ -162,8 +167,7 @@ export class AnnotationLayer {
         input.style.fontSize = `${record.fontSize! * page.viewport.scale}px`
         input.style.color = record.color
         input.contentEditable = String(this.editingKey === record.key && canEdit())
-        const angle = (page.viewport.rotation - record.rotation + 360) % 360
-        this.orient(input, record, angle)
+        this.orient(input, record)
       }
       if (highlightPath) {
         const points = record.quads!
@@ -188,12 +192,7 @@ export class AnnotationLayer {
         contour.firstElementChild!.setAttribute('d', path)
       }
       const canvas = editor.querySelector<HTMLCanvasElement>('canvas')
-      if (canvas)
-        this.orient(
-          canvas,
-          record,
-          (page.viewport.rotation - (record.image?.rotation ?? 0) + 360) % 360
-        )
+      if (canvas) this.orient(canvas, record)
       if (canvas && record.image && canvas.dataset.asset !== record.image.id) {
         canvas.width = record.image.canvas.width
         canvas.height = record.image.canvas.height
@@ -207,28 +206,15 @@ export class AnnotationLayer {
         this.highlightDrawings.delete(drawing)
       }
     }
-    if (this.element.parentNode !== page.div) page.div.append(this.element)
   }
 
-  private orient(element: HTMLElement, record: Annotation, angle: number): void {
-    const scale = this.options.page.viewport.scale
-    const intrinsic = record.kind === 'text' ? record.rotation : (record.image?.rotation ?? 0)
-    const width =
-      (intrinsic % 180 ? record.rect[3] - record.rect[1] : record.rect[2] - record.rect[0]) * scale
-    const height =
-      (intrinsic % 180 ? record.rect[2] - record.rect[0] : record.rect[3] - record.rect[1]) * scale
+  private orient(element: HTMLElement, record: Annotation): void {
+    const { rotation, scale } = this.options.page.viewport
+    const { width, height, x, y, angle } = annotationOrientation(record, rotation, scale)
     element.style.width = `${width}px`
     element.style.height = `${height}px`
     element.style.transformOrigin = '0 0'
-    const translate =
-      angle === 90
-        ? `translate(${height}px, 0)`
-        : angle === 180
-          ? `translate(${width}px, ${height}px)`
-          : angle === 270
-            ? `translate(0, ${width}px)`
-            : ''
-    element.style.transform = `${translate} rotate(${angle}deg)`
+    element.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg)`
   }
 
   dispose(): void {
