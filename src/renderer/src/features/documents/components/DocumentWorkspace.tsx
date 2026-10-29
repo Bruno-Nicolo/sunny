@@ -1,7 +1,6 @@
-import { File } from 'lucide-react'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
-import { Button } from '@/components/ui/button'
+import { WelcomeScreen } from './WelcomeScreen'
 import { PdfDocumentView } from '@/features/pdf/PdfDocumentView'
 import type { PdfDocumentHandle, PdfDocumentViewProps, ViewerSnapshot } from '@/features/pdf/types'
 import { cn } from '@/lib/utils'
@@ -17,6 +16,7 @@ type Props = {
   annotationTool: AnnotationTool
   highlightColor: string
   onOpen(): void
+  onOpenPath(path: string): Promise<void>
   onViewerHandle(id: string, handle: PdfDocumentHandle | null): void
   onDirtyChange(id: string, dirty: boolean): void
   onSnapshot(id: string, view: ViewerSnapshot): void
@@ -34,6 +34,7 @@ export function DocumentWorkspace({
   annotationTool,
   highlightColor,
   onOpen,
+  onOpenPath,
   onViewerHandle,
   onDirtyChange,
   onSnapshot,
@@ -42,20 +43,7 @@ export function DocumentWorkspace({
 }: Props): React.JSX.Element {
   return (
     <section className="relative min-h-0 flex-1 bg-muted/45">
-      {tabs.length === 0 && ready && (
-        <div className="absolute inset-0 grid place-items-center">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="grid size-14 place-items-center rounded-2xl border bg-background shadow-sm">
-              <File className="size-6 text-muted-foreground" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Open a PDF</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Drop a document here or press ⌘O</p>
-            </div>
-            <Button onClick={onOpen}>Open PDF</Button>
-          </div>
-        </div>
-      )}
+      {tabs.length === 0 && ready && <WelcomeScreen onOpen={onOpen} onOpenPath={onOpenPath} />}
       {tabs.map((tab) => (
         <div
           key={tab.id}

@@ -304,6 +304,7 @@ function App(): React.JSX.Element {
           annotationTool={annotationTool}
           highlightColor={highlightColor}
           onOpen={() => void openDialog()}
+          onOpenPath={(path) => openPaths([path])}
           onViewerHandle={registerDocumentViewer}
           onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
           onSnapshot={(id, view) => updateTab(id, { view })}

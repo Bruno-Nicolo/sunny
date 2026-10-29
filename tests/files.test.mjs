@@ -10,7 +10,14 @@ import ts from 'typescript'
 // Load the filesystem modules without starting Electron, using the project's TypeScript compiler.
 const modulesPath = await mkdtemp(join(tmpdir(), 'lepis-test-modules-'))
 after(() => rm(modulesPath, { recursive: true, force: true }))
-for (const name of ['pdf-sources', 'atomic-write', 'pdf-files', 'session', 'drafts']) {
+for (const name of [
+  'pdf-sources',
+  'atomic-write',
+  'pdf-files',
+  'session',
+  'drafts',
+  'suggested-pdfs'
+]) {
   const source = await readFile(new URL(`../src/main/${name}.ts`, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
@@ -37,6 +44,51 @@ const { loadSession, saveSession } = await import(
 )
 
 const { createDraftStore } = await import(pathToFileURL(join(modulesPath, 'drafts.mjs')).href)
+const { listDownloadPdfs } = await import(
+  pathToFileURL(join(modulesPath, 'suggested-pdfs.mjs')).href
+)
+
+test('Downloads suggestions list only direct PDF files, newest first, capped at eight', async (t) => {
+  const { directory } = await fixture(t)
+  await rm(join(directory, 'document.pdf'))
+  await mkdir(join(directory, 'folder.pdf'))
+  await writeFile(join(directory, 'folder.pdf', 'nested.pdf'), original)
+  await writeFile(join(directory, 'notes.txt'), 'not a PDF')
+  for (let index = 0; index < 10; index++) {
+    const name = `download-${index}.${index === 9 ? 'PDF' : 'pdf'}`
+    const filePath = join(directory, name)
+    await writeFile(filePath, original)
+    await utimes(filePath, 1000 + index, 1000 + index)
+  }
+  const suggestions = await listDownloadPdfs(directory)
+  assert.equal(suggestions.length, 8)
+  assert.deepEqual(
+    suggestions.map((file) => file.name),
+    [
+      'download-9.PDF',
+      'download-8.pdf',
+      'download-7.pdf',
+      'download-6.pdf',
+      'download-5.pdf',
+      'download-4.pdf',
+      'download-3.pdf',
+      'download-2.pdf'
+    ]
+  )
+  assert.deepEqual(suggestions[0], {
+    path: join(directory, 'download-9.PDF'),
+    name: 'download-9.PDF',
+    size: original.length,
+    mtimeMs: 1009000
+  })
+})
+
+test('Downloads suggestions distinguish an empty directory from an unreadable path', async (t) => {
+  const { directory } = await fixture(t)
+  await rm(join(directory, 'document.pdf'))
+  assert.deepEqual(await listDownloadPdfs(directory), [])
+  await assert.rejects(listDownloadPdfs(join(directory, 'missing')), { code: 'ENOENT' })
+})
 
 const original = Buffer.from('%PDF-1.7\noriginal\n%%EOF\n')
 const edited = Buffer.from('%PDF-1.7\nedited annotation\n%%EOF\n')

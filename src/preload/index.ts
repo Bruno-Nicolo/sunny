@@ -36,6 +36,7 @@ const api: LepisApi = {
   loadDrafts: () => ipcRenderer.invoke('draft:load'),
   deleteDraft: (path) => ipcRenderer.invoke('draft:delete', path),
   openPdfDialog: () => ipcRenderer.invoke('pdf:open-dialog'),
+  listDownloadPdfs: () => ipcRenderer.invoke('pdf:list-downloads'),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   readPdf: (path: string) => ipcRenderer.invoke('pdf:read', path),
   releasePdfSource: (source) => ipcRenderer.invoke('pdf:release-source', source),

@@ -6,6 +6,11 @@ export type PdfFileStats = {
   size: number
 }
 
+export type SuggestedPdf = PdfFileStats & {
+  path: string
+  name: string
+}
+
 export type PdfSource =
   { kind: 'file'; url: string; length: number } | { kind: 'memory'; data: ArrayBuffer }
 
@@ -58,6 +63,7 @@ export interface LepisApi {
   loadDrafts(): Promise<PdfDraft[]>
   deleteDraft(path: string): Promise<void>
   openPdfDialog(): Promise<OpenedPdf[]>
+  listDownloadPdfs(): Promise<SuggestedPdf[]>
   getPathForFile(file: File): string
   readPdf(path: string): Promise<OpenedPdf>
   releasePdfSource(source: PdfSource): Promise<void>

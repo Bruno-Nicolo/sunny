@@ -14,6 +14,7 @@ import { createDraftStore } from './drafts'
 import { loadSession, saveSession } from './session'
 import { confirmWindowClose, getMainWindow } from './window'
 import { registerAiIpc } from './ai/ipc'
+import { listDownloadPdfs } from './suggested-pdfs'
 
 export function registerIpc(): void {
   const userDataPath = app.getPath('userData')
@@ -24,6 +25,7 @@ export function registerIpc(): void {
   ipcMain.handle('draft:load', () => drafts.load())
   ipcMain.handle('draft:delete', (_event, path: string) => drafts.remove(path))
   ipcMain.handle('pdf:open-dialog', () => openPdfDialog(getMainWindow()))
+  ipcMain.handle('pdf:list-downloads', () => listDownloadPdfs(app.getPath('downloads')))
   ipcMain.handle('pdf:read', (_event, filePath: string) => readPdf(filePath))
   ipcMain.handle('pdf:release-source', (_event, source: PdfSource) => releasePdfSource(source))
   ipcMain.handle('pdf:stat', (_event, filePath: string) => statPdf(filePath))
