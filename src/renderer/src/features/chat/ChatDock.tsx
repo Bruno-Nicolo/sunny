@@ -9,6 +9,8 @@ const ChatPanel = lazy(() =>
 )
 
 type Props = {
+  selection: { tabId: string; attachments: ChatAttachment[] } | null
+  onSelectionConsumed(): void
   open: boolean
   onOpenChange(open: boolean): void
   tabs: Tab[]
@@ -19,6 +21,8 @@ type Props = {
 }
 
 export function ChatDock({
+  selection,
+  onSelectionConsumed,
   open,
   onOpenChange,
   tabs,
@@ -171,6 +175,8 @@ export function ChatDock({
             <Suspense fallback={<p className="p-4 text-sm">Opening AI chat…</p>}>
               <ChatPanel
                 key={tab.path}
+                selectedAttachments={selection?.tabId === tab.id ? selection.attachments : null}
+                onSelectionConsumed={onSelectionConsumed}
                 tab={tab}
                 active={tab.id === activeId}
                 visible={open && tab.id === activeId}

@@ -7,6 +7,7 @@ import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
 import { PdfSidebar } from './PdfSidebar'
 import { PdfSearchInput } from './PdfSearchInput'
+import { TextSelectionPopover } from './TextSelectionPopover'
 
 export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProps>(
   function PdfDocumentView(props, ref) {
@@ -53,6 +54,14 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
             />
           )}
           <div className="relative min-w-0 flex-1">
+            {props.active && props.annotationTool === 'none' && !loading && (
+              <TextSelectionPopover
+                containerRef={containerRef}
+                canAnnotate={props.canAnnotate}
+                handle={handle}
+                onAskAI={props.onAskAI}
+              />
+            )}
             <PdfSearchInput
               active={props.active}
               request={searchRequest}

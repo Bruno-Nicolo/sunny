@@ -200,6 +200,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       },
       selectChatRegion: (callback) => controllerRef.current?.selectChatRegion(callback),
       attachSelectedText: () => controllerRef.current?.attachSelectedText() ?? [],
+      highlightSelectedText: () => controllerRef.current?.highlightSelectedText(),
       showCitation: (source) => controllerRef.current?.showCitation(source),
       openSearch() {
         setSearchRequest((request) => (request ?? 0) + 1)

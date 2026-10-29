@@ -30,6 +30,7 @@ export type PdfDocumentHandle = {
   ): Promise<IndexedPdf>
   selectChatRegion(callback: ((attachment: ChatAttachment) => void) | null): void
   attachSelectedText(): ChatAttachment[]
+  highlightSelectedText(): void
   showCitation(source: DocumentSource): void
   readonly revision: string
   openSearch(): void
@@ -64,6 +65,7 @@ export type PdfSearchOptions = {
 }
 
 export type PdfDocumentViewProps = AnnotationOptions & {
+  canAnnotate: boolean
   sidebarOpen: boolean
   sidebarTab: 'pages' | 'outline'
   onSidebarTabChange(tab: 'pages' | 'outline'): void
@@ -73,6 +75,7 @@ export type PdfDocumentViewProps = AnnotationOptions & {
   initialScrollTop: number
   initialRotation: number
   initialTwoPageView: boolean
+  onAskAI(attachments: ChatAttachment[]): void
   onDirtyChange(dirty: boolean): void
   onSnapshot(snapshot: ViewerSnapshot): void
   onError(message: string): void

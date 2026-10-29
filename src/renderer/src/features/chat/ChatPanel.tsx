@@ -67,6 +67,8 @@ import { applyChatEvent } from '../../../../shared/chat-work'
 import './chat.css'
 
 type Props = {
+  selectedAttachments: ChatAttachment[] | null
+  onSelectionConsumed(): void
   tab: Tab
   active: boolean
   visible: boolean
@@ -78,6 +80,8 @@ type Props = {
 }
 
 export function ChatPanel({
+  selectedAttachments,
+  onSelectionConsumed,
   tab,
   active,
   visible,
@@ -104,6 +108,14 @@ export function ChatPanel({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
+  const [previousSelection, setPreviousSelection] = useState<ChatAttachment[] | null>(null)
+  if (selectedAttachments !== previousSelection) {
+    setPreviousSelection(selectedAttachments)
+    if (selectedAttachments) {
+      setAttachments((current) => [...current, ...selectedAttachments])
+      setHistoryOpen(false)
+    }
+  }
   const [summarize, setSummarize] = useState(false)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [forking, setForking] = useState(false)
@@ -117,12 +129,16 @@ export function ChatPanel({
   const statusRef = useRef<AiStatus | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const selectedTextRef = useRef<ChatAttachment[]>([])
+  useEffect(() => {
+    if (!selectedAttachments) return
+    onSelectionConsumed()
+  }, [selectedAttachments, onSelectionConsumed])
   const statusLoaded = Boolean(status)
   useEffect(() => {
     if (visible && statusLoaded && !historyOpen && !settingsOpen) {
       composerRef.current?.focus({ preventScroll: true })
     }
-  }, [visible, statusLoaded, historyOpen, settingsOpen])
+  }, [visible, statusLoaded, historyOpen, settingsOpen, selectedAttachments])
   const sourceRef = useRef(tab.source)
   const activeRef = useRef(active)
   const showError = (error: unknown): void =>

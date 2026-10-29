@@ -15,6 +15,7 @@ type Props = {
   onSidebarTabChange: PdfDocumentViewProps['onSidebarTabChange']
   annotationTool: AnnotationTool
   highlightColor: string
+  onAskAI: PdfDocumentViewProps['onAskAI']
   onOpen(): void
   onOpenPath(path: string): Promise<void>
   onViewerHandle(id: string, handle: PdfDocumentHandle | null): void
@@ -33,6 +34,7 @@ export function DocumentWorkspace({
   onSidebarTabChange,
   annotationTool,
   highlightColor,
+  onAskAI,
   onOpen,
   onOpenPath,
   onViewerHandle,
@@ -51,6 +53,8 @@ export function DocumentWorkspace({
         >
           <PdfDocumentView
             ref={(handle) => onViewerHandle(tab.id, handle)}
+            canAnnotate={tab.view.canAnnotate}
+            onAskAI={onAskAI}
             source={tab.source}
             initialPage={tab.view.page}
             initialScale={tab.view.scale}

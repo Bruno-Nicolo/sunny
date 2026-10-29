@@ -699,23 +699,26 @@ app
       `document.querySelector('.visible .textLayer')?.textContent.includes('Photosynthesis')`
     )
 
+    await click('Toggle AI chat')
+    await evaluate(`(() => {
+      const span = document.querySelector('.visible .textLayer span');
+      span.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+      const range = document.createRange(); range.selectNodeContents(span);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    })()`)
+    await waitFor(`document.querySelector('[aria-label="Text selection actions"]')`)
     await evaluate(
-      `(() => { const text = document.querySelector('.visible .textLayer span').firstChild; const range = document.createRange(); range.selectNodeContents(text); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`
-    )
-    await evaluate(
-      `document.querySelector('[aria-label="Add attachment"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
-    )
-    await waitFor(`document.querySelector('[role="menuitem"]')`)
-    await evaluate(
-      `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent.includes('Attach text')).click()`
+      `Array.from(document.querySelectorAll('[aria-label="Text selection actions"] button')).find(button => button.textContent.includes('Ask AI')).click()`
     )
     await waitFor(`document.querySelector('[aria-label="Remove selection on page 1"]')`)
+    console.log('PASS: Ask AI opens the chat with selected PDF text attached')
     await evaluate(
       `document.querySelector('[aria-label="Add attachment"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
     )
     await waitFor(`document.querySelector('[role="menuitem"]')`)
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent.includes('Attach selection')).click()`
+      `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent.includes('Attach pdf region')).click()`
     )
     await waitFor(`document.querySelector('.visible .chat-region-mode') !== null`)
     const bounds = await evaluate(
@@ -795,7 +798,7 @@ app
       if (Date.now() > saveDeadline) throw new Error('Annotation save timed out')
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
-    await waitFor(`document.querySelector('[aria-label="first.pdf"] > .rounded-full') === null`)
+    await waitFor(`document.querySelector('[aria-label="first.pdf"] > span.size-2') === null`)
     await click('Highlight text')
     await click('Close first.pdf')
     await waitFor(`document.querySelector('[aria-label="first.pdf"]') === null`)

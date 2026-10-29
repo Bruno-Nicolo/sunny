@@ -71,6 +71,11 @@ async function highlightText(text, count) {
     window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
   })()`)
   await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === ${count}`)
+  assert.equal(
+    await evaluate(`document.querySelector('[aria-label="Text selection actions"]')`),
+    null,
+    'An active annotation tool must suppress the selection popover'
+  )
 }
 
 function pressKey(keyCode) {
@@ -101,6 +106,41 @@ app
     })()`)
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
+    )
+    await waitFor(`document.querySelector('.visible .textLayer span') !== null`)
+    const selectWithoutTool = () =>
+      evaluate(`(() => {
+      const span = document.querySelector('.visible .textLayer span');
+      span.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+      const range = document.createRange(); range.selectNodeContents(span);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+      document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    })()`)
+    await selectWithoutTool()
+    await waitFor(`document.querySelector('[aria-label="Text selection actions"]') !== null`)
+    assert.ok(await evaluate(`window.getSelection().toString().length > 0`))
+    await waitFor(`(() => {
+      const popover = document.querySelector('[aria-label="Text selection actions"]').getBoundingClientRect();
+      const selection = window.getSelection().getRangeAt(0).getClientRects()[0];
+      return Math.abs(popover.right - selection.right) < 2 && popover.bottom < selection.top;
+    })()`)
+
+    pressKey('Escape')
+    await waitFor(`!document.querySelector('[aria-label="Text selection actions"]')`)
+    await selectWithoutTool()
+    await waitFor(`document.querySelector('[aria-label="Text selection actions"]') !== null`)
+    await evaluate(`document.querySelector('[aria-label="Text selection actions"] button').click()`)
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 1`)
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed')`
+      ),
+      'false'
+    )
+    await evaluate(`void window.testCommands.run('undo')`)
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 0`)
+    console.log(
+      'PASS: selection popover preserves text, dismisses with Escape and highlights without activating a tool'
     )
     await chooseColor('Yellow', 'Pink')
     await waitFor(

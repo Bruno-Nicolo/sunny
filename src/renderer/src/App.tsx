@@ -16,6 +16,7 @@ import { RecoveryDialog } from '@/features/documents/components/RecoveryDialog'
 import { FileConflictDialog } from '@/features/documents/components/FileConflictDialog'
 import { useAnnotationInsertion } from '@/features/pdf/annotations/useAnnotationInsertion'
 import { defaultHighlightColor } from '@/features/pdf/annotations/highlight/colors'
+import type { ChatAttachment } from '../../shared/ai'
 import { ChatDock } from '@/features/chat/ChatDock'
 
 function App(): React.JSX.Element {
@@ -28,6 +29,11 @@ function App(): React.JSX.Element {
   const [sidebarTab, setSidebarTab] = useState<PdfDocumentViewProps['sidebarTab']>('pages')
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
   const [chatOpen, setChatOpen] = useState(false)
+  const [chatSelection, setChatSelection] = useState<{
+    tabId: string
+    attachments: ChatAttachment[]
+  } | null>(null)
+  const consumeChatSelection = useCallback(() => setChatSelection(null), [])
   const [theme, setTheme] = useState<SessionState['theme']>('system')
   const [message, setMessage] = useState<string | null>(null)
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -287,6 +293,8 @@ function App(): React.JSX.Element {
       )}
 
       <ChatDock
+        selection={chatSelection}
+        onSelectionConsumed={consumeChatSelection}
         open={chatOpen}
         onOpenChange={setChatOpen}
         tabs={tabs}
@@ -295,6 +303,11 @@ function App(): React.JSX.Element {
         onSelectionTool={() => setAnnotationTool('none')}
       >
         <DocumentWorkspace
+          onAskAI={(attachments) => {
+            if (!activeId) return
+            setChatSelection({ tabId: activeId, attachments })
+            setChatOpen(true)
+          }}
           tabs={tabs}
           activeId={activeId}
           ready={ready}

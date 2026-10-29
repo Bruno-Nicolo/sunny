@@ -365,6 +365,7 @@ export function createPdfViewer({
     prepareChatDocument: chat.index,
     selectChatRegion: chat.selectRegion,
     attachSelectedText: chat.selectedText,
+    highlightSelectedText: annotations.highlightSelection,
     showCitation: chat.cite,
     releasePageResources(page) {
       if (

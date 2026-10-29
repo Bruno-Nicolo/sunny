@@ -26,6 +26,7 @@ type Options = {
 }
 
 type AnnotationController = {
+  highlightSelection(): void
   setDocument(document: PDFDocumentProxy): void
   initialize(canAnnotate: boolean): void
   setOptions(options: AnnotationOptions): void
@@ -284,7 +285,7 @@ export function createAnnotationController({
   }
 
   function highlightSelection(): void {
-    if (!canEdit() || options.annotationTool !== 'highlight' || pointerSelection) return
+    if (!canEdit() || pointerSelection) return
     const selection = window.getSelection()
     if (!selection?.rangeCount || selection.isCollapsed) return
     if (!(
@@ -349,7 +350,7 @@ export function createAnnotationController({
       if (selectionFrame !== null) return
       selectionFrame = requestAnimationFrame(() => {
         selectionFrame = null
-        highlightSelection()
+        if (options.annotationTool === 'highlight') highlightSelection()
       })
     },
     { signal }
@@ -366,7 +367,7 @@ export function createAnnotationController({
     'pointerup',
     () => {
       pointerSelection = false
-      highlightSelection()
+      if (options.annotationTool === 'highlight') highlightSelection()
     },
     { signal }
   )
@@ -435,6 +436,7 @@ export function createAnnotationController({
   }
 
   return {
+    highlightSelection,
     thumbnails: {
       // Wait for an existing editor import; thumbnails alone keep originals on the PDF rendering path.
       async prepare(pageIndex) {
