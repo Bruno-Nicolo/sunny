@@ -5,6 +5,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import type { DocumentSource } from '../../../../shared/ai'
 import { rehypeStreamText } from './rehypeStreamText'
+import { remarkLatexMath } from './remarkLatexMath'
 
 type CitationProps = {
   sources?: DocumentSource[]
@@ -79,7 +80,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
           [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden"
       >
         <Markdown
-          remarkPlugins={[remarkGfm, remarkMath]}
+          remarkPlugins={[remarkGfm, remarkMath, remarkLatexMath]}
           rehypePlugins={streaming ? [rehypeKatex, rehypeStreamText] : [rehypeKatex]}
           skipHtml
           urlTransform={(url) =>

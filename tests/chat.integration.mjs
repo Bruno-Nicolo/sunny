@@ -190,7 +190,7 @@ app
       if (request.instructions.startsWith('Write ONLY'))
         return JSON.stringify({ scope: 'passages', queries: ['photosynthesis', 'chlorophyll'] })
       const sources = service.store.sources(indexed.at(-1).version)
-      const answer = `The document discusses plant energy [[${sources[0].id}]].\n\nThe formula is $E=mc^2$.`
+      const answer = `The document discusses plant energy [[${sources[0].id}]].\n\nThe formula is $E=mc^2$, also \\(x_i^2\\).\n\n\\[\n\\frac{a}{b}\n\\]`
       request.onReasoning?.('Checking the passages about plant energy. ')
       await new Promise((resolve) => setTimeout(resolve, 150))
       request.onReasoning?.('The selected evidence supports the explanation.')
@@ -555,6 +555,16 @@ app
     fs.writeFileSync('/tmp/lepis-chat-reasoning.png', (await win.webContents.capturePage()).toPNG())
     await waitFor(
       `document.querySelector('.chat-source') && document.querySelector('.katex') && document.querySelector('[aria-label="Send message"]')`
+    )
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[aria-label="AI answer"] .katex').length`),
+      3,
+      'dollar, parenthesis and bracket delimiters render as formulas'
+    )
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[aria-label="AI answer"] .katex-display').length`),
+      1,
+      'bracket delimiters render a display formula'
     )
     await waitFor(
       `document.querySelector('[aria-label="Rename conversation"]').textContent === 'Explain photosynthesis'`
