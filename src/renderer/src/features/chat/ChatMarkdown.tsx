@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, type ComponentProps } from 'react'
+import { createContext, memo, useContext, useMemo, type ComponentProps } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -13,12 +13,20 @@ type CitationProps = {
   onCitation?(source: DocumentSource): void
 }
 
-const CitationContext = createContext<CitationProps>({})
+const CitationContext = createContext<{
+  sources?: Map<string, DocumentSource>
+  stale: boolean
+  onCitation?: CitationProps['onCitation']
+}>({ stale: false })
+
+const remarkPlugins = [remarkGfm, remarkMath, remarkLatexMath]
+const rehypePlugins = [rehypeKatex]
+const streamingRehypePlugins = [rehypeKatex, rehypeStreamText]
 
 function ChatLink({ href, children }: ComponentProps<'a'>): React.JSX.Element {
   const { sources, stale, onCitation } = useContext(CitationContext)
   if (href?.startsWith('#source/')) {
-    const source = sources?.find((source) => source.id === href.slice(8))
+    const source = sources?.get(href.slice(8))
     return source && onCitation ? (
       <button
         className="chat-source inline cursor-pointer rounded-[4px] border border-border bg-muted px-[5px] py-px text-[11px] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-50"
@@ -55,16 +63,45 @@ export const ChatMarkdown = memo(function ChatMarkdown({
   text: string
   streaming?: boolean
 }): React.JSX.Element {
-  const content = sources
-    ? text.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (_match, id: string) => {
-        const source = sources.find((source) => source.id === id)
-        return source && onCitation
-          ? `[p. ${source.page}](#source/${id})`
-          : '(reference unavailable)'
-      })
-    : text
+  const sourceIndex = useMemo(
+    () => (sources ? new Map(sources.map((source) => [source.id, source])) : undefined),
+    [sources]
+  )
+  const canCite = Boolean(onCitation)
+  const content = useMemo(
+    () =>
+      sourceIndex
+        ? text.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (_match, id: string) => {
+            const source = sourceIndex.get(id)
+            return source && canCite
+              ? `[p. ${source.page}](#source/${id})`
+              : '(reference unavailable)'
+          })
+        : text,
+    [text, sourceIndex, canCite]
+  )
+  const citations = useMemo(
+    () => ({ sources: sourceIndex, stale, onCitation }),
+    [sourceIndex, stale, onCitation]
+  )
+  const markdown = useMemo(
+    () => (
+      <Markdown
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={streaming ? streamingRehypePlugins : rehypePlugins}
+        skipHtml
+        urlTransform={(url) =>
+          url.startsWith('https://') || (canCite && url.startsWith('#source/')) ? url : ''
+        }
+        components={markdownComponents}
+      >
+        {content}
+      </Markdown>
+    ),
+    [content, streaming, canCite]
+  )
   return (
-    <CitationContext.Provider value={{ sources, stale, onCitation }}>
+    <CitationContext.Provider value={citations}>
       <div
         className="chat-markdown text-[length:var(--chat-font-size,14px)] leading-[1.65] group-data-[align=end]/message:whitespace-pre-wrap
           [&>:first-child]:mt-0 [&>:last-child]:mb-0
@@ -76,20 +113,9 @@ export const ChatMarkdown = memo(function ChatMarkdown({
           [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2.5 [&_blockquote]:text-muted-foreground
           [&_a]:text-primary [&_a]:underline
           [&_table]:block [&_table]:max-w-full [&_table]:border-collapse [&_table]:overflow-x-auto
-          [&_:is(td,th)]:border [&_:is(td,th)]:border-border [&_:is(td,th)]:px-2 [&_:is(td,th)]:py-[5px] [&_:is(td,th)]:text-left
-          "
+          [&_:is(td,th)]:border [&_:is(td,th)]:border-border [&_:is(td,th)]:px-2 [&_:is(td,th)]:py-[5px] [&_:is(td,th)]:text-left"
       >
-        <Markdown
-          remarkPlugins={[remarkGfm, remarkMath, remarkLatexMath]}
-          rehypePlugins={streaming ? [rehypeKatex, rehypeStreamText] : [rehypeKatex]}
-          skipHtml
-          urlTransform={(url) =>
-            url.startsWith('https://') || (onCitation && url.startsWith('#source/')) ? url : ''
-          }
-          components={markdownComponents}
-        >
-          {content}
-        </Markdown>
+        {markdown}
       </div>
     </CitationContext.Provider>
   )

@@ -42,12 +42,6 @@ test('LaTeX examples in inline, fenced and indented code stay literal', () => {
   }
 })
 
-test('incomplete and escaped delimiters remain text', () => {
-  for (const text of [String.raw`\(x_i`, String.raw`\[x_i`, String.raw`\\(x_i\\)`]) {
-    assert.equal(formulaCount(render(text, true)), 0)
-  }
-})
-
 test('formulas work in lists and block quotes without consuming surrounding Markdown', () => {
   const html = render(String.raw`- **Formula:** \(x_i\)
 - Next item
@@ -79,7 +73,8 @@ z &= w
   assert.equal(formulaCount(render('\\[x\\\ny\\]')), 1)
 })
 
-test('streaming prefixes remain text until the formula is closed', () => {
+test('streaming prefixes and escaped delimiters remain text until a formula is closed', () => {
+  assert.equal(formulaCount(render(String.raw`\\(x_i\\)`, true)), 0)
   for (const formula of [
     String.raw`\(x_i^2\)`,
     String.raw`\[
