@@ -58,6 +58,7 @@ export type ConversationSummary = Omit<Conversation, 'messages'>
 export type AiSettings = {
   consent: boolean
   panelWidth: number
+  chatFontSize: number
   provider: AiProvider
   models: Partial<Record<AiProvider, string>>
 }

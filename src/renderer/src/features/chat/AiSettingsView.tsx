@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ProviderLogo } from './ProviderLogo'
-import type { AiProvider, ApiProvider, AiStatus } from '../../../../shared/ai'
+import type { AiProvider, ApiProvider, AiSettings, AiStatus } from '../../../../shared/ai'
 import { providerSections } from './labels'
 
 const connectionNames: Record<AiProvider, string> = {
@@ -15,9 +22,19 @@ const connectionNames: Record<AiProvider, string> = {
   openrouter: 'OpenRouter'
 }
 
-type Props = { status: AiStatus; onStatus(status: AiStatus): void; onError(error: string): void }
+type Props = {
+  status: AiStatus
+  onStatus(status: AiStatus): void
+  onSettings(settings: Partial<AiSettings>): void
+  onError(error: string): void
+}
 
-export function AiSettingsView({ status, onStatus, onError }: Props): React.JSX.Element {
+export function AiSettingsView({
+  status,
+  onStatus,
+  onSettings,
+  onError
+}: Props): React.JSX.Element {
   const [section, setSection] = useState<ApiProvider>(
     status.settings.provider === 'chatgpt' ? 'openai' : status.settings.provider
   )
@@ -51,8 +68,20 @@ export function AiSettingsView({ status, onStatus, onError }: Props): React.JSX.
       setUpdating(false)
     }
   }
+  const saveSettings = async (settings: Partial<AiSettings>): Promise<void> => {
+    setUpdating(true)
+    onError('')
+    try {
+      await window.lepis.ai.settings(settings)
+      onSettings(settings)
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Could not save AI settings.')
+    } finally {
+      setUpdating(false)
+    }
+  }
   return (
-    <section aria-label="AI connections" className="space-y-5 text-sm">
+    <section aria-label="AI settings" className="space-y-5 text-sm">
       <Tabs
         orientation="vertical"
         value={section}
@@ -188,18 +217,33 @@ export function AiSettingsView({ status, onStatus, onError }: Props): React.JSX.
           </TabsContent>
         ))}
       </Tabs>
+      <div className="flex items-center justify-between gap-4 border-t pt-4">
+        <label htmlFor="chat-font-size" className="font-medium">
+          Chat text size
+        </label>
+        <Select
+          value={String(status.settings.chatFontSize)}
+          disabled={busy}
+          onValueChange={(value) => void saveSettings({ chatFontSize: Number(value) })}
+        >
+          <SelectTrigger id="chat-font-size" className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 13 }, (_, index) => index + 12).map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size} px{size === 14 ? ' (default)' : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <label className="flex items-start gap-2 border-t pt-4 text-xs text-muted-foreground">
         <Checkbox
           aria-label="Allow AI requests"
           checked={status.settings.consent}
-          onCheckedChange={(checked) => {
-            onError('')
-            const settings = { ...status.settings, consent: checked === true }
-            void window.lepis.ai
-              .settings({ consent: settings.consent })
-              .then(() => onStatus({ ...status, settings }))
-              .catch((error) => onError(String(error)))
-          }}
+          disabled={busy}
+          onCheckedChange={(checked) => void saveSettings({ consent: checked === true })}
         />
         Share document excerpts and chat context with the selected provider.
       </label>

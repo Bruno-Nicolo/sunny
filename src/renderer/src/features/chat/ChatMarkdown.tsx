@@ -65,7 +65,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
   return (
     <CitationContext.Provider value={{ sources, stale, onCitation }}>
       <div
-        className="chat-markdown text-sm leading-[1.65] group-data-[align=end]/message:whitespace-pre-wrap
+        className="chat-markdown text-[length:var(--chat-font-size,14px)] leading-[1.65] group-data-[align=end]/message:whitespace-pre-wrap
           [&>:first-child]:mt-0 [&>:last-child]:mb-0
           [&_:is(p,ul,ol,pre,blockquote)]:my-[0.65em]
           [&_ul]:list-disc [&_ul]:pl-[1.5em] [&_ol]:list-decimal [&_ol]:pl-[1.5em]

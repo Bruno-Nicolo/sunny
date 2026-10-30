@@ -313,7 +313,16 @@ app
       await evaluate(`document.body.innerText.includes('Fixture catalog temporarily unavailable')`),
       false
     )
-    await waitFor(`document.querySelector('[aria-label="AI connections"]') !== null`)
+    await waitFor(`document.querySelector('[aria-label="AI settings"]') !== null`)
+    await evaluate(`document.getElementById('chat-font-size').click()`)
+    await waitFor(`document.querySelector('[role="option"][data-state="checked"]')`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === '20 px').click()`
+    )
+    await waitFor(
+      `getComputedStyle(document.querySelector('[aria-label="Message AI"]')).fontSize === '20px'`
+    )
+    assert.equal(service.store.settings().chatFontSize, 20)
     assert.equal(
       await evaluate(`document.querySelectorAll('[role="dialog"] [role="tab"]').length`),
       4,
@@ -583,6 +592,14 @@ app
         `document.querySelector('[aria-label="Response activity"]').textContent.startsWith('Worked for ')`
       )
     )
+    for (const label of ['Your message', 'AI answer']) {
+      assert.equal(
+        await evaluate(
+          `getComputedStyle(document.querySelector('[aria-label="${label}"] .chat-markdown')).fontSize`
+        ),
+        '20px'
+      )
+    }
     const recorded = service.store.get(service.store.list('first.pdf')[0].id).messages.at(-1)
     assert.ok(
       recorded.work.parts.some(

@@ -402,6 +402,7 @@ test('restart retains conversations and converts unfinished responses to interru
     store.close()
     fs.rmSync(directory, { recursive: true, force: true })
   })
+  store.setSettings({ ...defaultAiSettings, chatFontSize: 18 })
   store.index(document)
   const chat = store.create(version, 'chatgpt', document.path)
   chat.messages.push(userMessage())
@@ -422,6 +423,7 @@ test('restart retains conversations and converts unfinished responses to interru
   store.save(chat)
   store.close()
   store = new ChatStore(directory)
+  assert.equal(store.settings().chatFontSize, 18)
   assert.equal(store.get(chat.id).messages[1].status, 'stopped')
   assert.equal(
     reasoningText(store.get(chat.id).messages[1]),
@@ -481,15 +483,30 @@ test('identical PDF copies keep separate conversation ownership', (t) => {
   )
 })
 
-test('independent preference updates preserve panel width and per-provider model choices', (t) => {
+test('independent preference updates preserve chat text size, panel width and model choices', (t) => {
   const service = setup(t)
+  service.settings({ chatFontSize: 20 })
   service.settings({ panelWidth: 460 })
   service.settings({ models: { openai: 'first-model' } })
   service.settings({ provider: 'google', models: { google: 'second-model' } })
   const settings = service.store.settings()
+  assert.equal(settings.chatFontSize, 20)
   assert.equal(settings.panelWidth, 460)
   assert.equal(settings.models.openai, 'first-model')
   assert.equal(settings.models.google, 'second-model')
+})
+
+test('chat text size defaults to 14, clamps to readable bounds and rejects invalid values', (t) => {
+  const service = setup(t)
+  assert.equal(service.store.settings().chatFontSize, 14)
+  service.settings({ chatFontSize: 100 })
+  assert.equal(service.store.settings().chatFontSize, 24)
+  service.settings({ chatFontSize: 1 })
+  assert.equal(service.store.settings().chatFontSize, 12)
+  for (const chatFontSize of [NaN, Infinity, '18', null, 15.5]) {
+    assert.throws(() => service.settings({ chatFontSize }), /Invalid AI settings/)
+  }
+  assert.equal(service.store.settings().chatFontSize, 12)
 })
 
 test('search planning rejects malformed output instead of silently using an incomplete context', () => {

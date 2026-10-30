@@ -14,6 +14,7 @@ import type {
 export const defaultAiSettings: AiSettings = {
   consent: true,
   panelWidth: 380,
+  chatFontSize: 14,
   provider: 'chatgpt',
   models: {}
 }
@@ -56,7 +57,7 @@ export class ChatStore {
 
   settings(): AiSettings {
     const row = this.db.prepare('SELECT json FROM settings WHERE id=1').get()
-    return row ? JSON.parse(String(row.json)) : { ...defaultAiSettings, models: {} }
+    return { ...defaultAiSettings, models: {}, ...(row ? JSON.parse(String(row.json)) : {}) }
   }
   setSettings(settings: AiSettings): void {
     this.db.prepare('INSERT OR REPLACE INTO settings VALUES(1,?)').run(JSON.stringify(settings))

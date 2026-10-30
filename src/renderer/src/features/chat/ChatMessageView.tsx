@@ -137,6 +137,7 @@ export function ChatMessageView({
                 <Textarea
                   autoFocus
                   aria-label="Message text"
+                  style={{ fontSize: 'var(--chat-font-size)' }}
                   value={editText}
                   maxLength={16000}
                   disabled={saving}

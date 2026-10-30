@@ -1,5 +1,12 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties
+} from 'react'
 import {
   ArrowUp,
   ChevronLeft,
@@ -608,7 +615,11 @@ export function ChatPanel({
       .catch(showError)
   }
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background" aria-label="AI chat panel">
+    <div
+      className="flex h-full min-h-0 flex-col bg-background"
+      aria-label="AI chat panel"
+      style={{ '--chat-font-size': `${status?.settings.chatFontSize ?? 14}px` } as CSSProperties}
+    >
       <div className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
         {historyOpen ? (
           <div className="mr-auto flex min-w-0 items-center gap-2">
@@ -698,13 +709,22 @@ export function ChatPanel({
             >
               <DialogHeader>
                 <DialogTitle>AI settings</DialogTitle>
-                <DialogDescription className="sr-only">Manage AI connections.</DialogDescription>
+                <DialogDescription className="sr-only">
+                  Manage AI connections and chat appearance.
+                </DialogDescription>
               </DialogHeader>
               <AiSettingsView
                 status={status}
                 onStatus={(value) => {
                   setStatus(value)
                   setConnectionRevision((revision) => revision + 1)
+                }}
+                onSettings={(settings) => {
+                  setStatus((current) =>
+                    current
+                      ? { ...current, settings: { ...current.settings, ...settings } }
+                      : current
+                  )
                 }}
                 onError={setSettingsError}
               />
@@ -1000,7 +1020,8 @@ export function ChatPanel({
                   <InputGroupTextarea
                     ref={composerRef}
                     aria-label="Message AI"
-                    className="max-h-40 min-h-20 text-sm"
+                    className="max-h-40 min-h-20"
+                    style={{ fontSize: 'var(--chat-font-size)' }}
                     placeholder={
                       !connected ? 'Connect an AI service in settings' : 'Ask about this PDF…'
                     }

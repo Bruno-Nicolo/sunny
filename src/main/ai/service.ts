@@ -69,6 +69,7 @@ export class AiService {
       typeof settings.consent !== 'boolean' ||
       !aiProviders.includes(settings.provider) ||
       !Number.isFinite(settings.panelWidth) ||
+      !Number.isInteger(settings.chatFontSize) ||
       typeof settings.models !== 'object'
     )
       throw new Error('Invalid AI settings.')
@@ -80,6 +81,7 @@ export class AiService {
     this.store.setSettings({
       ...settings,
       panelWidth: Math.min(640, Math.max(300, settings.panelWidth)),
+      chatFontSize: Math.min(24, Math.max(12, settings.chatFontSize)),
       models
     })
     if (!settings.consent) for (const job of this.jobs.values()) job.abort.abort()
