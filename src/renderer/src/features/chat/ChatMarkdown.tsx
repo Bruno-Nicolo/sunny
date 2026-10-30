@@ -77,7 +77,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
           [&_a]:text-primary [&_a]:underline
           [&_table]:block [&_table]:max-w-full [&_table]:border-collapse [&_table]:overflow-x-auto
           [&_:is(td,th)]:border [&_:is(td,th)]:border-border [&_:is(td,th)]:px-2 [&_:is(td,th)]:py-[5px] [&_:is(td,th)]:text-left
-          [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden"
+          "
       >
         <Markdown
           remarkPlugins={[remarkGfm, remarkMath, remarkLatexMath]}

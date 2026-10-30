@@ -1,5 +1,12 @@
 @import 'katex/dist/katex.min.css';
 
+.chat-markdown .katex-display {
+  margin-block: 0.5em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.5em;
+}
+
 @keyframes chat-stream-fade {
   from {
     opacity: 0.6;
