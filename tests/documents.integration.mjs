@@ -34,7 +34,8 @@ const rendererErrors = []
 const document = (name) => ({
   path: name,
   name,
-  directoryName: 'test',
+  directoryPath:
+    '~/Documenti/Archivio dei corsi universitari/Anni precedenti/Materiale didattico/Università/Deep Learning',
   source: { kind: 'memory', data: new Uint8Array(files.get(name) ?? blankPdf).buffer },
   mtimeMs: mtimes.get(name) ?? 1,
   size: blankPdf.length
@@ -119,9 +120,10 @@ async function waitUntil(check) {
   }
 }
 const waitFor = (code) => waitUntil(() => evaluate(code))
-const hasTab = (name) => `document.querySelector('header button[title="${name}"]') !== null`
+const hasTab = (name) =>
+  `document.querySelector('header .document-tab[aria-label="${name}"]') !== null`
 const activeTab = (name) =>
-  `document.querySelector('header button[title="${name}"]')?.classList.contains('document-tab-active')`
+  `document.querySelector('header .document-tab[aria-label="${name}"]')?.getAttribute('data-active') === 'true'`
 const clickButton = (label) =>
   evaluate(
     `Array.from(document.querySelectorAll('[role="dialog"][data-state="open"] button')).find(button => button.textContent === '${label}')?.click()`
@@ -174,26 +176,44 @@ app
       })
     await waitFor(hasTab('restored.pdf'))
     assert.equal(await evaluate(activeTab('startup.pdf')), true)
-    assert.equal(await evaluate('document.querySelectorAll("header button[title]").length'), 2)
+    assert.equal(
+      await evaluate('document.querySelectorAll("header .document-tab[aria-label]").length'),
+      2
+    )
+    await evaluate(
+      `document.querySelector('header .document-tab[aria-label="startup.pdf"]').focus()`
+    )
+    await waitFor(
+      `document.querySelector('[data-slot="tooltip-content"] [aria-label^="~/Documenti"]')?.textContent.includes('…')`
+    )
+    const tooltip = await evaluate(`(() => {
+      const path = document.querySelector('[data-slot="tooltip-content"] [aria-label^="~/Documenti"]');
+      return { label: path.textContent, overflow: path.scrollWidth > path.clientWidth };
+    })()`)
+    assert.ok(tooltip.label.startsWith('~/Documenti/'))
+    assert.ok(tooltip.label.endsWith('/Università/Deep Learning'))
+    assert.equal(tooltip.overflow, false)
+    await evaluate(`document.querySelector('[aria-label="Open PDF"]').focus()`)
+    console.log('PASS: tab details fit the available width and preserve the containing folders')
     console.log(
       'PASS: delayed restore preserves startup documents and selection without duplicates'
     )
 
     const tabOrder = () =>
       evaluate(
-        'Array.from(document.querySelectorAll("header button[title]")).map(tab => tab.title)'
+        `Array.from(document.querySelectorAll('header .document-tab')).map(tab => tab.getAttribute('aria-label'))`
       )
     const dragTab = async (name, target) => {
       // Let the previous drop animation settle before measuring the next drag.
       await new Promise((resolve) => setTimeout(resolve, 400))
       const points = await evaluate(`(() => {
         const center = name => {
-          const rect = document.querySelector('header button[title="' + name + '"]').getBoundingClientRect();
+          const rect = document.querySelector('header .document-tab[aria-label="' + name + '"]').getBoundingClientRect();
           return {x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2)};
         };
         const start = center(${JSON.stringify(name)});
         const end = center(${JSON.stringify(target)});
-        const rect = document.querySelector('header button[title="' + ${JSON.stringify(target)} + '"]').getBoundingClientRect();
+        const rect = document.querySelector('header .document-tab[aria-label="' + ${JSON.stringify(target)} + '"]').getBoundingClientRect();
         end.x = Math.round(start.x < end.x ? rect.right - 8 : rect.left + 8);
         return [start, end];
       })()`)
@@ -246,7 +266,7 @@ app
     await waitFor('document.querySelector(\'[aria-label="Add image"]\')?.disabled === false')
     await addImage()
     await waitFor(
-      'document.querySelector(\'header button[title="available.pdf"] .bg-foreground\') !== null'
+      'document.querySelector(\'header .document-tab[aria-label="available.pdf"] .bg-foreground\') !== null'
     )
     saveMode = 'failure'
     const closeCount = closed.length
@@ -317,7 +337,7 @@ app
     await waitFor('document.querySelector(\'[aria-label="Add image"]\')?.disabled === false')
     await addImage()
     await waitFor(
-      `document.querySelector('header button[title="new.pdf"] .bg-foreground') !== null`
+      `document.querySelector('header .document-tab[aria-label="new.pdf"] .bg-foreground') !== null`
     )
     await evaluate("window.testCommands.run('close-tab')")
     await waitFor(
@@ -397,7 +417,7 @@ app
     await waitFor(`!(${hasTab('password.pdf')})`)
     await addImage()
     await waitFor(
-      `document.querySelector('header button[title="two-pages.pdf"] .bg-foreground') !== null`
+      `document.querySelector('header .document-tab[aria-label="two-pages.pdf"] .bg-foreground') !== null`
     )
     const readsBeforeConflict = reads.get('two-pages.pdf')
     mtimes.set('two-pages.pdf', 20)
@@ -411,7 +431,7 @@ app
     await clickButton('Cancel')
     assert.equal(
       await evaluate(
-        `document.querySelector('header button[title="two-pages.pdf"] .bg-foreground') !== null`
+        `document.querySelector('header .document-tab[aria-label="two-pages.pdf"] .bg-foreground') !== null`
       ),
       true
     )
@@ -469,7 +489,7 @@ app
     await waitUntil(() => confirmations === 2)
     assert.equal(
       await evaluate(
-        `document.querySelector('header button[title="two-pages.pdf"] .bg-foreground') !== null`
+        `document.querySelector('header .document-tab[aria-label="two-pages.pdf"] .bg-foreground') !== null`
       ),
       false
     )
@@ -493,7 +513,7 @@ app
     await waitUntil(() => sessionSaveResolvers.length > 0)
     await addImage()
     await waitFor(
-      `document.querySelector('header button[title="last-opened.pdf"] .bg-foreground') !== null`
+      `document.querySelector('header .document-tab[aria-label="last-opened.pdf"] .bg-foreground') !== null`
     )
     sessionHeld = false
     for (const resolve of sessionSaveResolvers) resolve()

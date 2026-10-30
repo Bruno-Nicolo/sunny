@@ -122,7 +122,7 @@ test('opening a PDF returns a local source and metadata without an IPC byte buff
   assert.equal('data' in opened, false)
   assert.equal(opened.path, filePath)
   assert.equal(opened.name, 'document.pdf')
-  assert.equal(opened.directoryName, directory.split('/').at(-1))
+  assert.equal(opened.directoryPath, directory)
   assert.deepEqual(
     new Uint8Array(await (await createPdfResponse(new Request(opened.source.url))).arrayBuffer()),
     new Uint8Array(original)

@@ -17,7 +17,7 @@ export type PdfSource =
 export type OpenedPdf = PdfFileStats & {
   path: string
   name: string
-  directoryName: string
+  directoryPath: string
   source: PdfSource
 }
 
@@ -71,6 +71,7 @@ export interface LepisApi {
   savePdf(payload: SavePdfRequest): Promise<PdfFileStats>
   savePdfAs(payload: SavePdfAsRequest): Promise<OpenedPdf | null>
   closePdf(tabId: string): Promise<void>
+  showTabContextMenu(path: string): void
   loadSession(): Promise<SessionState>
   saveSession(state: SessionState): Promise<void>
   setTheme(theme: SessionState['theme']): void

@@ -20,7 +20,7 @@ function pdf(path) {
   return {
     path,
     name: path,
-    directoryName: 'test',
+    directoryPath: 'test',
     source: { kind: 'memory', data: new Uint8Array([1]).buffer },
     mtimeMs: 1,
     size: 1

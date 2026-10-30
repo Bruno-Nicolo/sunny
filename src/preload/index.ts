@@ -43,6 +43,7 @@ const api: LepisApi = {
   statPdf: (path: string) => ipcRenderer.invoke('pdf:stat', path),
   savePdf: (payload) => ipcRenderer.invoke('pdf:save', payload),
   savePdfAs: (payload) => ipcRenderer.invoke('pdf:save-as', payload),
+  showTabContextMenu: (path) => ipcRenderer.send('pdf:tab-context-menu', path),
   closePdf: (tabId) => ipcRenderer.invoke('pdf:close', tabId),
   loadSession: () => ipcRenderer.invoke('session:load'),
   saveSession: (state) => ipcRenderer.invoke('session:save', state),

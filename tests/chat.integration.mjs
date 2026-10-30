@@ -245,7 +245,7 @@ app
     ipcMain.handle('pdf:read', (_, filePath) => ({
       path: filePath,
       name: filePath,
-      directoryName: 'test',
+      directoryPath: 'test',
       mtimeMs: mtimes.get(filePath) ?? 1,
       size: files.get(filePath).length,
       source: { kind: 'memory', data: files.get(filePath).slice().buffer }

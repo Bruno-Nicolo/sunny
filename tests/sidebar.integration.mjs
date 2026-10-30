@@ -39,7 +39,7 @@ ipcMain.handle('test:read', (_, name) => {
   return {
     path: name,
     name,
-    directoryName: 'test',
+    directoryPath: 'test',
     source: { kind: 'memory', data: new Uint8Array(data).buffer },
     mtimeMs: 1,
     size: data.length

@@ -1,9 +1,21 @@
 import { createHash } from 'crypto'
+import { homedir } from 'os'
 import { promises as fs } from 'fs'
 import { basename, dirname, join } from 'path'
 import type { OpenedPdf, PdfFileStats, SavePdfRequest } from '../shared/contracts'
 import { createPdfSource } from './pdf-sources'
 import { writeFileAtomically } from './atomic-write'
+
+/** Returns the containing directory, abbreviating only the current user's home. */
+export function displayDirectoryPath(filePath: string): string {
+  const directory = dirname(filePath)
+  const home = homedir()
+  return directory === home
+    ? '~'
+    : directory.startsWith(`${home}/`)
+      ? `~${directory.slice(home.length)}`
+      : directory
+}
 
 function backupPath(userDataPath: string, tabId: string): string {
   const id = createHash('sha256').update(tabId).digest('hex')
@@ -31,7 +43,7 @@ export async function readPdf(filePath: string): Promise<OpenedPdf> {
     return {
       path: filePath,
       name: basename(filePath),
-      directoryName: basename(dirname(filePath)),
+      directoryPath: displayDirectoryPath(filePath),
       source: await createPdfSource(filePath, stats),
       ...stats
     }

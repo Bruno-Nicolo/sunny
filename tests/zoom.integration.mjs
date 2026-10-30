@@ -14,7 +14,7 @@ app.setPath('userData', temp)
 ipcMain.handle('test:read', () => ({
   path: 'zoom.pdf',
   name: 'zoom.pdf',
-  directoryName: 'test',
+  directoryPath: 'test',
   source: { kind: 'memory', data: new Uint8Array(blankPdf).buffer },
   mtimeMs: 1,
   size: blankPdf.length

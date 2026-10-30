@@ -9,9 +9,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import type { SessionState } from '../../../../../shared/contracts'
 import type { Tab } from '../types'
+import { DirectoryPath } from './DirectoryPath'
 
 type Props = {
-  tabs: Pick<Tab, 'id' | 'path' | 'name' | 'directoryName' | 'dirty'>[]
+  tabs: Pick<Tab, 'id' | 'path' | 'name' | 'directoryPath' | 'dirty'>[]
   activeId: string | null
   chatOpen: boolean
   onToggleChat(): void
@@ -192,59 +193,70 @@ function SortableTab({
   const { ref, isDragSource } = useSortable({ id: tab.id, index, modifiers: tabModifiers })
 
   return (
-    <button
-      ref={ref}
-      type="button"
-      onClick={() => onSelect(tab.id)}
-      className={cn(
-        'document-tab group relative flex h-9 min-w-[120px] max-w-60 flex-1 basis-60 select-none items-center gap-2 rounded-md border border-transparent px-3 py-1 text-left text-sm outline-offset-[-4px]',
-        '[&:has(+button:is([data-active=true],:hover,[data-dragging=true]))>[data-slot=tab-separator]]:opacity-0',
-        '[&:not(:has(+.document-tab))>[data-slot=tab-separator]]:hidden',
-        active
-          ? 'border-border bg-background text-foreground'
-          : 'text-muted-foreground hover:bg-foreground/7 data-[dragging=true]:bg-foreground/7'
-      )}
-      title={tab.path}
-      aria-label={tab.name}
-      aria-pressed={active}
-      data-active={active}
-      data-dragging={isDragSource}
-    >
-      <span
-        data-slot="tab-separator"
-        aria-hidden="true"
-        className={cn(
-          'pointer-events-none absolute top-1/2 -right-1 h-4 w-px -translate-y-1/2 bg-muted group-hover:opacity-0 group-data-[dragging=true]:opacity-0',
-          active && 'opacity-0'
-        )}
-      />
-      {tab.dirty && <span className="size-2 shrink-0 rounded-full bg-foreground" />}
-      <span className="flex min-w-0 flex-1 items-baseline gap-2 leading-5">
-        <span className="min-w-0 truncate font-medium">{tab.name}</span>
-        <span className="max-w-24 shrink-[2] truncate text-[11px] leading-none text-muted-foreground">
-          {tab.directoryName}
-        </span>
-      </span>
-      <span
-        role="button"
-        tabIndex={0}
-        aria-label={`Close ${tab.name}`}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation()
-          onClose(tab.id)
-        }}
-        onKeyDown={(event) => {
-          event.stopPropagation()
-          if (event.key === 'Enter' || event.key === ' ') {
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          ref={ref}
+          type="button"
+          onClick={() => onSelect(tab.id)}
+          onContextMenu={(event) => {
             event.preventDefault()
-            onClose(tab.id)
-          }
-        }}
-        className="ml-auto grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-ring"
+            window.lepis.showTabContextMenu(tab.path)
+          }}
+          className={cn(
+            'document-tab group relative flex h-9 min-w-[120px] max-w-60 flex-1 basis-60 select-none items-center gap-2 rounded-md border border-transparent px-3 py-1 text-left text-sm outline-offset-[-4px]',
+            '[&:has(+button:is([data-active=true],:hover,[data-dragging=true]))>[data-slot=tab-separator]]:opacity-0',
+            '[&:not(:has(+.document-tab))>[data-slot=tab-separator]]:hidden',
+            active
+              ? 'border-border bg-background text-foreground'
+              : 'text-muted-foreground hover:bg-foreground/7 data-[dragging=true]:bg-foreground/7'
+          )}
+          aria-label={tab.name}
+          aria-pressed={active}
+          data-active={active}
+          data-dragging={isDragSource}
+        >
+          <span
+            data-slot="tab-separator"
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute top-1/2 -right-1 h-4 w-px -translate-y-1/2 bg-muted group-hover:opacity-0 group-data-[dragging=true]:opacity-0',
+              active && 'opacity-0'
+            )}
+          />
+          {tab.dirty && <span className="size-2 shrink-0 rounded-full bg-foreground" />}
+          <span className="min-w-0 flex-1 truncate font-medium leading-5">{tab.name}</span>
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`Close ${tab.name}`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              onClose(tab.id)
+            }}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onClose(tab.id)
+              }
+            }}
+            className="ml-auto grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <X className="size-3.5" />
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        align="start"
+        className="max-w-[min(28rem,calc(100vw-2rem))] space-y-1 text-left text-wrap"
+        hidden={isDragSource}
       >
-        <X className="size-3.5" />
-      </span>
-    </button>
+        <div className="font-medium break-all">{tab.name}</div>
+        <DirectoryPath path={tab.directoryPath} />
+      </TooltipContent>
+    </Tooltip>
   )
 }

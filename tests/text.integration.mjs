@@ -15,7 +15,7 @@ let saveCount = 0
 ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
-  directoryName: 'test',
+  directoryPath: 'test',
   source: { kind: 'memory', data: new Uint8Array(saved.get(name) ?? Buffer.from(pdf)).buffer },
   mtimeMs: 1,
   size: pdf.length

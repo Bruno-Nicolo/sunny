@@ -27,7 +27,7 @@ ipcMain.handle('draft:load', () =>
   ].map(({ path, name, bytes }) => ({
     path,
     name,
-    directoryName: 'test',
+    directoryPath: 'test',
     source: { kind: 'memory', data: new Uint8Array(bytes).buffer },
     mtimeMs: 1,
     size: bytes.length,

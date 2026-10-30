@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { app, ipcMain, nativeTheme } from 'electron'
+import { app, clipboard, ipcMain, Menu, nativeTheme } from 'electron'
 import type {
   PdfSource,
   SavePdfAsRequest,
@@ -33,6 +33,13 @@ export function registerIpc(): void {
   ipcMain.handle('pdf:save-as', (_event, payload: SavePdfAsRequest) =>
     savePdfAs(getMainWindow(), payload)
   )
+  ipcMain.on('pdf:tab-context-menu', (event, filePath: string) => {
+    const window = getMainWindow()
+    if (!window || event.sender !== window.webContents) return
+    Menu.buildFromTemplate([
+      { label: 'Copy full path', click: () => clipboard.writeText(filePath) }
+    ]).popup({ window })
+  })
   ipcMain.handle('pdf:close', (_event, tabId: string) => deleteBackup(userDataPath, tabId))
   ipcMain.handle('session:load', () => loadSession(sessionPath))
   let sessionWrite: Promise<void> = Promise.resolve()

@@ -31,7 +31,7 @@ const saved = new Map()
 ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
-  directoryName: 'test',
+  directoryPath: 'test',
   source: { kind: 'memory', data: new Uint8Array(saved.get(name) ?? pdf).buffer },
   mtimeMs: 1,
   size: pdf.length

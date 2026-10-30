@@ -134,7 +134,7 @@ async function run() {
     await win.loadURL(server.resolvedUrls.local[0])
     await enableTestFocus(win)
     await waitFor(
-      "document.querySelector('[aria-label=\"Add image\"]')?.disabled === false && document.querySelectorAll('header button[title]').length === 2 && !document.body.textContent.includes('Opening document')"
+      "document.querySelector('[aria-label=\"Add image\"]')?.disabled === false && document.querySelectorAll('header .document-tab').length === 2 && !document.body.textContent.includes('Opening document')"
     )
     assert.equal(
       await evaluate("document.querySelectorAll('.invisible .page').length"),
@@ -157,14 +157,17 @@ async function run() {
       }
     }
     for (let i = 0; i < 3; i++) {
-      const closedPath = await evaluate(
-        "Array.from(document.querySelectorAll('header button[title]')).find(button=>button.classList.contains('document-tab-active')).title"
+      const closedName = await evaluate(
+        "Array.from(document.querySelectorAll('header .document-tab')).find(button=>button.dataset.active === 'true').getAttribute('aria-label')"
       )
       win.webContents.send('menu:close-tab')
-      await waitFor("document.querySelectorAll('header button[title]').length === 1")
-      win.webContents.send('file:open-requested', closedPath)
+      await waitFor("document.querySelectorAll('header .document-tab').length === 1")
+      win.webContents.send(
+        'file:open-requested',
+        paths.find((filePath) => path.basename(filePath) === closedName)
+      )
       await waitFor(
-        "document.querySelectorAll('header button[title]').length === 2 && !document.body.textContent.includes('Opening document')"
+        "document.querySelectorAll('header .document-tab').length === 2 && !document.body.textContent.includes('Opening document')"
       )
     }
     const final = await heap()

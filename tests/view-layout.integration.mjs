@@ -20,7 +20,7 @@ app.setPath('userData', temp)
 ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
-  directoryName: 'test',
+  directoryPath: 'test',
   source: { kind: 'memory', data: new Uint8Array(blankPdf).buffer },
   mtimeMs: 1,
   size: blankPdf.length

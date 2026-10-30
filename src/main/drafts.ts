@@ -1,9 +1,9 @@
 import { serialize, deserialize } from 'v8'
 import { createHash } from 'crypto'
 import { promises as fs } from 'fs'
-import { basename, dirname, join } from 'path'
+import { basename, join } from 'path'
 import type { PdfDraft, SavePdfDraftRequest } from '../shared/contracts'
-import { hasPdfHeader } from './pdf-files'
+import { displayDirectoryPath, hasPdfHeader } from './pdf-files'
 import { writeFileAtomically } from './atomic-write'
 
 // Store metadata and PDF bytes together so an interrupted write cannot mix revisions.
@@ -67,7 +67,7 @@ export function createDraftStore(userDataPath: string): DraftStore {
             drafts.push({
               path: stored.path,
               name: basename(stored.path),
-              directoryName: basename(dirname(stored.path)),
+              directoryPath: displayDirectoryPath(stored.path),
               mtimeMs: stored.mtimeMs,
               size: stored.size,
               savedAt: stored.savedAt,

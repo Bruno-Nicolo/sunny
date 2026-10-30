@@ -299,7 +299,7 @@ app.whenReady().then(async () => {
     await button('Close without saving')
     holdDraft = false
     releaseDraft()
-    await waitFor(`document.querySelectorAll('header button[title]').length === 0`)
+    await waitFor(`document.querySelectorAll('header .document-tab').length === 0`)
     assert.equal((await store.load()).length, 0)
     console.log('PASS: discard during an in-flight draft write cannot resurrect a recovery copy')
     assert.deepEqual(errors, [])
