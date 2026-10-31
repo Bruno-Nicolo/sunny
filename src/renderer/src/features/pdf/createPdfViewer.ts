@@ -125,12 +125,13 @@ export function createPdfViewer({
     (event) => {
       if (!event.ctrlKey) return
       event.preventDefault()
+      // Pinches emit small pixel deltas; wheel notches already reach the cap below.
       const unit =
         event.deltaMode === WheelEvent.DOM_DELTA_LINE
           ? 16
           : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
             ? container.clientHeight
-            : 1
+            : 10
       const delta = Math.max(-100, Math.min(100, event.deltaY * unit))
       if (delta * pendingWheelDelta < 0) pendingWheelDelta = 0
       // Accumulate small gestures until they survive PDF.js scale rounding.
