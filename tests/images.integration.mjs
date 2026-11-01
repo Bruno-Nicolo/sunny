@@ -189,6 +189,31 @@ app
       4,
       'Only the four corner handles must show squares'
     )
+    assert.equal(
+      await evaluate(`(() => {
+        const reference = document.createElement('div');
+        reference.className = 'annotationEditorLayer';
+        reference.innerHTML = '<div class="stampEditor selectedEditor"><div class="resizers"></div></div>';
+        document.body.append(reference);
+        try {
+          return ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'].every(name => {
+            const handle = document.createElement('div');
+            handle.className = 'resizer ' + name;
+            reference.querySelector('.resizers').append(handle);
+            const original = getComputedStyle(handle);
+            const actual = getComputedStyle(document.querySelector('.visible .stampEditor .' + name));
+            return ['width', 'height', 'backgroundColor', 'borderTopColor', 'borderTopWidth',
+              'borderTopStyle', 'borderRadius', name.startsWith('top') ? 'top' : 'bottom',
+              name.endsWith('Left') ? 'left' : 'right'].every(property =>
+                actual[property] === original[property]);
+          });
+        } finally {
+          reference.remove();
+        }
+      })()`),
+      true,
+      'Corner handles must retain their original PDF.js appearance and position'
+    )
     for (const [name, axis, direction] of [
       ['topMiddle', 'height', -1],
       ['bottomMiddle', 'height', 1],

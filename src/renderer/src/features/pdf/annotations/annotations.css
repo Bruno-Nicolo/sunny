@@ -118,7 +118,7 @@
 .pdf-viewer-container .lepisAnnotationLayer .selectedEditor .resizers {
   display: block;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizers > .resizer {
+.pdf-viewer-container .lepisAnnotationLayer .resizer {
   position: absolute;
   width: 8px;
   height: 8px;
@@ -126,7 +126,7 @@
   border: 1px solid var(--ring);
   z-index: 1;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.topLeft {
+.lepisAnnotationLayer .resizer.topLeft {
   left: -4px;
   top: -4px;
   cursor: nwse-resize;
@@ -137,7 +137,7 @@
   top: -4px;
   cursor: ns-resize;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.topRight {
+.lepisAnnotationLayer .resizer.topRight {
   right: -4px;
   top: -4px;
   cursor: nesw-resize;
@@ -154,7 +154,7 @@
   height: calc(100% - 8px);
   cursor: ew-resize;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.bottomLeft {
+.lepisAnnotationLayer .resizer.bottomLeft {
   left: -4px;
   bottom: -4px;
   cursor: nesw-resize;
@@ -165,7 +165,7 @@
   bottom: -4px;
   cursor: ns-resize;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.bottomRight {
+.lepisAnnotationLayer .resizer.bottomRight {
   right: -4px;
   bottom: -4px;
   cursor: nwse-resize;
