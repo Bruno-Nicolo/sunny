@@ -12,6 +12,7 @@
   pointer-events: none;
 }
 .pdf-viewer-container .lepisAnnotationLayer > :is(.freeTextEditor, .stampEditor, .highlightEditor) {
+  --annotation-border-color: transparent;
   position: absolute;
   z-index: 5;
   box-sizing: border-box;
@@ -23,21 +24,31 @@
   cursor: pointer;
   outline: none;
   user-select: none;
+
+  &:hover {
+    --annotation-border-color: var(--hover-outline-color);
+  }
+  &.selectedEditor {
+    --annotation-border-color: var(--ring);
+  }
 }
 .pdf-viewer-container .lepisAnnotationLayer.disabled > *,
 .pdf-viewer-container .lepisAnnotationLayer.disabled .lepisHighlightContour path {
   pointer-events: none;
 }
-.pdf-viewer-container .lepisAnnotationLayer > .freeTextEditor {
-  --focus-outline-around: none;
-  --hover-outline: none;
-  --hover-outline-around: none;
-}
 .pdf-viewer-container
   .lepisAnnotationLayer
-  > .selectedEditor:not(.highlightEditor):not(:has(> .internal[contenteditable='true'])) {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  > :is(.freeTextEditor, .stampEditor):is(:hover, .selectedEditor) {
+  border: 0;
+  outline: none;
+
+  &::before {
+    content: none;
+  }
+  &:not(:has(> .internal[contenteditable='true'])) {
+    outline: 1px solid var(--annotation-border-color);
+    outline-offset: 2px;
+  }
 }
 .pdf-viewer-container .lepisAnnotationLayer > .highlightEditor {
   pointer-events: none;
@@ -49,14 +60,9 @@
   }
   path {
     fill: transparent;
-    stroke-width: 2px;
+    stroke: var(--annotation-border-color);
+    stroke-width: 1px;
     pointer-events: fill;
-  }
-  &:hover path {
-    stroke: var(--hover-outline-color);
-  }
-  &.selectedEditor path {
-    stroke: var(--ring);
   }
 }
 .pdf-viewer-container .lepisAnnotationLayer .freeTextEditor .internal {
@@ -96,16 +102,6 @@
 .pdf-viewer-container .lepisAnnotationLayer.freetextEditing > .lepisAnnotationBackground {
   pointer-events: auto;
 }
-.pdf-viewer-container .lepisAnnotationLayer > .stampEditor {
-  &:is(:hover, .selectedEditor)::before {
-    content: none;
-  }
-  &:hover:not(.selectedEditor) {
-    border: 0;
-    outline: 1px solid var(--hover-outline-color);
-    outline-offset: 2px;
-  }
-}
 .pdf-viewer-container .lepisAnnotationLayer .stampEditor canvas {
   display: block;
   width: 100%;
@@ -119,61 +115,39 @@
   display: block;
 }
 .pdf-viewer-container .lepisAnnotationLayer .resizer {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  background: var(--background);
-  border: 1px solid var(--ring);
   z-index: 1;
 }
-.lepisAnnotationLayer .resizer.topLeft {
-  left: -4px;
-  top: -4px;
+.lepisAnnotationLayer .resizer:is(.topLeft, .bottomRight) {
   cursor: nwse-resize;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.topMiddle {
-  left: 4px;
-  width: calc(100% - 8px);
-  top: -4px;
-  cursor: ns-resize;
-}
-.lepisAnnotationLayer .resizer.topRight {
-  right: -4px;
-  top: -4px;
+.lepisAnnotationLayer .resizer:is(.topRight, .bottomLeft) {
   cursor: nesw-resize;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.middleLeft {
-  left: -4px;
-  top: 4px;
-  height: calc(100% - 8px);
-  cursor: ew-resize;
-}
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.middleRight {
-  right: -4px;
-  top: 4px;
-  height: calc(100% - 8px);
-  cursor: ew-resize;
-}
-.lepisAnnotationLayer .resizer.bottomLeft {
-  left: -4px;
-  bottom: -4px;
-  cursor: nesw-resize;
-}
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.bottomMiddle {
-  left: 4px;
-  width: calc(100% - 8px);
-  bottom: -4px;
-  cursor: ns-resize;
-}
-.lepisAnnotationLayer .resizer.bottomRight {
-  right: -4px;
-  bottom: -4px;
-  cursor: nwse-resize;
-}
-.pdf-viewer-container
-  .lepisAnnotationLayer
-  .stampEditor
-  .resizer:is(.topMiddle, .bottomMiddle, .middleLeft, .middleRight) {
-  background: transparent;
-  border: 0;
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer {
+  &:is(.topMiddle, .bottomMiddle, .middleLeft, .middleRight) {
+    background: transparent;
+    border: 0;
+  }
+  &:is(.topMiddle, .bottomMiddle) {
+    left: 4px;
+    width: calc(100% - 8px);
+    cursor: ns-resize;
+  }
+  &:is(.middleLeft, .middleRight) {
+    top: 4px;
+    height: calc(100% - 8px);
+    cursor: ew-resize;
+  }
+  &.topMiddle {
+    top: -4px;
+  }
+  &.bottomMiddle {
+    bottom: -4px;
+  }
+  &.middleLeft {
+    left: -4px;
+  }
+  &.middleRight {
+    right: -4px;
+  }
 }
