@@ -388,10 +388,27 @@ export class AnnotationLayer {
           const bounds = this.bounds(original.rect)
           const vx = move.clientX - event.clientX || move.screenX - screen[0]
           const vy = move.clientY - event.clientY || move.screenY - screen[1]
-          if (resize.includes('Left')) bounds[0] += vx
-          if (resize.includes('Right')) bounds[2] += vx
-          if (resize.startsWith('top')) bounds[1] += vy
-          if (resize.startsWith('bottom')) bounds[3] += vy
+          const left = resize.includes('Left')
+          const right = resize.includes('Right')
+          const top = resize.startsWith('top')
+          const bottom = resize.startsWith('bottom')
+          if ((left || right) && (top || bottom)) {
+            const width = bounds[2] - bounds[0]
+            const height = bounds[3] - bounds[1]
+            const directionX = left ? -1 : 1
+            const directionY = top ? -1 : 1
+            // Project the pointer movement onto the diagonal through the fixed opposite corner.
+            const scaleDelta =
+              (directionX * vx * width + directionY * vy * height) /
+              (width * width + height * height)
+            bounds[left ? 0 : 2] += directionX * width * scaleDelta
+            bounds[top ? 1 : 3] += directionY * height * scaleDelta
+          } else {
+            if (left) bounds[0] += vx
+            if (right) bounds[2] += vx
+            if (top) bounds[1] += vy
+            if (bottom) bounds[3] += vy
+          }
           const viewport = this.options.page.viewport
           if (
             bounds[2] - bounds[0] < 8 * viewport.scale ||
