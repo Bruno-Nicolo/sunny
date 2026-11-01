@@ -1,5 +1,5 @@
-appId: app.lepis.desktop
-productName: Lepis
+appId: app.sunny.desktop
+productName: Sunny
 directories:
   buildResources: build
 files:
@@ -10,6 +10,7 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 mac:
+  icon: build/icon.icns
   category: public.app-category.productivity
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false

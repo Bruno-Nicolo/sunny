@@ -14,7 +14,7 @@ function shortcutMenuItem(id: ShortcutCommand): Electron.MenuItemConstructorOpti
 export function createMenu(): void {
   const menu = Menu.buildFromTemplate([
     {
-      label: 'Lepis',
+      label: 'Sunny',
       submenu: [
         { role: 'about' },
         { type: 'separator' },

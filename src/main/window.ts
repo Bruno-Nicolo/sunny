@@ -1,6 +1,7 @@
 import { join } from 'path'
 import { app, BrowserWindow, shell } from 'electron'
 import { is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
 
 let mainWindow: BrowserWindow | null = null
 let allowWindowClose = false
@@ -36,7 +37,8 @@ export function createWindow(): BrowserWindow {
     minWidth: 760,
     minHeight: 520,
     show: false,
-    title: 'Lepis',
+    title: 'Sunny',
+    icon,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 17 },
     backgroundColor: '#f4f4f5',

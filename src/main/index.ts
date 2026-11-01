@@ -5,6 +5,7 @@ import { registerIpc } from './ipc'
 import { createPdfResponse, releaseAllPdfSources } from './pdf-sources'
 import { createMenu } from './menu'
 import { createWindow, getMainWindow, sendToRenderer } from './window'
+import icon from '../../resources/icon.png?asset'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -21,9 +22,9 @@ protocol.registerSchemesAsPrivileged([
 
 const pendingFiles: string[] = []
 
-app.setName('Lepis')
+app.setName('Sunny')
 if (!app.isPackaged) {
-  app.setPath('userData', join(app.getPath('appData'), 'Lepis Development'))
+  app.setPath('userData', join(app.getPath('appData'), 'Sunny Development'))
 }
 
 const hasLock = app.requestSingleInstanceLock()
@@ -43,7 +44,8 @@ app.on('open-file', (event, filePath) => {
 })
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('app.lepis.desktop')
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(icon)
+  electronApp.setAppUserModelId('app.sunny.desktop')
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
   protocol.handle('lepis-pdf', createPdfResponse)
   registerIpc()

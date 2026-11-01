@@ -1,5 +1,5 @@
 {
-  "name": "lepis",
+  "name": "sunny",
   "version": "1.0.0",
   "description": "A lightweight, local-first PDF editor for macOS",
   "main": "./out/main/index.js",
@@ -33,6 +33,7 @@
     "dev": "electron-vite dev --watch",
     "build": "pnpm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
+    "build:icons": "node scripts/generate-icons.mjs",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "build:mac": "pnpm run build && electron-builder --mac",
     "test:recovery": "pnpm build && electron tests/recovery.integration.mjs && electron tests/lazy-recovery.integration.mjs",

@@ -1,6 +1,6 @@
-# Lepis
+# Sunny
 
-Lepis is a lightweight, local-first PDF viewer and annotation editor for macOS.
+Sunny is a lightweight, local-first PDF viewer and annotation editor for macOS.
 PDF viewing and editing run locally. Optional AI chat sends selected images, relevant document
 excerpts and needed conversation history to the service chosen by the user, after consent.
 
@@ -56,6 +56,9 @@ Build the unsigned macOS application:
 pnpm build:mac
 ```
 
+The application icon comes from `resources/branding/sunny-solid.png`. After updating it, run
+`pnpm build:icons` on macOS to regenerate the PNG, ICNS, and ICO assets.
+
 ## Architecture
 
 - `src/shared/contracts.ts`: document, session, save request, and preload API types shared by all processes.
@@ -80,7 +83,7 @@ pnpm build:mac
 - `src/renderer/src/features/pdf/types.ts` and `signatures.ts`: viewer contracts and conservative signature marker detection.
 - `src/renderer/src/features/pdf/annotations`: shared PDF.js editor events and annotation lifecycle, with separate `highlight`, `images`, and `text` modules. Each module owns its editor behavior and interface; image input, paste, and drop handling live in `images`. See [the annotation architecture](src/renderer/src/features/pdf/annotations/README.md) for the extension points.
 
-Lepis uses the official `pdfjs-dist` package directly. The renderer has no Node.js access and runs
+Sunny uses the official `pdfjs-dist` package directly. The renderer has no Node.js access and runs
 with Electron context isolation and sandboxing enabled.
 
 `pnpm test` covers annotation event commands, mode confirmation/interruption, subscription cleanup,
@@ -105,7 +108,7 @@ a copy because it transfers ownership to its worker. Saved PDF output remains `U
 
 ## Recovery copies
 
-While edited documents are open, Lepis checks for changes every three seconds and writes a
+While edited documents are open, Sunny checks for changes every three seconds and writes a
 local recovery copy when the annotations have changed. PDF.js supplies the annotation hash,
 so unchanged annotations do not trigger a full PDF export. Recovery copies store PDF bytes
 and metadata in one binary file without Base64 encoding. Recovery does not overwrite the original

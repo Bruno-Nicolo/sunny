@@ -133,7 +133,7 @@ export class ChatgptAuth {
             return
           }
           if (accepted) {
-            response.writeHead(409).end('Authorization already received. Return to Lepis.')
+            response.writeHead(409).end('Authorization already received. Return to Sunny.')
             return
           }
           if (url.searchParams.get('state') !== state) {
@@ -152,7 +152,7 @@ export class ChatgptAuth {
           ) {
             response
               .writeHead(400, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' })
-              .end('Sign-in was not completed. Return to Lepis.')
+              .end('Sign-in was not completed. Return to Sunny.')
             reject(
               new Error(
                 error === 'access_denied'
@@ -170,7 +170,7 @@ export class ChatgptAuth {
               'Cache-Control': 'no-store',
               'Referrer-Policy': 'no-referrer'
             })
-            .end('Authorization received. Lepis is completing sign-in. You can close this tab.')
+            .end('Authorization received. Sunny is completing sign-in. You can close this tab.')
           resolve({ code, clientId })
         })
         server.on('error', reject)
@@ -188,7 +188,7 @@ export class ChatgptAuth {
       const url = new URL(authorizeEndpoint)
       url.search = new URLSearchParams({
         client_id: credentials.clientId ?? 'dynamic_agent_client',
-        ...(!credentials.clientId ? { agent_name_hint: 'Lepis' } : {}),
+        ...(!credentials.clientId ? { agent_name_hint: 'Sunny' } : {}),
         ...(selectedSession
           ? { id_token_hint: selectedSession.idToken, login_hint: selectedSession.email }
           : {}),
@@ -372,7 +372,7 @@ export class ChatgptAuth {
       if (!response.ok) throw new Error('Revocation failed')
     } catch {
       throw new Error(
-        'Disconnected locally. Remote revocation could not be confirmed; remove Lepis from ChatGPT connected apps to revoke access.'
+        'Disconnected locally. Remote revocation could not be confirmed; remove Sunny from ChatGPT connected apps to revoke access.'
       )
     }
   }

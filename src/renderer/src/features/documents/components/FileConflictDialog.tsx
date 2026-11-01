@@ -28,7 +28,7 @@ export function FileConflictDialog({
           <DialogTitle>The original file is unavailable or changed</DialogTitle>
           <DialogDescription>
             The original PDF could not be overwritten safely. Reloading discards your unsaved
-            changes. You can also preserve the Lepis version as a separate PDF.
+            changes. You can also preserve the Sunny version as a separate PDF.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

@@ -70,7 +70,7 @@ export function WelcomeScreen({ onOpen, onOpenPath }: Props): React.JSX.Element 
         <header className="mb-10 flex items-center justify-between gap-6">
           <h1 className="flex items-center gap-2.5 text-[23px] font-semibold tracking-tight">
             <FileStack className="size-7 stroke-[1.25]" aria-hidden="true" />
-            lepis
+            Sunny
           </h1>
           <Button variant="ghost" onClick={onOpen} className="-mr-2 gap-2.5 px-2 font-normal">
             <Plus className="size-4" aria-hidden="true" />

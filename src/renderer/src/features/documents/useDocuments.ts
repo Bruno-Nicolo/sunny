@@ -309,7 +309,7 @@ export function useDocuments(
         const data = await viewer.saveDocument()
         const saved = await window.lepis.savePdfAs({
           data,
-          suggestedName: tab.name.replace(/\.pdf$/i, ' - Lepis.pdf')
+          suggestedName: tab.name.replace(/\.pdf$/i, ' - Sunny.pdf')
         })
         if (!saved) return
         await window.lepis.closePdf(id)
