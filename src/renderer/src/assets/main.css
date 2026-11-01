@@ -81,6 +81,10 @@
   margin-inline: 5px;
 }
 
+[data-invert-colors='true'] .pdf-viewer-container .pdfViewer .page {
+  filter: invert(1);
+}
+
 .pdf-viewer-container:fullscreen {
   background: black;
   overflow: hidden;

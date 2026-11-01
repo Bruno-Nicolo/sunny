@@ -26,6 +26,7 @@ function App(): React.JSX.Element {
     settings: TextEditorSettings | null
   } | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [invertColors, setInvertColors] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<PdfDocumentViewProps['sidebarTab']>('pages')
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
   const [chatOpen, setChatOpen] = useState(false)
@@ -183,6 +184,9 @@ function App(): React.JSX.Element {
       'zoom-in': () => withViewer((viewer) => viewer.zoomIn()),
       'zoom-out': () => withViewer((viewer) => viewer.zoomOut()),
       'rotate-clockwise': () => withViewer((viewer) => viewer.rotateClockwise()),
+      'toggle-invert-colors': () => {
+        if (activeTab?.view.pages) setInvertColors((inverted) => !inverted)
+      },
       'activate-highlight': () => {
         if (activeTab?.view.canAnnotate) setAnnotationTool('highlight')
       },
@@ -270,6 +274,7 @@ function App(): React.JSX.Element {
           />
           <DocumentToolbar
             activeTab={activeTab}
+            invertColors={invertColors}
             annotationTool={annotationTool}
             highlightColor={highlightColor}
             textSettings={textEditor?.id === activeId ? textEditor.settings : null}
@@ -285,6 +290,7 @@ function App(): React.JSX.Element {
             onZoomOut={() => getActiveViewer()?.zoomOut()}
             onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
             onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
+            onToggleInvertColors={shortcutHandlers['toggle-invert-colors']}
             onStartPresentation={() => void getActiveViewer()?.startPresentation()}
           />
         </header>
@@ -309,6 +315,7 @@ function App(): React.JSX.Element {
             setChatOpen(true)
           }}
           tabs={tabs}
+          invertColors={invertColors}
           activeId={activeId}
           ready={ready}
           sidebarOpen={sidebarOpen}

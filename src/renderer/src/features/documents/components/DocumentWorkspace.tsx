@@ -10,6 +10,7 @@ type Props = {
   tabs: Tab[]
   activeId: string | null
   ready: boolean
+  invertColors: boolean
   sidebarOpen: boolean
   sidebarTab: PdfDocumentViewProps['sidebarTab']
   onSidebarTabChange: PdfDocumentViewProps['onSidebarTabChange']
@@ -29,6 +30,7 @@ export function DocumentWorkspace({
   tabs,
   activeId,
   ready,
+  invertColors,
   sidebarOpen,
   sidebarTab,
   onSidebarTabChange,
@@ -44,7 +46,7 @@ export function DocumentWorkspace({
   onTextEditorChange
 }: Props): React.JSX.Element {
   return (
-    <section className="relative min-h-0 flex-1 bg-muted/45">
+    <section className="relative min-h-0 flex-1 bg-muted/45" data-invert-colors={invertColors}>
       {tabs.length === 0 && ready && <WelcomeScreen onOpen={onOpen} onOpenPath={onOpenPath} />}
       {tabs.map((tab) => (
         <div

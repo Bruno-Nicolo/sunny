@@ -1,4 +1,4 @@
-import { BookOpen, Presentation, RotateCw, Settings2 } from 'lucide-react'
+import { BookOpen, Contrast, Presentation, RotateCw, Settings2 } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import {
   DropdownMenu,
@@ -11,16 +11,20 @@ import {
 type Props = {
   disabled: boolean
   twoPageView: boolean
+  invertColors: boolean
   onRotateClockwise(): void
   onToggleTwoPageView(): void
+  onToggleInvertColors(): void
   onStartPresentation(): void
 }
 
 export function PdfViewDropdown({
   disabled,
   twoPageView,
+  invertColors,
   onRotateClockwise,
   onToggleTwoPageView,
+  onToggleInvertColors,
   onStartPresentation
 }: Props): React.JSX.Element {
   return (
@@ -38,6 +42,10 @@ export function PdfViewDropdown({
         <DropdownMenuCheckboxItem checked={twoPageView} onCheckedChange={onToggleTwoPageView}>
           <BookOpen />
           Two-page view
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={invertColors} onCheckedChange={onToggleInvertColors}>
+          <Contrast />
+          Invert colors
         </DropdownMenuCheckboxItem>
         <DropdownMenuItem onSelect={onStartPresentation}>
           <Presentation />

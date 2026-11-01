@@ -10,6 +10,7 @@ import { PdfViewDropdown } from './PdfViewDropdown'
 
 type Props = {
   activeTab: Pick<Tab, 'id' | 'view'> | null
+  invertColors: boolean
   annotationTool: AnnotationTool
   highlightColor: string
   textSettings: TextEditorSettings | null
@@ -22,11 +23,13 @@ type Props = {
   onZoomOut(): void
   onRotateClockwise(): void
   onToggleTwoPageView(): void
+  onToggleInvertColors(): void
   onStartPresentation(): void
 }
 
 export function DocumentToolbar({
   activeTab,
+  invertColors,
   annotationTool,
   highlightColor,
   textSettings,
@@ -39,6 +42,7 @@ export function DocumentToolbar({
   onZoomOut,
   onRotateClockwise,
   onToggleTwoPageView,
+  onToggleInvertColors,
   onStartPresentation
 }: Props): React.JSX.Element {
   return (
@@ -94,8 +98,10 @@ export function DocumentToolbar({
           <PdfViewDropdown
             disabled={!activeTab.view.pages}
             twoPageView={activeTab.view.twoPageView}
+            invertColors={invertColors}
             onRotateClockwise={onRotateClockwise}
             onToggleTwoPageView={onToggleTwoPageView}
+            onToggleInvertColors={onToggleInvertColors}
             onStartPresentation={onStartPresentation}
           />
           <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
