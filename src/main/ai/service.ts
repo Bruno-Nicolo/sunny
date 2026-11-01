@@ -80,7 +80,7 @@ export class AiService {
     }
     this.store.setSettings({
       ...settings,
-      panelWidth: Math.min(640, Math.max(300, settings.panelWidth)),
+      panelWidth: Math.max(300, settings.panelWidth),
       chatFontSize: Math.min(24, Math.max(12, settings.chatFontSize)),
       models
     })

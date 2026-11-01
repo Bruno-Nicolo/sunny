@@ -32,6 +32,7 @@ export function ChatDock({
   children
 }: Props): React.JSX.Element {
   const [width, setWidth] = useState(380)
+  const [maxWidth, setMaxWidth] = useState(window.innerWidth / 2)
   const [narrow, setNarrow] = useState(window.innerWidth < 1000)
   const [activated, setActivated] = useState<string[]>([])
   const [previousOpen, setPreviousOpen] = useState(open)
@@ -40,10 +41,18 @@ export function ChatDock({
   const dockRef = useRef<HTMLDivElement>(null)
   const widthRef = useRef(width)
   const applyWidth = useCallback((width: number): void => {
-    const value = Math.max(300, Math.min(640, width))
+    const value = Math.max(300, Math.min(window.innerWidth / 2, width))
     widthRef.current = value
     setWidth(value)
   }, [])
+  useEffect(() => {
+    const update = (): void => {
+      setMaxWidth(window.innerWidth / 2)
+      applyWidth(widthRef.current)
+    }
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [applyWidth])
   useEffect(() => {
     const media = matchMedia('(max-width: 999px)')
     const update = (): void => setNarrow(media.matches)
@@ -133,7 +142,7 @@ export function ChatDock({
           aria-label="Resize AI chat"
           aria-orientation="vertical"
           aria-valuemin={300}
-          aria-valuemax={640}
+          aria-valuemax={maxWidth}
           aria-valuenow={width}
           tabIndex={0}
           className="chat-resizer relative z-25 -mx-0.5 w-[5px] shrink-0 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-0.5 after:w-px after:content-[''] hover:after:bg-ring focus-visible:after:bg-ring"
