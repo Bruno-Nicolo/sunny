@@ -96,6 +96,16 @@
 .pdf-viewer-container .lepisAnnotationLayer.freetextEditing > .lepisAnnotationBackground {
   pointer-events: auto;
 }
+.pdf-viewer-container .lepisAnnotationLayer > .stampEditor {
+  &:is(:hover, .selectedEditor)::before {
+    content: none;
+  }
+  &:hover:not(.selectedEditor) {
+    border: 0;
+    outline: 1px solid var(--hover-outline-color);
+    outline-offset: 2px;
+  }
+}
 .pdf-viewer-container .lepisAnnotationLayer .stampEditor canvas {
   display: block;
   width: 100%;
@@ -108,7 +118,7 @@
 .pdf-viewer-container .lepisAnnotationLayer .selectedEditor .resizers {
   display: block;
 }
-.pdf-viewer-container .lepisAnnotationLayer .resizer {
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizers > .resizer {
   position: absolute;
   width: 8px;
   height: 8px;
@@ -116,43 +126,54 @@
   border: 1px solid var(--ring);
   z-index: 1;
 }
-.lepisAnnotationLayer .resizer.topLeft {
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.topLeft {
   left: -4px;
   top: -4px;
   cursor: nwse-resize;
 }
-.lepisAnnotationLayer .resizer.topMiddle {
-  left: calc(50% - 4px);
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.topMiddle {
+  left: 4px;
+  width: calc(100% - 8px);
   top: -4px;
   cursor: ns-resize;
 }
-.lepisAnnotationLayer .resizer.topRight {
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.topRight {
   right: -4px;
   top: -4px;
   cursor: nesw-resize;
 }
-.lepisAnnotationLayer .resizer.middleLeft {
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.middleLeft {
   left: -4px;
-  top: calc(50% - 4px);
+  top: 4px;
+  height: calc(100% - 8px);
   cursor: ew-resize;
 }
-.lepisAnnotationLayer .resizer.middleRight {
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.middleRight {
   right: -4px;
-  top: calc(50% - 4px);
+  top: 4px;
+  height: calc(100% - 8px);
   cursor: ew-resize;
 }
-.lepisAnnotationLayer .resizer.bottomLeft {
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.bottomLeft {
   left: -4px;
   bottom: -4px;
   cursor: nesw-resize;
 }
-.lepisAnnotationLayer .resizer.bottomMiddle {
-  left: calc(50% - 4px);
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.bottomMiddle {
+  left: 4px;
+  width: calc(100% - 8px);
   bottom: -4px;
   cursor: ns-resize;
 }
-.lepisAnnotationLayer .resizer.bottomRight {
+.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer.bottomRight {
   right: -4px;
   bottom: -4px;
   cursor: nwse-resize;
+}
+.pdf-viewer-container
+  .lepisAnnotationLayer
+  .stampEditor
+  .resizer:is(.topMiddle, .bottomMiddle, .middleLeft, .middleRight) {
+  background: transparent;
+  border: 0;
 }

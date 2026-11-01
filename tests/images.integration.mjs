@@ -79,6 +79,51 @@ app
     )
     await waitFor(count(1))
     console.log('PASS: image upload creates editable image')
+    await evaluate(`document.querySelector('.visible .lepisAnnotationLayer').dispatchEvent(
+      new PointerEvent('pointerdown', {bubbles:true, button:0})
+    )`)
+    const imageBounds = () =>
+      evaluate(`(() => {
+      const canvas = document.querySelector('.visible .stampEditor canvas').getBoundingClientRect();
+      return [canvas.x, canvas.y, canvas.width, canvas.height];
+    })()`)
+    const beforeHover = await imageBounds()
+    await win.webContents.debugger.sendCommand('DOM.enable')
+    await win.webContents.debugger.sendCommand('CSS.enable')
+    const { root: dom } = await win.webContents.debugger.sendCommand('DOM.getDocument')
+    const { nodeId } = await win.webContents.debugger.sendCommand('DOM.querySelector', {
+      nodeId: dom.nodeId,
+      selector: '.visible .stampEditor'
+    })
+    await win.webContents.debugger.sendCommand('CSS.forcePseudoState', {
+      nodeId,
+      forcedPseudoClasses: ['hover']
+    })
+    assert.deepEqual(
+      await imageBounds(),
+      beforeHover,
+      'Hover must not shift or shrink image pixels'
+    )
+    assert.equal(
+      await evaluate(
+        `getComputedStyle(document.querySelector('.visible .stampEditor'), '::before').content`
+      ),
+      'none',
+      'Hover must not add a second border over the image'
+    )
+    assert.equal(
+      await evaluate(
+        `getComputedStyle(document.querySelector('.visible .stampEditor')).outlineStyle`
+      ),
+      'solid',
+      'Hover must show a single outline'
+    )
+    await win.webContents.debugger.sendCommand('CSS.forcePseudoState', {
+      nodeId,
+      forcedPseudoClasses: []
+    })
+    assert.deepEqual(await imageBounds(), beforeHover, 'Leaving hover must preserve image geometry')
+    console.log('PASS: image hover has one outline and preserves pixel geometry')
     for (const rotation of [90, 180, 270, 0]) {
       await evaluate(`window.testCommands.run('rotate-clockwise')`)
       await waitFor(
@@ -135,6 +180,57 @@ app
       await evaluate(`document.querySelector('.visible .stampEditor .editToolbar')`),
       null,
       'Image annotations have no local toolbar'
+    )
+    assert.equal(
+      await evaluate(`Array.from(document.querySelectorAll('.visible .stampEditor .resizer')).filter(handle => {
+        const style = getComputedStyle(handle);
+        return style.borderTopStyle !== 'none' && style.backgroundColor !== 'rgba(0, 0, 0, 0)';
+      }).length`),
+      4,
+      'Only the four corner handles must show squares'
+    )
+    for (const [name, axis, direction] of [
+      ['topMiddle', 'height', -1],
+      ['bottomMiddle', 'height', 1],
+      ['middleLeft', 'width', -1],
+      ['middleRight', 'width', 1]
+    ]) {
+      const size = await evaluate(
+        `document.querySelector('.visible .stampEditor').getBoundingClientRect().${axis}`
+      )
+      for (const fraction of [0.2, 0.5, 0.8]) {
+        assert.equal(
+          await evaluate(`(() => {
+          const handle = document.querySelector('.visible .stampEditor .${name}');
+          const bounds = handle.getBoundingClientRect();
+          const editor = handle.closest('.stampEditor').getBoundingClientRect();
+          const x = ${axis === 'height' ? `editor.x + editor.width * ${fraction}` : 'bounds.x + bounds.width / 2'};
+          const y = ${axis === 'width' ? `editor.y + editor.height * ${fraction}` : 'bounds.y + bounds.height / 2'};
+          return document.elementFromPoint(x, y) === handle;
+        })()`),
+          true,
+          'The entire side must remain available for resizing'
+        )
+      }
+      await evaluate(`(() => {
+        const handle = document.querySelector('.visible .stampEditor .${name}');
+        handle.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true,button:0,pointerId:2,screenX:100,screenY:100}));
+        window.dispatchEvent(new PointerEvent('pointermove', {pointerId:2,screenX:${100 + (axis === 'width' ? direction * 20 : 0)},screenY:${100 + (axis === 'height' ? direction * 20 : 0)}}));
+        window.dispatchEvent(new PointerEvent('pointerup', {button:0,pointerId:2}));
+      })()`)
+      assert.ok(
+        (await evaluate(
+          `document.querySelector('.visible .stampEditor').getBoundingClientRect().${axis}`
+        )) >
+          size + 19
+      )
+      await evaluate(`window.testCommands.run('undo')`)
+      await waitFor(
+        `Math.abs(document.querySelector('.visible .stampEditor').getBoundingClientRect().${axis} - ${size}) < 1`
+      )
+    }
+    console.log(
+      'PASS: only corner squares are visible and all four sides resize along their length'
     )
     const oldLeft = await evaluate(`document.querySelector('.visible .stampEditor').style.left`)
     await evaluate(`(() => {
