@@ -244,7 +244,10 @@ function App(): React.JSX.Element {
     <main
       className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
       onDragOver={(event) => event.preventDefault()}
-      onDropCapture={onImageDrop}
+      onDropCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest('[data-chat-composer]')) return
+        onImageDrop(event)
+      }}
       onDrop={(event) => {
         event.preventDefault()
         const paths = Array.from(event.dataTransfer.files)

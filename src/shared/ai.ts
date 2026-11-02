@@ -9,10 +9,9 @@ export type DocumentSource = {
   text: string
   rects: PdfRect[]
 }
-export type ChatAttachment = DocumentSource & {
-  kind: 'text' | 'region'
-  image?: string
-}
+export type ChatAttachment =
+  | (DocumentSource & { kind: 'text' | 'region'; image?: string })
+  | { id: string; kind: 'file'; name: string; text: string; image?: string }
 export type ChatDocument = {
   version: string
   path: string

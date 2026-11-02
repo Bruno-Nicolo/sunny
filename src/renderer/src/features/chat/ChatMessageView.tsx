@@ -1,3 +1,4 @@
+import { ChatAttachmentPreview } from './ChatAttachmentPreview'
 import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, Pencil, RotateCcw, Split } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
@@ -89,21 +90,13 @@ export function ChatMessageView({
             {message.attachments.map((attachment) => (
               <button
                 key={attachment.id}
-                className="chat-saved-selection max-w-40 rounded-[6px] border border-border p-[5px] text-left text-[11px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&_img]:mb-1 [&_img]:max-h-20 [&_img]:object-contain [&_span]:block"
-                disabled={stale}
-                title={attachment.text || `Region on page ${attachment.page}`}
-                onClick={() => onCitation(attachment)}
+                className="chat-saved-selection max-w-40 rounded-[6px] border border-border p-[5px] text-left text-[11px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                disabled={stale || attachment.kind === 'file'}
+                onClick={() => {
+                  if (attachment.kind !== 'file') onCitation(attachment)
+                }}
               >
-                {attachment.image && (
-                  <img src={attachment.image} alt={`Selected region on page ${attachment.page}`} />
-                )}
-                <span>
-                  Page {attachment.page}
-                  {attachment.kind === 'text' ? ' · Text' : ' · Region'}
-                </span>
-                {!attachment.image && (
-                  <span className="line-clamp-2 text-muted-foreground">{attachment.text}</span>
-                )}
+                <ChatAttachmentPreview attachment={attachment} />
               </button>
             ))}
           </div>

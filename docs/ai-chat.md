@@ -33,10 +33,16 @@ be continued, renamed or deleted independently. Message actions wait for an acti
   attachment per page.
 - Choose **Select region**, then drag a rectangle. The attachment contains a fresh rendering of
   the original PDF content, without annotations or editor overlays. Escape cancels selection.
+- Drop files onto the message input, or choose **Attach files** in the paperclip menu to add
+  external PDFs, UTF-8 text/code files,
+  or PNG, JPEG and WebP images. Files are read locally; their extracted text or resized images
+  are sent with the message and saved in chat history. External files display their names and
+  are not citation targets in the open PDF. PDFs without extractable text must be attached as
+  page images. Each input file is limited to 20 MiB; oversized content is rejected, not truncated.
 - Collect multiple selections, inspect previews, remove attachments, or use **Explain**,
   **Summarize**, **Translate**, or **Formula / figure** to prepare a message. Actions do not send it.
 
-Requests accept at most 12 selections, 6 MiB of selection images, 32,000 selection text characters
+Requests accept at most 12 attachments, 6 MiB of attachment images, 32,000 attachment text characters
 and 16,000 message characters. Limits are checked before provider calls. A rejected request keeps
 the draft and attachments. Each crop is rendered at up to twice PDF scale, with a maximum side of
 1600 pixels. Partially intersecting text items are left to the image rather than sending text

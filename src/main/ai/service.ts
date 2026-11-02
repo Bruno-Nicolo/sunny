@@ -26,9 +26,9 @@ import {
   sourceContext,
   attachmentContext,
   parseSearchPlan,
-  validateAttachments,
   validatedAnswer
 } from './context'
+import { validateAttachments } from '../../shared/chat-attachments'
 
 export class AiService {
   readonly store: ChatStore
@@ -448,7 +448,11 @@ export class AiService {
       }
       const available = [
         ...new Map(
-          [...previousSources, ...sources, ...user.attachments].map((source) => [
+          [
+            ...previousSources,
+            ...sources,
+            ...user.attachments.filter((attachment) => attachment.kind !== 'file')
+          ].map((source) => [
             source.id,
             { id: source.id, page: source.page, text: source.text, rects: source.rects }
           ])
@@ -462,7 +466,7 @@ export class AiService {
           role: 'user',
           text: `${user.text}\n\nSelected passages (priority): ${attachmentContext(user.attachments)}\nAttached images correspond in order to: ${user.attachments
             .filter((attachment) => attachment.image)
-            .map((attachment) => attachment.id)
+            .map((attachment) => (attachment.kind === 'file' ? attachment.name : attachment.id))
             .join(
               ', '
             )}\n\nDocument context: ${context}\n\nPrevious cited passages: ${sourceContext(previousSources)}\n\n${user.summarize ? 'Produce a document-wide synthesis; disclose unprocessed visual-only pages.' : 'These are retrieved passages, not the whole document. Disclose when evidence is insufficient.'}`,

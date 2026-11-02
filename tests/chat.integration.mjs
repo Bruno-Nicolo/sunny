@@ -47,6 +47,15 @@ const setInput = (label, text) =>
   input.dispatchEvent(new Event('input',{bubbles:true}));
 })()`)
 
+const dragChatFiles = (type, target = 'textarea') =>
+  evaluate(`(() => {
+    const zone = document.querySelector('aside:not(.hidden) [data-chat-composer]');
+    const target = ${JSON.stringify(target)} === 'zone' ? zone : zone.querySelector(${JSON.stringify(target)});
+    const transfer = new DataTransfer();
+    for (const file of window.chatAttachmentFiles) transfer.items.add(file);
+    target.dispatchEvent(new DragEvent(${JSON.stringify(type)}, {bubbles:true, cancelable:true, dataTransfer:transfer}));
+  })()`)
+
 function pdf(text) {
   const stream = `BT /F1 20 Tf 72 700 Td (${text}) Tj 0 -50 Td (A second passage about plant cells.) Tj ET`
   return createPdf([
@@ -779,7 +788,7 @@ app
       `document.querySelectorAll('[aria-label="Remove selection on page 1"]').length === 2`
     )
     await waitFor(
-      `document.querySelector('img[alt="Region on page 1"]')?.src.startsWith('data:image/png')`
+      `document.querySelector('img[alt="Page 1 · Region"]')?.src.startsWith('data:image/png')`
     )
     assert.equal(await evaluate(`document.querySelector('[data-dirty="true"]') !== null`), false)
     await setInput('Message AI', 'Compare these selections')
@@ -1244,6 +1253,130 @@ app
     console.log(
       'PASS: inline edit cancellation, save and resend, fork and independent continuation'
     )
+    await evaluate(`(() => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(['External notes about chlorophyll'], 'notes.txt', {type: 'text/plain'}));
+      transfer.items.add(new File([new Uint8Array(${JSON.stringify(Array.from(pdf('External PDF about photosynthesis.')))})], 'reference.pdf', {type: 'application/pdf'}));
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 10;
+      canvas.getContext('2d').fillRect(0, 0, 10, 10);
+      const bytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), c => c.charCodeAt(0));
+      transfer.items.add(new File([bytes], 'figure.png', {type: 'image/png'}));
+      window.chatAttachmentFiles = Array.from(transfer.files);
+      const input = document.querySelector('aside:not(.hidden) [aria-label="Attach external files"]');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    })()`)
+    await waitFor(
+      `document.querySelector('[aria-label="Remove figure.png"]') && !document.body.innerText.includes('Reading attachments…')`
+    )
+    await click('Send message')
+    await waitFor(
+      `document.querySelectorAll('aside:not(.hidden) [aria-label="AI answer"]').length === 3 && document.querySelector('aside:not(.hidden) [aria-label="Send message"]')`
+    )
+    const external = service.store.get(forkedChat.id).messages.at(-2).attachments
+    assert.equal(external.length, 3)
+    assert.equal(external[0].name, 'notes.txt')
+    assert.ok(external[1].text.includes('External PDF about photosynthesis'))
+    assert.ok(external[2].image.startsWith('data:image/png;base64,'))
+    assert.ok(generated.at(-1).turns.at(-1).text.includes('External notes'))
+    console.log('PASS: external text, PDF and image attachment-only submission and persistence')
+    await setInput('Message AI', 'Compare the dropped files')
+    await evaluate(`(() => {
+      const input = document.querySelector('aside:not(.hidden) [aria-label="Message AI"]');
+      const text = new DataTransfer();
+      text.setData('text/plain', 'Dragged text');
+      input.dispatchEvent(new DragEvent('dragenter', {bubbles:true, cancelable:true, dataTransfer:text}));
+    })()`)
+    assert.equal(await evaluate(`document.body.innerText.includes('Drop files to attach')`), false)
+    await dragChatFiles('dragenter', 'zone')
+    await waitFor(`document.body.innerText.includes('Drop files to attach')`)
+    await dragChatFiles('dragenter')
+    await dragChatFiles('dragleave', 'zone')
+    assert.equal(
+      await evaluate(`document.body.innerText.includes('Drop files to attach')`),
+      true,
+      'moving across composer children keeps the drop overlay visible'
+    )
+    await dragChatFiles('dragleave')
+    await waitFor(`!document.body.innerText.includes('Drop files to attach')`)
+    const requestsBeforeDrop = generated.length
+    await dragChatFiles('dragenter')
+    await dragChatFiles('dragover')
+    await dragChatFiles('drop')
+    await waitFor(
+      `document.querySelector('[aria-label="Remove figure.png"]') && !document.body.innerText.includes('Reading attachments…')`
+    )
+    assert.equal(await evaluate(`document.body.innerText.includes('Drop files to attach')`), false)
+    assert.equal(await evaluate(`document.activeElement?.getAttribute('aria-label')`), 'Message AI')
+    assert.equal(
+      await evaluate(
+        `document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').value`
+      ),
+      'Compare the dropped files'
+    )
+    assert.equal(
+      generated.length,
+      requestsBeforeDrop,
+      'dropping prepares attachments without sending'
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="large.pdf"] > span.size-2') !== null`),
+      false,
+      'dropping an image into chat does not annotate the PDF'
+    )
+    await evaluate(`(() => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(['binary'], 'unsupported.zip'));
+      document.querySelector('aside:not(.hidden) [aria-label="Message AI"]').dispatchEvent(
+        new DragEvent('drop', {bubbles:true, cancelable:true, dataTransfer:transfer}));
+    })()`)
+    await waitFor(`document.body.innerText.includes('unsupported.zip: attach')`)
+    assert.ok(
+      await evaluate(`document.querySelector('[aria-label="Remove figure.png"]') !== null`),
+      'a rejected drop preserves existing attachments'
+    )
+    await click('Send message')
+    await waitFor(
+      `document.querySelectorAll('aside:not(.hidden) [aria-label="AI answer"]').length === 4 && document.querySelector('aside:not(.hidden) [aria-label="Send message"]')`
+    )
+    assert.equal(service.store.get(forkedChat.id).messages.at(-2).attachments.length, 3)
+    console.log(
+      'PASS: file drop overlay, nested drag targets, cancellation, validation and submission without PDF edits'
+    )
+    await evaluate(`(() => {
+      const original = window.createImageBitmap;
+      window.restoreImageBitmap = () => { window.createImageBitmap = original; };
+      window.createImageBitmap = async (...args) => {
+        const bitmap = await original(...args);
+        return new Promise(resolve => { window.finishAttachmentRead = () => resolve(bitmap); });
+      };
+      window.chatAttachmentFiles = window.chatAttachmentFiles.filter(file => file.type === 'image/png');
+    })()`)
+    await dragChatFiles('drop')
+    await waitFor(
+      `document.body.innerText.includes('Reading attachments…') && Boolean(window.finishAttachmentRead)`
+    )
+    await dragChatFiles('dragenter')
+    await dragChatFiles('dragover')
+    assert.equal(
+      await evaluate(`document.body.innerText.includes('Drop files to attach')`),
+      false,
+      'an active import does not offer another file drop'
+    )
+    await dragChatFiles('drop')
+    await click('New chat')
+    await evaluate(`window.restoreImageBitmap(); window.finishAttachmentRead()`)
+    await waitFor(`!document.body.innerText.includes('Reading attachments…')`)
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Remove figure.png"]') !== null`),
+      false,
+      'finishing an old import does not add attachments to a new chat'
+    )
+    await dragChatFiles('drop')
+    await waitFor(`document.querySelector('[aria-label="Remove figure.png"]')`)
+    await click('Remove figure.png')
+    console.log('PASS: cancelled imports release the composer and cannot change a new draft')
     assert.deepEqual(rendererErrors, [])
     fs.writeFileSync('/tmp/lepis-chat.png', (await win.webContents.capturePage()).toPNG())
     await click('AI model')

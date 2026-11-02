@@ -11,8 +11,8 @@ const { ChatStore, defaultAiSettings } = modules.load('store')
 const { AiService } = modules.load('service')
 const { AiProviders } = modules.load('providers')
 const { CredentialStore } = modules.load('credentials')
-const { validateAttachments, validatedAnswer, historyTurns, parseSearchPlan } =
-  modules.load('context')
+const { validatedAnswer, historyTurns, parseSearchPlan } = modules.load('context')
+const { validateAttachments } = modules.loadShared('chat-attachments')
 const { formatChatMessageTime } = modules.loadShared('chat-time')
 const reasoningText = (message) =>
   message.work?.parts
@@ -906,4 +906,54 @@ test('edits and forks reject an active response without changing its saved prefi
     release()
     await pending
   }
+})
+
+test('external attachments validate budgets and stay separate from PDF citations', async (t) => {
+  const file = { id: 'a_external', kind: 'file', name: 'notes.txt', text: 'External evidence' }
+  const image = {
+    id: 'a_image',
+    kind: 'file',
+    name: 'figure.png',
+    text: '',
+    image: 'data:image/png;base64,YQ=='
+  }
+  validateAttachments([file, image])
+  const selection = { ...sources[0], id: 'a_selection', kind: 'text', text: 'x'.repeat(16_000) }
+  validateAttachments([{ ...file, text: 'x'.repeat(16_000) }, selection])
+  assert.throws(
+    () => validateAttachments([{ ...file, text: 'x'.repeat(16_001) }, selection]),
+    /budget/
+  )
+  assert.throws(() => validateAttachments([{ ...file, name: '' }]), /Invalid attachment/)
+  assert.throws(() => validateAttachments([{ ...file, text: '' }]), /Invalid attachment/)
+  assert.throws(() => validateAttachments([{ ...file, text: 'x'.repeat(32_001) }]), /budget/)
+  assert.throws(() => validateAttachments(Array(13).fill(file)), /at most 12/)
+  assert.throws(
+    () =>
+      validateAttachments([{ ...image, image: 'data:image/png;base64,' + 'A'.repeat(9_000_000) }]),
+    /budget/
+  )
+  const service = setup(t)
+  const calls = []
+  service.providers.generate = async (input) => {
+    calls.push(input)
+    if (input.instructions.startsWith('Write ONLY'))
+      return JSON.stringify({ scope: 'passages', queries: ['photosynthesis'] })
+    input.onText('See notes.txt [[a_external]] and the PDF [[p1s1]].')
+    return ''
+  }
+  const chat = service.store.create(version, 'openai', document.path)
+  await service.send(request(chat, { text: '', attachments: [file, image] }), () => {})
+  const saved = service.store.get(chat.id)
+  assert.deepEqual(saved.messages[0].attachments, [file, image])
+  assert.ok(saved.messages[1].text.includes('(reference unavailable)'))
+  assert.ok(saved.messages[1].sources.every((source) => source.id !== file.id))
+  const input = calls.at(-1).turns.at(-1)
+  assert.ok(input.text.includes('External evidence'))
+  assert.ok(input.text.includes('notes.txt'))
+  assert.deepEqual(input.images, [image.image])
+  const history = historyTurns(saved.messages)
+  assert.ok(history[0].text.includes('notes.txt'))
+  assert.deepEqual(history[0].sources, [])
+  assert.deepEqual(history[0].images, [image.image])
 })

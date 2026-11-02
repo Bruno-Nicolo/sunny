@@ -11,6 +11,7 @@ import {
   ArrowUp,
   ChevronLeft,
   Crop,
+  FilePlus,
   LoaderCircle,
   Paperclip,
   Plus,
@@ -35,12 +36,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem
 } from '@/components/ui/dropdown-menu'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea
-} from '@/components/ui/input-group'
+import { InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
 import {
   Select,
   SelectContent,
@@ -72,6 +68,9 @@ import { MessageGroup } from '@/components/ui/message'
 import { ChatActivity } from './ChatActivity'
 import { applyChatEvent } from '../../../../shared/chat-work'
 import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
+import { readExternalAttachments, externalAttachmentAccept } from './externalAttachments'
+import { ChatAttachmentPreview } from './ChatAttachmentPreview'
+import { ChatComposerDropZone } from './ChatComposerDropZone'
 import './chat.css'
 
 type Props = {
@@ -136,6 +135,9 @@ export function ChatPanel({
   const conversationRef = useRef<Conversation | null>(null)
   const statusRef = useRef<AiStatus | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [attachingFiles, setAttachingFiles] = useState(false)
+  const attachmentImportRef = useRef<AbortController | null>(null)
   const selectedTextRef = useRef<ChatAttachment[]>([])
   useEffect(() => {
     if (!selectedAttachments) return
@@ -185,6 +187,7 @@ export function ChatPanel({
   }, [tab.path, onWidth, active])
   useEffect(
     () => () => {
+      attachmentImportRef.current?.abort()
       if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
     },
     []
@@ -214,6 +217,7 @@ export function ChatPanel({
         if (!alive) return
         if (sourceRef.current !== tab.source) {
           sourceRef.current = tab.source
+          attachmentImportRef.current?.abort()
           setAttachments([])
           if (requestRef.current) void window.lepis.ai.stop(requestRef.current)
         }
@@ -390,6 +394,7 @@ export function ChatPanel({
   const newChat = (): void => {
     if (busy || modelChanging) return
     resetConversation()
+    attachmentImportRef.current?.abort()
     setDraft('')
     setAttachments([])
     setSummarize(false)
@@ -447,6 +452,24 @@ export function ChatPanel({
     setError('')
     composerRef.current?.focus()
   }
+  const attachFiles = async (files: File[]): Promise<void> => {
+    if (!files.length || attachmentImportRef.current || stale || !document || loginBusy) return
+    const controller = new AbortController()
+    attachmentImportRef.current = controller
+    setAttachingFiles(true)
+    setError('')
+    try {
+      const items = await readExternalAttachments(files, attachments, controller.signal)
+      controller.signal.throwIfAborted()
+      setAttachments((current) => [...current, ...items])
+      composerRef.current?.focus({ preventScroll: true })
+    } catch (error) {
+      if (!controller.signal.aborted) showError(error)
+    } finally {
+      attachmentImportRef.current = null
+      setAttachingFiles(false)
+    }
+  }
   const forkConversation = async (messageId: string): Promise<void> => {
     const current = conversationRef.current
     if (!current || busy || modelChanging || requestRef.current || forkingRef.current) return
@@ -474,6 +497,7 @@ export function ChatPanel({
   ): Promise<boolean> => {
     if (
       !ready ||
+      attachmentImportRef.current ||
       requestRef.current ||
       forkingRef.current ||
       (!retry && !edit && !draft.trim() && !attachments.length)
@@ -945,44 +969,58 @@ export function ChatPanel({
           )}
           {!historyOpen && (
             <div className="shrink-0 space-y-2 p-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                aria-label="Attach external files"
+                accept={externalAttachmentAccept}
+                multiple
+                disabled={attachingFiles}
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? [])
+                  event.target.value = ''
+                  void attachFiles(files)
+                }}
+              />
+              {attachingFiles && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  Reading attachments…
+                </p>
+              )}
               {attachments.length > 0 && (
                 <>
                   <div className="flex max-h-32 flex-wrap gap-2 overflow-auto">
-                    {attachments.map((attachment) => (
-                      <div
-                        className="relative w-24 rounded-md border p-1.5 text-[11px]"
-                        key={attachment.id}
-                      >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5"
-                              aria-label={`Remove selection on page ${attachment.page}`}
-                              onClick={() =>
-                                setAttachments((current) =>
-                                  current.filter((item) => item.id !== attachment.id)
-                                )
-                              }
-                            >
-                              <X className="size-3" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>{`Remove selection on page ${attachment.page}`}</TooltipContent>
-                        </Tooltip>
-                        {attachment.image ? (
-                          <img
-                            className="mb-1 h-12 w-full object-contain"
-                            src={attachment.image}
-                            alt={`Region on page ${attachment.page}`}
-                          />
-                        ) : (
-                          <p className="mb-1 line-clamp-2" title={attachment.text}>
-                            {attachment.text}
-                          </p>
-                        )}
-                        Page {attachment.page}
-                      </div>
-                    ))}
+                    {attachments.map((attachment) => {
+                      const removeLabel =
+                        attachment.kind === 'file'
+                          ? `Remove ${attachment.name}`
+                          : `Remove selection on page ${attachment.page}`
+                      return (
+                        <div
+                          className="relative w-24 rounded-md border p-1.5 text-[11px] [&_img]:h-12"
+                          key={attachment.id}
+                        >
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5"
+                                aria-label={removeLabel}
+                                onClick={() =>
+                                  setAttachments((current) =>
+                                    current.filter((item) => item.id !== attachment.id)
+                                  )
+                                }
+                              >
+                                <X className="size-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>{removeLabel}</TooltipContent>
+                          </Tooltip>
+                          <ChatAttachmentPreview attachment={attachment} />
+                        </div>
+                      )
+                    })}
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {[
@@ -1026,7 +1064,10 @@ export function ChatPanel({
                 }}
                 className="w-full"
               >
-                <InputGroup>
+                <ChatComposerDropZone
+                  disabled={attachingFiles || stale || !document || Boolean(loginBusy)}
+                  onFiles={(files) => void attachFiles(files)}
+                >
                   <InputGroupTextarea
                     ref={composerRef}
                     aria-label="Message AI"
@@ -1077,6 +1118,13 @@ export function ChatPanel({
                         side="top"
                         onCloseAutoFocus={(event) => event.preventDefault()}
                       >
+                        <DropdownMenuItem
+                          disabled={attachingFiles}
+                          onSelect={() => fileInputRef.current?.click()}
+                        >
+                          <FilePlus />
+                          Attach files
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onSelect={() => {
                             onCancelSelection()
@@ -1172,7 +1220,9 @@ export function ChatPanel({
                             variant="default"
                             size="icon-sm"
                             aria-label="Send message"
-                            disabled={!ready || (!draft.trim() && !attachments.length)}
+                            disabled={
+                              !ready || attachingFiles || (!draft.trim() && !attachments.length)
+                            }
                           >
                             <ArrowUp />
                           </InputGroupButton>
@@ -1181,7 +1231,7 @@ export function ChatPanel({
                       </Tooltip>
                     )}
                   </InputGroupAddon>
-                </InputGroup>
+                </ChatComposerDropZone>
               </form>
             </div>
           )}
