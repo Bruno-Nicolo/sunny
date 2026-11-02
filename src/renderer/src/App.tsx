@@ -139,7 +139,7 @@ function App(): React.JSX.Element {
     }
   }, [theme])
 
-  const shortcutHandlers = useMemo<ShortcutHandlers>(() => {
+  const shortcutHandlers = useMemo(() => {
     const withViewer = (action: (viewer: PdfDocumentHandle) => void): void => {
       const viewer = getActiveViewer()
       if (viewer) action(viewer)
@@ -212,7 +212,7 @@ function App(): React.JSX.Element {
       'navigate-right': () => withViewer((viewer) => viewer.navigateHorizontally(1)),
       'navigate-up': () => withViewer((viewer) => viewer.scrollVertically(-1)),
       'navigate-down': () => withViewer((viewer) => viewer.scrollVertically(1))
-    }
+    } satisfies ShortcutHandlers
   }, [
     activeId,
     activeTab,

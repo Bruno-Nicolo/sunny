@@ -394,7 +394,7 @@ app
       type: 'mouseMoved',
       ...newChatButton
     })
-    await waitFor(`document.querySelector('[role="tooltip"]')?.textContent === 'New chat'`)
+    await waitFor(`document.querySelector('[role="tooltip"]')?.textContent === 'New chat (⌘⇧O)'`)
     await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: 1,

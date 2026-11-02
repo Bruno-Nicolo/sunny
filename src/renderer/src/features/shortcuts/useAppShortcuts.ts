@@ -7,7 +7,12 @@ import {
 } from '../../../../shared/shortcuts'
 
 export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): void {
-  const dispatch = useEffectEvent((id: ShortcutCommand) => handlers[id]())
+  const dispatch = useEffectEvent((id: ShortcutCommand): boolean => {
+    const handler = handlers[id]
+    if (!handler) return false
+    handler()
+    return true
+  })
   useEffect(() => {
     if (!enabled) {
       // Capture editor commands before PDF.js document listeners while a modal is open.
@@ -58,8 +63,7 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
           'keys' in shortcut &&
           shortcut.keys.some((binding) => matchesKeyBinding(event, binding, isMac))
         ) {
-          event.preventDefault()
-          dispatch(shortcut.id)
+          if (dispatch(shortcut.id)) event.preventDefault()
           return
         }
       }

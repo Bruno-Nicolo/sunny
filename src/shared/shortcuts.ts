@@ -32,6 +32,7 @@ export const shortcuts = [
     keys: [{ key: '\\', modifier: 'command' }]
   },
   { id: 'toggle-chat', label: 'Toggle AI Chat', accelerator: 'CmdOrCtrl+L' },
+  { id: 'new-chat', label: 'New AI Chat', accelerator: 'CmdOrCtrl+Shift+O' },
   {
     id: 'zoom-in',
     label: 'Zoom In',
@@ -81,7 +82,7 @@ export const shortcuts = [
 
 export type ShortcutCommand = (typeof shortcuts)[number]['id']
 
-export type ShortcutHandlers = Record<ShortcutCommand, () => void>
+export type ShortcutHandlers = Partial<Record<ShortcutCommand, () => void>>
 
 export function matchesKeyBinding(
   event: Pick<KeyboardEvent, 'key' | 'altKey' | 'shiftKey' | 'ctrlKey' | 'metaKey'>,

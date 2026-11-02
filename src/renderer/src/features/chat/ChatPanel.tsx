@@ -71,6 +71,7 @@ import { ChatMessageView } from './ChatMessageView'
 import { MessageGroup } from '@/components/ui/message'
 import { ChatActivity } from './ChatActivity'
 import { applyChatEvent } from '../../../../shared/chat-work'
+import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
 import './chat.css'
 
 type Props = {
@@ -395,6 +396,14 @@ export function ChatPanel({
     setError('')
     composerRef.current?.focus()
   }
+  useAppShortcuts(
+    {
+      'new-chat': () => {
+        if (visible && !settingsOpen && document) newChat()
+      }
+    },
+    true
+  )
   const openConversation = async (id: string): Promise<void> => {
     if (busy || modelChanging) return
     if (id === conversationRef.current?.id) {
@@ -678,13 +687,14 @@ export function ChatPanel({
               variant="ghost"
               size="icon-sm"
               aria-label="New chat"
+              aria-keyshortcuts="Meta+Shift+O"
               disabled={!document || busy || modelChanging}
               onClick={newChat}
             >
               <Plus />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>New chat</TooltipContent>
+          <TooltipContent>New chat (⌘⇧O)</TooltipContent>
         </Tooltip>
         <Dialog open={settingsOpen && visible} onOpenChange={setSettingsOpen}>
           <Tooltip>

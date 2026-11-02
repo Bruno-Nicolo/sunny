@@ -29,6 +29,7 @@ export function createMenu(): void {
       label: 'File',
       submenu: [
         shortcutMenuItem('open'),
+        shortcutMenuItem('new-chat'),
         shortcutMenuItem('save'),
         shortcutMenuItem('print'),
         { type: 'separator' },
