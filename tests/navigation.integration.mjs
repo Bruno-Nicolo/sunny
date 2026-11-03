@@ -171,7 +171,7 @@ app
       `!document.querySelector('[role="tabpanel"]').textContent.includes('Section two')`
     )
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="tabpanel"] button')).find(el=>el.lastElementChild?.textContent==='Chapter one').click()`
+      `Array.from(document.querySelectorAll('[role="tabpanel"] button')).find(el=>el.querySelector('[data-slot="outline-title"]')?.textContent==='Chapter one').click()`
     )
     await closed()
     await waitFor(`document.querySelector('[aria-label="Current page"]').value === '1'`)
@@ -181,7 +181,7 @@ app
     )
     await evaluate(`document.querySelector('[aria-label="Toggle section: Chapter one"]').click()`)
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="tabpanel"] button')).find(el=>el.lastElementChild?.textContent==='Section two').click()`
+      `Array.from(document.querySelectorAll('[role="tabpanel"] button')).find(el=>el.querySelector('[data-slot="outline-title"]')?.textContent==='Section two').click()`
     )
     await closed()
     await waitFor(`document.querySelector('[aria-label="Current page"]').value === '2'`)

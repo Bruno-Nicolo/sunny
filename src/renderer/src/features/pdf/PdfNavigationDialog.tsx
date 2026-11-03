@@ -186,12 +186,54 @@ const PageThumbnail = memo(function PageThumbnail({
   )
 })
 
+function OutlinePageNumber({
+  document,
+  destination
+}: Pick<Props, 'document'> & { destination: string | unknown[] }): React.JSX.Element | null {
+  const [page, setPage] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const resolvePage = async (): Promise<number | null> => {
+      const target =
+        typeof destination === 'string' ? await document.getDestination(destination) : destination
+      if (!target) return null
+      const reference = target[0]
+      const index =
+        typeof reference === 'number'
+          ? reference
+          : await document.getPageIndex(reference as { num: number; gen: number })
+      return Number.isInteger(index) && index >= 0 && index < document.numPages ? index + 1 : null
+    }
+    void resolvePage()
+      .then((number) => {
+        if (!cancelled) setPage(number)
+      })
+      .catch(() => {
+        if (!cancelled) setPage(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [document, destination])
+
+  return page === null ? null : (
+    <span
+      aria-label={`Page ${page}`}
+      className="ml-auto shrink-0 pl-4 text-muted-foreground tabular-nums"
+    >
+      p. {page}
+    </span>
+  )
+}
+
 function OutlineItems({
+  document,
   items,
   prefix = '',
   onDestination,
   onError
-}: Pick<Props, 'onDestination' | 'onError'> & {
+}: Pick<Props, 'document' | 'onDestination' | 'onError'> & {
   items: Outline
   prefix?: string
 }): React.JSX.Element {
@@ -229,7 +271,8 @@ function OutlineItems({
                   >
                     <span className="shrink-0 text-muted-foreground tabular-nums">{number}</span>
                     <span
-                      className="min-w-0"
+                      data-slot="outline-title"
+                      className="min-w-0 flex-1"
                       style={{
                         fontWeight: item.bold ? 600 : undefined,
                         fontStyle: item.italic ? 'italic' : undefined
@@ -237,6 +280,7 @@ function OutlineItems({
                     >
                       {item.title}
                     </span>
+                    <OutlinePageNumber document={document} destination={destination} />
                   </button>
                 ) : (
                   <span className="flex min-w-0 flex-1 items-start gap-2 px-1 py-1.5 text-sm break-words text-muted-foreground">
@@ -248,6 +292,7 @@ function OutlineItems({
               {item.items.length > 0 && (
                 <Collapsible.Content className="ml-3 border-l pl-2">
                   <OutlineItems
+                    document={document}
                     items={item.items}
                     prefix={`${number}.`}
                     onDestination={onDestination}
@@ -358,6 +403,7 @@ export function PdfNavigationDialog({
               <p className="p-2 text-sm text-muted-foreground">This PDF has no outline.</p>
             ) : (
               <OutlineItems
+                document={document}
                 items={outline}
                 onDestination={async (destination) => {
                   await onDestination(destination)
