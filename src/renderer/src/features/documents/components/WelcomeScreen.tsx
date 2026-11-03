@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileStack, FileText, LoaderCircle, Plus } from 'lucide-react'
+import { FileText, LoaderCircle, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { SuggestedPdf } from '../../../../../shared/contracts'
 
@@ -68,10 +68,7 @@ export function WelcomeScreen({ onOpen, onOpenPath }: Props): React.JSX.Element 
     <div className="absolute inset-0 overflow-y-auto bg-background">
       <div className="mx-auto flex min-h-full w-full max-w-[630px] flex-col justify-center px-10 py-20">
         <header className="mb-10 flex items-center justify-between gap-6">
-          <h1 className="flex items-center gap-2.5 text-[23px] font-semibold tracking-tight">
-            <FileStack className="size-7 stroke-[1.25]" aria-hidden="true" />
-            Sunny
-          </h1>
+          <h1 className="text-[23px] font-semibold tracking-tight">Sunny</h1>
           <Button variant="ghost" onClick={onOpen} className="-mr-2 gap-2.5 px-2 font-normal">
             <Plus className="size-4" aria-hidden="true" />
             Open PDF
