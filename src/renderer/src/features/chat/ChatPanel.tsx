@@ -1124,6 +1124,7 @@ export function ChatPanel({
                           Attach files
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          aria-keyshortcuts="l"
                           onSelect={() =>
                             onSelectRegion((attachment) => addAttachments([attachment]))
                           }

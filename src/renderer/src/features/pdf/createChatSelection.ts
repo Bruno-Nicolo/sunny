@@ -70,7 +70,7 @@ export function createChatSelection({
       ]
       const element = window.document.createElement('div')
       element.className =
-        'chat-citation pointer-events-none absolute z-20 border border-[#4f46e5] bg-[#6366f1]/22 animate-[chat-citation-fade_var(--chat-citation-duration)_cubic-bezier(0.2,0,0,1)_forwards]'
+        'chat-citation pointer-events-none absolute z-20 border border-primary/60 bg-primary/10 animate-[chat-citation-fade_var(--chat-citation-duration)_cubic-bezier(0.2,0,0,1)_forwards]'
       element.style.setProperty('--chat-citation-duration', `${citationDuration}ms`)
       Object.assign(element.style, {
         animationDelay: `${citationStartedAt - performance.now()}ms`,
@@ -103,7 +103,7 @@ export function createChatSelection({
       const bounds = element.getBoundingClientRect()
       const box = window.document.createElement('div')
       box.className =
-        'chat-region-drag pointer-events-none absolute z-20 border-2 border-dashed border-[#4f46e5] bg-[#6366f1]/22'
+        'chat-region-drag pointer-events-none absolute z-20 border-2 border-dashed border-primary/60 bg-primary/10'
       element.append(box)
       drag = {
         page: Number(element.dataset.pageNumber),
