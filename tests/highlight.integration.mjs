@@ -142,6 +142,55 @@ app
     console.log(
       'PASS: selection popover preserves text, dismisses with Escape and highlights without activating a tool'
     )
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    await evaluate(`(() => {
+      const spans = [...document.querySelectorAll('.visible .textLayer span')];
+      const first = spans.find(span => span.textContent === 'First highlight');
+      const second = spans.find(span => span.textContent === 'Second highlight');
+      const range = document.createRange();
+      range.setStart(first.firstChild, 6);
+      range.setEnd(second.firstChild, 6);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    })()`)
+    await waitFor(`document.querySelector('.visible .highlightEditor.selectedEditor') !== null`)
+    const multilineBorder = await evaluate(`(() => {
+      const editor = document.querySelector('.visible .highlightEditor.selectedEditor');
+      const path = editor.querySelector('.lepisHighlightContour path');
+      const style = getComputedStyle(path);
+      const reference = document.createElement('span');
+      reference.style.color = 'var(--annotation-border-color)';
+      editor.append(reference);
+      const color = getComputedStyle(reference).color;
+      reference.remove();
+      return {
+        outline: getComputedStyle(editor).outlineStyle,
+        stroke: style.stroke,
+        width: style.strokeWidth,
+        color,
+        segments: path.getAttribute('d').split('M').length - 1
+      };
+    })()`)
+    assert.equal(multilineBorder.segments, 2, 'The selection must cover two separate lines')
+    assert.equal(
+      multilineBorder.outline,
+      'none',
+      'Multiline highlights must not have a bounding rectangle border'
+    )
+    assert.equal(multilineBorder.width, '1px')
+    assert.notEqual(
+      multilineBorder.stroke,
+      'none',
+      'The border must follow the highlighted line contours'
+    )
+    assert.notEqual(multilineBorder.stroke, 'transparent')
+    assert.equal(multilineBorder.stroke, multilineBorder.color)
+    await evaluate(`void window.testCommands.run('undo')`)
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 0`)
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    console.log(
+      'PASS: multiline highlight borders follow the individual lines without a bounding rectangle'
+    )
     await chooseColor('Yellow', 'Pink')
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[aria-label="Highlight color: Pink"]') !== null && !document.querySelector('[aria-label="Pink"]')`

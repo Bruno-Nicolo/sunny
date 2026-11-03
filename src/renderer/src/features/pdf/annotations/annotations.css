@@ -38,7 +38,7 @@
 }
 .pdf-viewer-container
   .lepisAnnotationLayer
-  > :is(.freeTextEditor, .stampEditor, .highlightEditor):is(:hover, .selectedEditor) {
+  > :is(.freeTextEditor, .stampEditor):is(:hover, .selectedEditor) {
   border: 0;
   outline: none;
 
@@ -60,7 +60,8 @@
   }
   path {
     fill: transparent;
-    stroke: none;
+    stroke: var(--annotation-border-color);
+    stroke-width: 1px;
     pointer-events: fill;
   }
 }
