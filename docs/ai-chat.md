@@ -80,6 +80,14 @@ search and must not claim external verification.
 
 ## Reasoning and tool calls
 
+The model selector in the composer opens a menu with Model and Effort entries, each opening
+its own submenu. Effort is disabled for models without selectable reasoning levels.
+Only the model name appears in the composer. For models with selectable reasoning levels,
+Effort lists the available levels and marks the current choice. Choices are saved
+separately for each provider and model; Medium is selected initially where supported.
+The chosen level applies to every model call for the next message, including document search
+planning and summary processing. Changing it during an answer affects the next request.
+
 Each assistant message stores an ordered work timeline alongside the answer. One disclosure contains
 tool calls and reasoning in their arrival order, including tools between reasoning
 segments. It reads **Working for <time>** with a timer updated each second throughout the request, and finally

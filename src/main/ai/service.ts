@@ -12,7 +12,7 @@ import type {
   ChatSendRequest,
   DocumentSource
 } from '../../shared/ai'
-import { aiProviders } from '../../shared/ai'
+import { aiProviders, reasoningLevels } from '../../shared/ai'
 import { updateChatWork } from '../../shared/chat-work'
 import { ChatStore } from './store'
 import { CredentialStore } from './credentials'
@@ -64,7 +64,12 @@ export class AiService {
   settings(update: Partial<AiSettings>): void {
     if (!update || typeof update !== 'object') throw new Error('Invalid AI settings.')
     const current = this.store.settings()
-    const settings = { ...current, ...update, models: { ...current.models, ...update.models } }
+    const settings = {
+      ...current,
+      ...update,
+      models: { ...current.models, ...update.models },
+      reasoning: { ...current.reasoning, ...update.reasoning }
+    }
     if (
       typeof settings.consent !== 'boolean' ||
       !aiProviders.includes(settings.provider) ||
@@ -73,6 +78,9 @@ export class AiService {
       typeof settings.models !== 'object'
     )
       throw new Error('Invalid AI settings.')
+    for (const level of Object.values(settings.reasoning)) {
+      if (!reasoningLevels.includes(level)) throw new Error('Invalid reasoning level.')
+    }
     const models: AiSettings['models'] = {}
     for (const provider of aiProviders) {
       const model = settings.models[provider]
@@ -160,7 +168,8 @@ export class AiService {
       request.text.length > 16_000 ||
       typeof request.model !== 'string' ||
       !request.model ||
-      request.model.length > 200
+      request.model.length > 200 ||
+      (request.reasoning !== undefined && !reasoningLevels.includes(request.reasoning))
     )
       throw new Error('Invalid AI request.')
     if (
@@ -321,6 +330,7 @@ export class AiService {
         this.providers.generate({
           provider: conversation.provider,
           model: request.model,
+          reasoning: request.reasoning,
           instructions,
           turns,
           signal,

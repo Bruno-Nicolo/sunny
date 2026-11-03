@@ -241,10 +241,12 @@ test('chat streams, validates references, persists selections and remains isolat
   const chat = service.store.create(version, 'openai', document.path)
   const attachment = { ...sources[0], id: 'a_text', kind: 'text' }
   const events = []
-  await service.send(request(chat, { attachments: [attachment] }), (event) =>
+  await service.send(request(chat, { attachments: [attachment], reasoning: 'high' }), (event) =>
     events.push(structuredClone(event))
   )
   const saved = service.store.get(chat.id)
+  assert.ok(calls.length > 1)
+  assert.ok(calls.every((call) => call.reasoning === 'high'))
   assert.equal(saved.messages.length, 2)
   assert.deepEqual(saved.messages[0].attachments, [attachment])
   assert.equal(saved.messages[1].status, 'complete')
@@ -487,13 +489,25 @@ test('independent preference updates preserve chat text size, panel width and mo
   const service = setup(t)
   service.settings({ chatFontSize: 20 })
   service.settings({ panelWidth: 460 })
-  service.settings({ models: { openai: 'first-model' } })
+  service.settings({
+    models: { openai: 'first-model' },
+    reasoning: { 'openai:first-model': 'high' }
+  })
+  service.settings({ reasoning: { 'google:second-model': 'low' } })
   service.settings({ provider: 'google', models: { google: 'second-model' } })
   const settings = service.store.settings()
   assert.equal(settings.chatFontSize, 20)
   assert.equal(settings.panelWidth, 460)
   assert.equal(settings.models.openai, 'first-model')
   assert.equal(settings.models.google, 'second-model')
+  assert.deepEqual(settings.reasoning, {
+    'openai:first-model': 'high',
+    'google:second-model': 'low'
+  })
+  assert.throws(
+    () => service.settings({ reasoning: { 'openai:first-model': 'invalid' } }),
+    /Invalid reasoning level/
+  )
 })
 
 test('chat text size defaults to 14, clamps to readable bounds and rejects invalid values', (t) => {
@@ -741,7 +755,8 @@ test('official SDK adapters send inline images and require terminal completion',
     let reasoning = ''
     const result = await adapters.generate({
       provider,
-      model: provider === 'chatgpt' || provider === 'openai' ? 'gpt-5' : 'test-model',
+      model: provider === 'chatgpt' || provider === 'openai' ? 'gpt-6.1-sol' : 'test-model',
+      reasoning: 'high',
       instructions: 'Use citations',
       turns: [{ role: 'user', text: 'Explain', images: ['data:image/png;base64,AAAA'] }],
       signal: new AbortController().signal,
@@ -760,7 +775,7 @@ test('official SDK adapters send inline images and require terminal completion',
     assert.equal(call.url, 'https://api.openai.com/v1/responses')
     assert.equal(call.body.store, false)
     assert.equal(call.body.stream, true)
-    assert.deepEqual(call.body.reasoning, { summary: 'auto' })
+    assert.deepEqual(call.body.reasoning, { summary: 'auto', effort: 'high' })
     assert.equal(call.body.input[0].content[1].image_url, 'data:image/png;base64,AAAA')
     for (const field of [
       'previous_response_id',
@@ -773,10 +788,14 @@ test('official SDK adapters send inline images and require terminal completion',
   }
   assert.equal(calls[2].body.messages[0].content[1].source.media_type, 'image/png')
   assert.deepEqual(calls[2].body.thinking, { type: 'adaptive', display: 'summarized' })
+  assert.deepEqual(calls[2].body.output_config, { effort: 'high' })
   assert.equal(calls[3].body.contents[0].parts[1].inlineData.mimeType, 'image/png')
-  assert.deepEqual(calls[3].body.generationConfig.thinkingConfig, { includeThoughts: true })
+  assert.deepEqual(calls[3].body.generationConfig.thinkingConfig, {
+    includeThoughts: true,
+    thinkingLevel: 'HIGH'
+  })
   assert.equal(calls[4].body.messages[1].content[1].image_url.url, 'data:image/png;base64,AAAA')
-  assert.deepEqual(calls[4].body.reasoning, { enabled: true, exclude: false })
+  assert.deepEqual(calls[4].body.reasoning, { enabled: true, exclude: false, effort: 'high' })
   incomplete = true
   await assert.rejects(
     adapters.generate({

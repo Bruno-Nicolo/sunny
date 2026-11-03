@@ -16,6 +16,7 @@ export const defaultAiSettings: AiSettings = {
   panelWidth: 380,
   chatFontSize: 14,
   provider: 'chatgpt',
+  reasoning: {},
   models: {}
 }
 

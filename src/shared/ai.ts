@@ -60,6 +60,7 @@ export type AiSettings = {
   chatFontSize: number
   provider: AiProvider
   models: Partial<Record<AiProvider, string>>
+  reasoning: Record<string, ReasoningLevel>
 }
 export type AiStatus = {
   settings: AiSettings
@@ -78,12 +79,16 @@ export type ChatgptLoginState = {
     | 'error'
   error?: string
 }
-export type AiModel = { id: string; name: string }
+export const reasoningLevels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+export type ReasoningLevel = (typeof reasoningLevels)[number]
+export type AiModel = { id: string; name: string; reasoningLevels?: ReasoningLevel[] }
+
 export type ChatSendRequest = {
   requestId: string
   conversationId: string
   newConversation?: { version: string; path: string; provider: AiProvider }
   model: string
+  reasoning?: ReasoningLevel
   text: string
   attachments: ChatAttachment[]
   summarize: boolean

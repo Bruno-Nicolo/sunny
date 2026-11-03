@@ -38,7 +38,12 @@ async function waitFor(code, timeout = 20000) {
 }
 const click = (label) =>
   evaluate(
-    `Array.from(document.querySelectorAll('[aria-label="${label}"]')).find(element => element.getBoundingClientRect().width > 0).click()`
+    `(() => {
+      const element = Array.from(document.querySelectorAll('[aria-label="${label}"]')).find(element => element.getBoundingClientRect().width > 0);
+      if (element.getAttribute('aria-haspopup') === 'menu') {
+        element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      } else element.click();
+    })()`
   )
 const setInput = (label, text) =>
   evaluate(`(() => {
@@ -192,7 +197,7 @@ app
       if (provider === 'anthropic') throw new Error('Fixture Anthropic catalog unavailable')
       if (provider === 'openai') return [{ id: 'test-model', name: 'OpenAI test model' }]
       if (catalogUnavailable) throw new Error('Fixture catalog temporarily unavailable')
-      return [{ id: 'test-model', name: 'Test model' }]
+      return [{ id: 'test-model', name: 'Test model', reasoningLevels: ['low', 'medium', 'high'] }]
     }
     service.providers.generate = async (request) => {
       generated.push(request)
@@ -395,6 +400,35 @@ app
       true,
       'model selector is inside the composer'
     )
+    await click('AI model')
+    await waitFor(
+      `document.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]').length === 2`
+    )
+    assert.equal(
+      await evaluate(
+        `Array.from(document.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]')).map(item => item.textContent).join('|')`
+      ),
+      'Model|Effort'
+    )
+    await click('Select effort')
+    await waitFor(
+      `document.querySelector('[aria-label="Thinking time"] [aria-checked="true"]')?.textContent === 'Medium'`
+    )
+    await waitFor(`(() => {
+      const trigger = document.querySelector('[aria-label="Select effort"]').getBoundingClientRect();
+      const submenu = document.querySelector('[data-slot="dropdown-menu-sub-content"]').getBoundingClientRect();
+      return Math.abs(submenu.bottom - trigger.bottom) < 2 && submenu.top >= 0;
+    })()`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[aria-label="Thinking time"] [role="menuitemradio"]')).find(option => option.textContent === 'High').click()`
+    )
+    await waitFor(
+      `document.querySelector('[aria-label="AI model"]').getAttribute('aria-expanded') === 'false'`
+    )
+    assert.equal(service.store.settings().reasoning['chatgpt:test-model'], 'high')
+    await waitFor(
+      `!document.querySelector('[role="menu"]') && document.body.style.pointerEvents !== 'none'`
+    )
     assert.equal(await evaluate(`document.body.innerText.includes('PDF + model knowledge')`), false)
     const newChatButton = await evaluate(
       `(() => { const rect = document.querySelector('aside:not(.hidden) [aria-label="New chat"]').getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; })()`
@@ -427,22 +461,30 @@ app
       '1px'
     )
     await click('AI model')
-    await waitFor(`document.querySelector('[role="option"]')?.textContent.includes('Test model')`)
-    await evaluate(`document.querySelector('[role="option"]').click()`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelector('[aria-label="Models"] [role="menuitemradio"]')?.textContent.includes('Test model')`
+    )
+    await evaluate(`document.querySelector('[aria-label="Models"] [role="menuitemradio"]').click()`)
     await waitFor(
       `document.querySelector('[aria-label="AI model"]').getAttribute('aria-expanded') === 'false'`
     )
     await click('AI model')
-    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]').length === 2`
+    )
     assert.equal(
       await evaluate(
-        `Array.from(document.querySelectorAll('[data-slot="select-label"]')).map(label => label.textContent).join('|')`
+        `Array.from(document.querySelectorAll('[aria-label="Models"] [data-slot="dropdown-menu-label"]')).map(label => label.textContent).join('|')`
       ),
       'OpenAI'
     )
     assert.equal(await evaluate(`document.querySelector('[aria-label="AI provider"]')`), null)
     assert.equal(
-      await evaluate(`document.querySelectorAll('[role="option"] [data-provider-logo]').length`),
+      await evaluate(
+        `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"] [data-provider-logo]').length`
+      ),
       2
     )
     assert.equal(
@@ -453,12 +495,12 @@ app
     )
     assert.equal(
       await evaluate(
-        `document.querySelectorAll('[data-slot="select-label"] [data-provider-logo]').length`
+        `document.querySelectorAll('[aria-label="Models"] [data-slot="dropdown-menu-label"] [data-provider-logo]').length`
       ),
       0
     )
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'OpenAI test model').click()`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).find(option => option.textContent === 'OpenAI test model').click()`
     )
     await waitFor(
       `document.querySelector('[aria-label="AI model"]').textContent === 'OpenAI test model'`
@@ -469,13 +511,24 @@ app
       'model selection persists the corresponding provider'
     )
     await click('AI model')
-    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]').length === 2`
+    )
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'Test model').click()`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).find(option => option.textContent === 'Test model').click()`
     )
     await waitFor(`document.querySelector('[aria-label="AI model"]').textContent === 'Test model'`)
-    await waitFor(`!document.querySelector('[role="option"]')`)
+    await waitFor(`!document.querySelector('[aria-label="Models"] [role="menuitemradio"]')`)
     assert.equal(service.store.settings().provider, 'chatgpt')
+    await click('AI model')
+    await click('Select effort')
+    await waitFor(
+      `document.querySelector('[aria-label="Thinking time"] [aria-checked="true"]')?.textContent === 'High'`
+    )
+    await click('AI model')
+    await waitFor(`!document.querySelector('[role="menu"]')`)
+
     console.log(
       'PASS: modal settings, grouped connected providers, duplicate model IDs and partial catalog failure'
     )
@@ -1178,9 +1231,12 @@ app
     )
     await setInput('Message AI', 'Explain this PDF using OpenAI')
     await click('AI model')
-    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]').length === 2`
+    )
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'OpenAI test model').click()`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).find(option => option.textContent === 'OpenAI test model').click()`
     )
     await waitFor(
       `document.querySelector('aside:not(.hidden) [aria-label="AI model"]').textContent === 'OpenAI test model'`
@@ -1380,13 +1436,14 @@ app
     assert.deepEqual(rendererErrors, [])
     fs.writeFileSync('/tmp/lepis-chat.png', (await win.webContents.capturePage()).toPNG())
     await click('AI model')
+    await click('Select model')
     await waitFor(
-      `Array.from(document.querySelectorAll('[role="option"]')).filter(option => option.getBoundingClientRect().width > 0).length === 2`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).filter(option => option.getBoundingClientRect().width > 0).length === 2`
     )
     await evaluate(
       `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
     )
-    await waitFor(`getComputedStyle(document.querySelector('[role="listbox"]')).opacity === '1'`)
+    await waitFor(`getComputedStyle(document.querySelector('[role="menu"]')).opacity === '1'`)
     fs.writeFileSync('/tmp/lepis-model-groups.png', (await win.webContents.capturePage()).toPNG())
     console.log('PASS: stop persists interrupted responses; no renderer errors')
   })
