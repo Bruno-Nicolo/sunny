@@ -300,7 +300,7 @@ export function PdfSidebar({
   return (
     <Sidebar
       collapsible="none"
-      className="h-full w-60 shrink-0 border-r"
+      className="h-full w-60 shrink-0 border-r bg-background"
       aria-label="PDF navigation"
     >
       <SidebarContent className="min-h-0 overflow-hidden">
