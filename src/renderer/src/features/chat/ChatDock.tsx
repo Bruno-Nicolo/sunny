@@ -195,7 +195,6 @@ export function ChatDock({
                   if (narrow) onOpenChange(false)
                 }}
                 onSelectRegion={selectRegion}
-                onCancelSelection={cancelSelection}
               />
             </Suspense>
           </aside>

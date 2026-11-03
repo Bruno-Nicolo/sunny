@@ -29,7 +29,7 @@ be continued, renamed or deleted independently. Message actions wait for an acti
 
 ## Selecting context
 
-- Select text in the PDF, then choose **Attach text**. Selections spanning pages produce one
+- Select text in the PDF, then choose **Ask AI**. Selections spanning pages produce one
   attachment per page.
 - Choose **Select region**, then drag a rectangle. The attachment contains a fresh rendering of
   the original PDF content, without annotations or editor overlays. Escape cancels selection.

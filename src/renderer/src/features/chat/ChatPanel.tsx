@@ -17,7 +17,6 @@ import {
   Plus,
   Settings,
   Square,
-  Type,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -75,7 +74,6 @@ type Props = {
   onWidth(width: number): void
   onShowDocument(): void
   onSelectRegion(callback: (attachment: ChatAttachment) => void): void
-  onCancelSelection(): void
 }
 
 export function ChatPanel({
@@ -87,8 +85,7 @@ export function ChatPanel({
   getViewer,
   onWidth,
   onShowDocument,
-  onSelectRegion,
-  onCancelSelection
+  onSelectRegion
 }: Props): React.JSX.Element {
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -128,7 +125,6 @@ export function ChatPanel({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [attachingFiles, setAttachingFiles] = useState(false)
   const attachmentImportRef = useRef<AbortController | null>(null)
-  const selectedTextRef = useRef<ChatAttachment[]>([])
   useEffect(() => {
     if (!selectedAttachments) return
     onSelectionConsumed()
@@ -1099,12 +1095,7 @@ export function ChatPanel({
                     }}
                   />
                   <InputGroupAddon align="block-end" className="text-foreground">
-                    <DropdownMenu
-                      onOpenChange={(open) => {
-                        if (open)
-                          selectedTextRef.current = getViewer(tab.id)?.attachSelectedText() ?? []
-                      }}
-                    >
+                    <DropdownMenu>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuTrigger asChild>
@@ -1131,15 +1122,6 @@ export function ChatPanel({
                         >
                           <FilePlus />
                           Attach files
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            onCancelSelection()
-                            addAttachments(selectedTextRef.current)
-                          }}
-                        >
-                          <Type />
-                          Attach text
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onSelect={() =>
