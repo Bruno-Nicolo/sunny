@@ -1,4 +1,4 @@
-import type { ThumbnailAnnotations } from './annotations/thumbnailAnnotations'
+import type { PageAnnotations } from './annotations/pageAnnotations'
 import type { TextEditorSettings } from './annotations/text/types'
 import {
   useCallback,
@@ -23,7 +23,7 @@ type PdfViewerState = {
   viewerElementRef: RefObject<HTMLDivElement | null>
   handle: PdfDocumentHandle
   loading: boolean
-  document: { pdf: PDFDocumentProxy; annotations: ThumbnailAnnotations } | null
+  document: { pdf: PDFDocumentProxy; annotations: PageAnnotations } | null
   page: number
   searchSnapshot: PdfSearchSnapshot
   searchRequest: number | null
@@ -106,8 +106,8 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
             setPage(snapshot.page)
             propsRef.current.onSnapshot(snapshot)
           },
-          onDocumentReady: (document, thumbnails) => {
-            setDocument({ pdf: document, annotations: thumbnails })
+          onDocumentReady: (document, annotations) => {
+            setDocument({ pdf: document, annotations })
             if (controller) resolveReady(controller)
           },
           onTextEditorChange: setTextEditor,

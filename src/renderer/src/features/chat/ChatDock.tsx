@@ -39,7 +39,6 @@ export function ChatDock({
   const [narrow, setNarrow] = useState(window.innerWidth < 1000)
   const [activated, setActivated] = useState<string[]>([])
   const selectedViewer = useRef<PdfDocumentHandle | null>(null)
-  const dockRef = useRef<HTMLDivElement>(null)
   const widthRef = useRef(width)
   const applyWidth = useCallback((width: number): void => {
     const value = Math.max(300, Math.min(window.innerWidth / 2, width))
@@ -66,11 +65,8 @@ export function ChatDock({
     selectedViewer.current = null
   }, [])
   useEffect(() => {
-    if (open || !narrow) {
-      selectedViewer.current?.selectChatRegion(null)
-      selectedViewer.current = null
-    }
-  }, [open, narrow])
+    if (open || !narrow) cancelSelection()
+  }, [open, narrow, cancelSelection])
   useEffect(() => {
     const escape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && selectedViewer.current) cancelSelection()
@@ -78,19 +74,7 @@ export function ChatDock({
     window.addEventListener('keydown', escape)
     return () => window.removeEventListener('keydown', escape)
   }, [cancelSelection])
-  useEffect(
-    () => () => {
-      selectedViewer.current?.selectChatRegion(null)
-      selectedViewer.current = null
-    },
-    [activeId]
-  )
-  useEffect(
-    () => () => {
-      selectedViewer.current?.selectChatRegion(null)
-    },
-    []
-  )
+  useEffect(() => cancelSelection, [activeId, cancelSelection])
   const persistWidth = async (): Promise<void> => {
     await window.lepis.ai.settings({ panelWidth: widthRef.current })
   }
@@ -122,7 +106,7 @@ export function ChatDock({
     shortcutsEnabled
   )
   return (
-    <div ref={dockRef} className="relative flex min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1">
       <div className={`flex min-w-0 flex-1 ${open && narrow && activeId ? 'hidden' : ''}`}>
         {children}
       </div>

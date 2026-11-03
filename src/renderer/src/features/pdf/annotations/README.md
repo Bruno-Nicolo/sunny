@@ -148,6 +148,12 @@ the app's actual toolbar and navigation handlers.
 
 ## Sidebar annotation previews
 
+`pageAnnotations.ts` exposes current page records and draws them for sidebar previews and AI region attachments.
+Region attachments render the PDF crop with native annotations, then compose the editor's records
+in the same viewport coordinates. Imported originals remain excluded from the base display render,
+so edited or deleted annotations are not drawn twice. Captures include unsaved changes and omit
+editor controls and selection overlays.
+
 Visible thumbnails compose current annotation records over a cached PDF bitmap and coalesce
 page-specific changes in animation frames. Pages not yet imported by the editor keep their native
 PDF annotation rendering; thumbnails never trigger imports. Importing editable originals invalidates the page’s base

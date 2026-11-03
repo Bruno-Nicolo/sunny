@@ -12,7 +12,7 @@ import { textRect, normalizedRect } from './geometry'
 import { validateImage } from './images/imageFiles'
 import type { TextEditorSettings } from './text/types'
 import type { AnnotationOptions } from './types'
-import type { ThumbnailAnnotations } from './thumbnailAnnotations'
+import type { PageAnnotations } from './pageAnnotations'
 
 type Options = {
   eventBus: EventBus
@@ -37,7 +37,7 @@ type AnnotationController = {
   commitDraft(): void
   undo(): void
   redo(): void
-  readonly thumbnails: ThumbnailAnnotations
+  readonly pageAnnotations: PageAnnotations
   readonly hash: string
   save(): Promise<Uint8Array>
 }
@@ -437,7 +437,7 @@ export function createAnnotationController({
 
   return {
     highlightSelection,
-    thumbnails: {
+    pageAnnotations: {
       // Wait for an existing editor import; thumbnails alone keep originals on the PDF rendering path.
       async prepare(pageIndex) {
         await initialized

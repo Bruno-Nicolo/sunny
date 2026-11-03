@@ -21,7 +21,7 @@ import {
 import { FileRangeTransport } from './fileRangeTransport'
 import { createAnnotationController } from './annotations/createAnnotationController'
 import type { AnnotationOptions } from './annotations/types'
-import type { ThumbnailAnnotations } from './annotations/thumbnailAnnotations'
+import type { PageAnnotations } from './annotations/pageAnnotations'
 import type { TextEditorSettings } from './annotations/text/types'
 import { createKeyboardScroll } from './keyboardScroll'
 import { createPresentationMode } from './createPresentationMode'
@@ -49,7 +49,7 @@ type Options = {
   onLoadingChange(loading: boolean): void
   onPasswordRequest(request: PasswordRequest | null): void
   onError(message: string): void
-  onDocumentReady(document: PDFDocumentProxy, thumbnails: ThumbnailAnnotations): void
+  onDocumentReady(document: PDFDocumentProxy, pageAnnotations: PageAnnotations): void
   onTextEditorChange(settings: TextEditorSettings | null): void
   onSearchChange(snapshot: PdfSearchSnapshot): void
 }
@@ -108,15 +108,6 @@ export function createPdfViewer({
     )
       page.cleanup()
   }
-  const chat = createChatSelection({
-    viewer,
-    eventBus,
-    container,
-    signal: lifetime.signal,
-    document: () => document,
-    release: releasePage,
-    onError
-  })
   let composing = false
   let pendingWheelDelta = 0
   // Chromium reports trackpad pinches as wheel events with ctrlKey set.
@@ -189,6 +180,16 @@ export function createPdfViewer({
     initialOptions,
     onDirtyChange,
     onTextEditorChange,
+    onError
+  })
+  const chat = createChatSelection({
+    viewer,
+    eventBus,
+    container,
+    signal: lifetime.signal,
+    document: () => document,
+    annotations: annotations.pageAnnotations,
+    release: releasePage,
     onError
   })
   let annotationOptions = initialOptions
@@ -338,7 +339,7 @@ export function createPdfViewer({
       annotations.setDocument(pdfDocument)
       linkService.setDocument(pdfDocument)
       viewer.setDocument(pdfDocument)
-      onDocumentReady(pdfDocument, annotations.thumbnails)
+      onDocumentReady(pdfDocument, annotations.pageAnnotations)
     })
     .catch((error: unknown) => {
       if (destroyed) return

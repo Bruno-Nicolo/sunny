@@ -6,15 +6,12 @@ import { Sidebar, SidebarContent } from '@/components/ui/sidebar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import type { PdfDocumentViewProps } from './types'
-import {
-  paintThumbnailAnnotations,
-  type ThumbnailAnnotations
-} from './annotations/thumbnailAnnotations'
+import { paintAnnotations, type PageAnnotations } from './annotations/pageAnnotations'
 
 type Outline = NonNullable<Awaited<ReturnType<PDFDocumentProxy['getOutline']>>>
 type Props = {
   document: PDFDocumentProxy
-  annotations: ThumbnailAnnotations
+  annotations: PageAnnotations
   tab: PdfDocumentViewProps['sidebarTab']
   onTabChange: PdfDocumentViewProps['onSidebarTabChange']
   page: number
@@ -38,7 +35,7 @@ const PageThumbnail = memo(function PageThumbnail({
   enqueue
 }: {
   document: PDFDocumentProxy
-  annotations: ThumbnailAnnotations
+  annotations: PageAnnotations
   number: number
   selected: boolean
   active: boolean
@@ -120,7 +117,7 @@ const PageThumbnail = memo(function PageThumbnail({
             context.clearRect(0, 0, canvas.width, canvas.height)
             context.drawImage(base, 0, 0)
             context.setTransform(ratio, 0, 0, ratio, 0, 0)
-            paintThumbnailAnnotations(context, viewport, annotations.forPage(number - 1))
+            paintAnnotations(context, viewport, annotations.forPage(number - 1))
           }
           redraw()
         } finally {
