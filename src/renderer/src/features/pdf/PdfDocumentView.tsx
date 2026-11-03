@@ -1,11 +1,10 @@
 import { forwardRef, useImperativeHandle } from 'react'
-import { SidebarProvider } from '@/components/ui/sidebar'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import './annotations/annotations.css'
 import { PasswordDialog } from './PasswordDialog'
 import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
-import { PdfSidebar } from './PdfSidebar'
+import { PdfNavigationDialog } from './PdfNavigationDialog'
 import { PdfSearchInput } from './PdfSearchInput'
 import { TextSelectionPopover } from './TextSelectionPopover'
 
@@ -29,24 +28,22 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
     } = usePdfViewer(props)
     useImperativeHandle(ref, () => handle, [handle])
     return (
-      <SidebarProvider open={props.sidebarOpen} className="relative h-full min-h-0 flex-col">
+      <div className="relative flex h-full min-h-0 flex-col">
         {loading && props.active && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-background text-sm text-muted-foreground">
             Opening document…
           </div>
         )}
         <div className="flex min-h-0 flex-1">
-          {!document && props.sidebarOpen && (
-            <div aria-hidden="true" className="h-full w-60 shrink-0 border-r bg-sidebar" />
-          )}
-          {document && props.sidebarOpen && (
-            <PdfSidebar
+          {document && props.active && (
+            <PdfNavigationDialog
+              open={props.navigationOpen}
+              onOpenChange={props.onNavigationOpenChange}
               document={document.pdf}
               annotations={document.annotations}
-              tab={props.sidebarTab}
-              onTabChange={props.onSidebarTabChange}
+              tab={props.navigationTab}
+              onTabChange={props.onNavigationTabChange}
               page={page}
-              active={props.active}
               onPage={handle.setPage}
               onReleasePage={releasePageResources}
               onDestination={navigateToDestination}
@@ -83,7 +80,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
           incorrect={passwordRequest?.incorrect ?? false}
           onSubmit={submitPassword}
         />
-      </SidebarProvider>
+      </div>
     )
   }
 )

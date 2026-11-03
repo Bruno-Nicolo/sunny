@@ -20,7 +20,7 @@
     "test:images": "pnpm build && electron tests/images.integration.mjs",
     "test:memory": "pnpm build && electron tests/tabs-memory.integration.mjs",
     "test:documents": "pnpm build && electron tests/documents.integration.mjs",
-    "test:sidebar": "pnpm build && electron tests/sidebar.integration.mjs && electron tests/thumbnail-annotations.integration.mjs",
+    "test:navigation": "pnpm build && electron tests/navigation.integration.mjs && electron tests/thumbnail-annotations.integration.mjs",
     "test:search": "pnpm build && electron tests/search.integration.mjs",
     "test:view-layout": "pnpm build && electron tests/view-layout.integration.mjs",
     "test:zoom": "pnpm build && electron tests/zoom.integration.mjs",

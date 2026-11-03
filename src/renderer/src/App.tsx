@@ -25,9 +25,9 @@ function App(): React.JSX.Element {
     id: string
     settings: TextEditorSettings | null
   } | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [navigationOpen, setNavigationOpen] = useState(false)
   const [invertColors, setInvertColors] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState<PdfDocumentViewProps['sidebarTab']>('pages')
+  const [navigationTab, setNavigationTab] = useState<PdfDocumentViewProps['navigationTab']>('pages')
   const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatSelection, setChatSelection] = useState<{
@@ -175,9 +175,6 @@ function App(): React.JSX.Element {
       undo: () => withViewer((viewer) => viewer.undo()),
       redo: () => withViewer((viewer) => viewer.redo()),
       find: () => withViewer((viewer) => viewer.openSearch()),
-      'toggle-sidebar': () => {
-        if (activeTab) setSidebarOpen((open) => !open)
-      },
       'toggle-chat': () => {
         if (activeTab) setChatOpen((open) => !open)
       },
@@ -264,11 +261,9 @@ function App(): React.JSX.Element {
           <TabBar
             tabs={tabs}
             activeId={activeId}
-            sidebarOpen={sidebarOpen}
             theme={theme}
             chatOpen={chatOpen}
             onToggleChat={() => setChatOpen((open) => !open)}
-            onToggleSidebar={() => setSidebarOpen((open) => !open)}
             onSelect={selectTab}
             onReorder={reorderTab}
             onClose={(id) => void closeTab(id)}
@@ -277,6 +272,8 @@ function App(): React.JSX.Element {
           />
           <DocumentToolbar
             activeTab={activeTab}
+            navigationOpen={navigationOpen}
+            onToggleNavigation={() => setNavigationOpen((open) => !open)}
             invertColors={invertColors}
             annotationTool={annotationTool}
             highlightColor={highlightColor}
@@ -321,9 +318,10 @@ function App(): React.JSX.Element {
           invertColors={invertColors}
           activeId={activeId}
           ready={ready}
-          sidebarOpen={sidebarOpen}
-          sidebarTab={sidebarTab}
-          onSidebarTabChange={setSidebarTab}
+          navigationOpen={navigationOpen}
+          onNavigationOpenChange={setNavigationOpen}
+          navigationTab={navigationTab}
+          onNavigationTabChange={setNavigationTab}
           annotationTool={annotationTool}
           highlightColor={highlightColor}
           onOpen={() => void openDialog()}

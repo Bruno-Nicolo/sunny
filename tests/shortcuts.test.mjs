@@ -76,14 +76,6 @@ test('rotation accepts an unmodified r on each platform', () => {
   }
 })
 
-test('sidebar toggle matches command-backslash and rejects other modifiers', () => {
-  assert.equal(matches('toggle-sidebar', '\\', { metaKey: true }), true)
-  assert.equal(matches('toggle-sidebar', '\\'), false)
-  assert.equal(matches('toggle-sidebar', '\\', { metaKey: true, shiftKey: true }), false)
-  assert.equal(matches('toggle-sidebar', '\\', { metaKey: true, altKey: true }), false)
-  assert.equal(matches('toggle-sidebar', '\\', { ctrlKey: true }, false), true)
-})
-
 test('find uses the platform command key and rejects extra modifiers', () => {
   assert.equal(matches('find', 'f', { metaKey: true }), true)
   assert.equal(matches('find', 'f', { ctrlKey: true }, false), true)
@@ -99,7 +91,6 @@ test('native accelerators cover zoom, closing, and all nine tab positions', () =
   assert.equal(accelerator('zoom-out'), 'CmdOrCtrl+-')
   assert.equal(accelerator('close-tab'), 'CmdOrCtrl+W')
   assert.equal(accelerator('print'), 'CmdOrCtrl+P')
-  assert.equal(accelerator('toggle-sidebar'), 'CmdOrCtrl+\\')
   assert.equal(accelerator('next-tab'), 'Ctrl+Tab')
   assert.equal(accelerator('previous-tab'), 'Ctrl+Shift+Tab')
   for (let position = 1; position <= 9; position++) {

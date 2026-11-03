@@ -89,7 +89,7 @@ app
     await enableTestFocus(win)
     await waitFor(`document.querySelector('.visible .pdfViewer .page canvas')?.width > 0`)
     for (const selector of [
-      '[aria-label="Toggle PDF sidebar"]',
+      '[aria-label="Toggle PDF navigation"]',
       '[aria-label="layout.pdf"]',
       '.visible .pdf-viewer-container'
     ]) {

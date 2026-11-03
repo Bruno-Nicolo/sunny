@@ -3,7 +3,7 @@ import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from '@dn
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import { Monitor, Moon, PanelLeft, PanelRight, Plus, Sun, X } from 'lucide-react'
+import { Monitor, Moon, PanelRight, Plus, Sun, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -16,9 +16,7 @@ type Props = {
   activeId: string | null
   chatOpen: boolean
   onToggleChat(): void
-  sidebarOpen: boolean
   theme: SessionState['theme']
-  onToggleSidebar(): void
   onSelect(id: string): void
   onClose(id: string): void
   onReorder(id: string, index: number): void
@@ -44,9 +42,7 @@ export function TabBar({
   activeId,
   chatOpen,
   onToggleChat,
-  sidebarOpen,
   theme,
-  onToggleSidebar,
   onSelect,
   onClose,
   onReorder,
@@ -78,27 +74,11 @@ export function TabBar({
       }}
     >
       <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[92px] shadow-[inset_0_-1px_0_var(--border)]">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="titlebar-no-drag"
-              disabled={!activeId}
-              aria-label="Toggle PDF sidebar"
-              aria-expanded={sidebarOpen}
-              onClick={onToggleSidebar}
-            >
-              <PanelLeft />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} (⌘\)</TooltipContent>
-        </Tooltip>
         <div className="relative flex h-full min-w-0 flex-1">
           <div
             ref={tabStripRef}
             onScroll={(event) => setHasPreviousTabs(event.currentTarget.scrollLeft > 0)}
-            className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pr-2 pl-3 [scrollbar-width:none]"
+            className="titlebar-no-drag flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pr-2 [scrollbar-width:none]"
           >
             {tabs.map((tab, index) => (
               <SortableTab

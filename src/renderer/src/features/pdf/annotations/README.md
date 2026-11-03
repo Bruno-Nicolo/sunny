@@ -146,7 +146,7 @@ editing effects without stealing desktop focus or accepting unrelated keystrokes
 window is visible, non-focusable and ignores physical mouse input; its measured interactions use
 the app's actual toolbar and navigation handlers.
 
-## Sidebar annotation previews
+## Navigation modal annotation previews
 
 Visible thumbnails compose current annotation records over a cached PDF bitmap and coalesce
 page-specific changes in animation frames. Pages not yet imported by the editor keep their native
@@ -156,7 +156,7 @@ and subscription. The preview painter uses PDF.js viewport conversion for intrin
 Editor layers update tool and selection state without reconciling annotation records when the
 model revision and viewport are unchanged.
 
-`test:sidebar` includes pixel regressions for highlights, formatted text and pasted images. Set
+`test:navigation` includes pixel regressions for highlights, formatted text and pasted images. Set
 `LEPIS_THUMBNAIL_ROTATION` to 90, 180 or 270 when running
 `tests/thumbnail-annotations.integration.mjs` for additional orientations.
 `LEPIS_PERF_THUMBNAIL_EDITS=1` adds a 30-edit thumbnail latency and PDF-render reuse check to the

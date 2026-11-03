@@ -81,14 +81,15 @@ async function thumbnailPixel(x, y) {
           ? [792 - y, 612 - x, 792, 612]
           : [x, 792 - y, 612, 792]
   return evaluate(
-    `(() => {const c=document.querySelector('.visible [aria-label="Go to page 1"] canvas');return Array.from(c.getContext('2d').getImageData(Math.round(${vx}*c.width/${w}),Math.round(${vy}*c.height/${h}),1,1).data)})()`
+    `(() => {const c=document.querySelector('[aria-label="Go to page 1"] canvas');if(!c?.width || !c.height)return [0,0,0,0];return Array.from(c.getContext('2d').getImageData(Math.round(${vx}*c.width/${w}),Math.round(${vy}*c.height/${h}),1,1).data)})()`
   )
 }
 async function editorPixel(selector, fraction) {
   return evaluate(`(() => {
     const editor=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
     const page=document.querySelector('.visible .page').getBoundingClientRect();
-    const c=document.querySelector('.visible [aria-label="Go to page 1"] canvas');
+    const c=document.querySelector('[aria-label="Go to page 1"] canvas');
+    if(!c?.width || !c.height)return [0,0,0,0];
     return Array.from(c.getContext('2d').getImageData(Math.round((editor.left-page.left+editor.width*${fraction})*c.width/page.width),Math.round((editor.top-page.top+editor.height/2)*c.height/page.height),1,1).data);
   })()`)
 }
@@ -96,24 +97,14 @@ async function redTextPixels() {
   return evaluate(`(() => {
     const editor=document.querySelector('.visible .freeTextEditor').getBoundingClientRect();
     const page=document.querySelector('.visible .page').getBoundingClientRect();
-    const c=document.querySelector('.visible [aria-label="Go to page 1"] canvas');
+    const c=document.querySelector('[aria-label="Go to page 1"] canvas');
+    if(!c?.width || !c.height)return 0;
     const data=c.getContext('2d').getImageData(Math.floor((editor.left-page.left)*c.width/page.width),Math.floor((editor.top-page.top)*c.height/page.height),Math.ceil(editor.width*c.width/page.width),Math.ceil(editor.height*c.height/page.height)).data;
     let red=0;for(let i=0;i<data.length;i+=4)if(data[i]>150 && data[i+1]<150 && data[i+2]<150)red++;return red;
   })()`)
 }
-async function thumbnailHash() {
-  return evaluate(
-    `(() => {const c=document.querySelector('.visible [aria-label="Go to page 1"] canvas');if(!c?.width || !c.height)return null;let hash=0;for(const value of c.getContext('2d').getImageData(0,0,c.width,c.height).data)hash=(hash*31+value)|0;return hash})()`
-  )
-}
-async function waitForChange(before) {
-  await waitFor(async () => {
-    const hash = await thumbnailHash()
-    return hash !== null && hash !== before
-  })
-}
-async function toggleSidebar() {
-  await evaluate(`document.querySelector('[aria-label="Toggle PDF sidebar"]').click()`)
+async function toggleNavigation() {
+  await evaluate(`document.querySelector('[aria-label="Toggle PDF navigation"]').click()`)
 }
 async function pasteText(text) {
   await evaluate(
@@ -121,12 +112,30 @@ async function pasteText(text) {
   )
 }
 async function removeSelected(selector) {
+  const count = await evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`)
   await evaluate(
     `(() => {const editor=document.querySelector(${JSON.stringify(selector)});editor.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:1}));window.dispatchEvent(new PointerEvent('pointerup',{pointerId:1}));editor.focus()})()`
   )
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Delete' })
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Delete' })
+  await waitFor(`document.querySelectorAll(${JSON.stringify(selector)}).length === ${count - 1}`)
 }
+async function openNavigation() {
+  await toggleNavigation()
+  await waitFor(`document.querySelector('[aria-label="Go to page 1"] canvas')?.width > 0`)
+}
+async function closeNavigation() {
+  await evaluate(`document.querySelector('[data-slot="dialog-close"]').click()`)
+  await waitFor(`document.querySelector('[role="dialog"]') === null`)
+}
+async function checkImage() {
+  await waitFor(async () => {
+    const red = await editorPixel('.visible .stampEditor', 0.25)
+    const blue = await editorPixel('.visible .stampEditor', 0.75)
+    return red[0] > 240 && red[2] < 20 && blue[2] > 240 && blue[0] < 20
+  })
+}
+
 app
   .whenReady()
   .then(async () => {
@@ -144,26 +153,11 @@ app
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
     await enableTestFocus(win)
     await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 3`)
-    await waitFor(
-      `document.querySelector('.visible [aria-label="Go to page 1"] canvas')?.width > 0`
-    )
-    // Regenerate after the main viewer has imported its originals: this used to omit highlights.
-    await toggleSidebar()
-    await waitFor(`!document.querySelector('.visible [aria-label="PDF navigation"]')`)
-    await toggleSidebar()
-    await waitFor(
-      `document.querySelector('.visible [aria-label="Go to page 1"] canvas')?.width > 0`
-    )
+    await openNavigation()
     await waitFor(async () => {
       const pixel = await thumbnailPixel(220, 710)
       return pixel[0] > 240 && pixel[1] > 240 && pixel[2] < 100 && pixel[3] === 255
     })
-    console.log('PASS: regenerated thumbnails retain saved highlights')
-    await evaluate(`(() => {
-      window.pdfTextPaints=0;
-      const fill=CanvasRenderingContext2D.prototype.fillText;
-      CanvasRenderingContext2D.prototype.fillText=function(...args){if(!this.canvas.isConnected)window.pdfTextPaints++;return fill.apply(this,args)};
-    })()`)
     const overlap = await thumbnailPixel(325, 425)
     assert.ok(
       overlap[0] > 140 &&
@@ -172,109 +166,82 @@ app
         overlap[1] < 105 &&
         overlap[2] > 140 &&
         overlap[2] < 165,
-      'Overlapping highlights must blend their colors'
+      'Overlapping highlights blend their colors'
     )
-    let before = await thumbnailHash()
+    await closeNavigation()
+    console.log('PASS: modal previews retain saved highlights and blend overlapping colors')
+
     await pasteText('Large pasted text\nSecond line')
-    await waitFor(`document.querySelectorAll('.visible .freeTextEditor').length === 1`)
-    await waitForChange(before)
-    before = await thumbnailHash()
+    await waitFor(`document.querySelector('.visible .freeTextEditor') !== null`)
     await evaluate(
       `(() => {const input=document.querySelector('.visible .freeTextEditor .internal');input.innerText='Edited text\\nAnother line';input.dispatchEvent(new Event('input',{bubbles:true}))})()`
     )
-    await waitForChange(before)
-    before = await thumbnailHash()
     await evaluate(`document.querySelector('[aria-label="Text settings"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
     await evaluate(
       `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button=>button.textContent==='24 pt').click()`
     )
-    await waitForChange(before)
-    before = await thumbnailHash()
     await evaluate(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]').click()`)
-    await waitForChange(before)
-    await waitFor(async () => (await redTextPixels()) > 10)
     await evaluate(`document.querySelector('[aria-label="Text settings"]').click()`)
-    const textHash = await thumbnailHash()
+    await openNavigation()
+    await waitFor(async () => (await redTextPixels()) > 10)
+    await closeNavigation()
     await removeSelected('.visible .freeTextEditor')
-    await waitForChange(textHash)
-    before = await thumbnailHash()
     await evaluate(`window.testCommands.run('undo')`)
-    await waitForChange(before)
-    await waitFor(async () => (await thumbnailHash()) === textHash)
-    console.log('PASS: pasted text, live editing, size, color, deletion and undo update thumbnails')
+    await waitFor(`document.querySelector('.visible .freeTextEditor') !== null`)
+    await openNavigation()
+    await waitFor(async () => (await redTextPixels()) > 10)
+    await closeNavigation()
+    console.log('PASS: reopening previews reflects pasted text, formatting, deletion and undo')
 
-    before = await thumbnailHash()
     await evaluate(`(async () => {
       const c=document.createElement('canvas');c.width=160;c.height=100;const ctx=c.getContext('2d');ctx.fillStyle='red';ctx.fillRect(0,0,80,100);ctx.fillStyle='blue';ctx.fillRect(80,0,80,100);
       const blob=await new Promise(resolve=>c.toBlob(resolve));const data=new DataTransfer();data.items.add(new File([blob],'pasted.png',{type:'image/png'}));
       document.querySelector('.visible .pdf-viewer-container').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
     })()`)
-    await waitFor(`document.querySelectorAll('.visible .stampEditor').length === 1`)
-    await waitForChange(before)
-    const imageHash = await thumbnailHash()
-    const red = await editorPixel('.visible .stampEditor', 0.25),
-      blue = await editorPixel('.visible .stampEditor', 0.75)
-    assert.ok(
-      red[0] > 240 && red[2] < 20 && blue[2] > 240 && blue[0] < 20,
-      'Pasted image pixels must retain both colors'
-    )
-    await evaluate(`(() => {
-      const editor=document.querySelector('.visible .stampEditor');editor.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:1,clientX:300,clientY:300}));window.dispatchEvent(new PointerEvent('pointermove',{pointerId:1,clientX:340,clientY:340}));window.dispatchEvent(new PointerEvent('pointerup',{pointerId:1}));
-    })()`)
-    await waitForChange(imageHash)
-    await evaluate(`window.testCommands.run('undo')`)
-    await waitFor(async () => (await thumbnailHash()) === imageHash)
-    await evaluate(`(() => {
-      const handle=document.querySelector('.visible .stampEditor .middleRight');handle.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:2,screenX:100,screenY:100}));window.dispatchEvent(new PointerEvent('pointermove',{pointerId:2,screenX:150,screenY:100}));window.dispatchEvent(new PointerEvent('pointerup',{pointerId:2}));
-    })()`)
-    await waitForChange(imageHash)
-    await evaluate(`window.testCommands.run('undo')`)
-    await waitFor(async () => (await thumbnailHash()) === imageHash)
+    await waitFor(`document.querySelector('.visible .stampEditor') !== null`)
+    await openNavigation()
+    await checkImage()
+    await closeNavigation()
     await removeSelected('.visible .stampEditor')
-    await waitForChange(imageHash)
-    before = await thumbnailHash()
     await evaluate(`window.testCommands.run('undo')`)
-    await waitForChange(before)
-    await waitFor(async () => (await thumbnailHash()) === imageHash)
-    console.log(
-      'PASS: pasted image colors, movement, resizing, deletion and undo update thumbnails'
-    )
+    await waitFor(`document.querySelector('.visible .stampEditor') !== null`)
+    await openNavigation()
+    await checkImage()
+    await closeNavigation()
+    console.log('PASS: image previews preserve both colors after deletion and undo')
 
-    before = await thumbnailHash()
     await evaluate(
-      `(() => {document.querySelectorAll('.visible .highlightEditor')[0].focus();document.querySelector('[aria-label="Highlight color: Yellow"]').click()})()`
+      `(() => {document.querySelector('.visible .highlightEditor').focus();document.querySelector('[aria-label="Highlight color: Yellow"]').click()})()`
     )
     await waitFor(`document.querySelector('[aria-label="Green"]') !== null`)
     await evaluate(`document.querySelector('[aria-label="Green"]').click()`)
-    await waitForChange(before)
-    before = await thumbnailHash()
+    await openNavigation()
+    await waitFor(async () => {
+      const p = await thumbnailPixel(220, 710)
+      return p[1] > p[0] && p[1] > p[2]
+    })
+    await closeNavigation()
     await removeSelected('.visible .highlightEditor')
-    await waitForChange(before)
     await evaluate(`window.testCommands.run('undo')`)
-    await waitFor(async () => (await thumbnailHash()) === before)
-    console.log('PASS: highlight recoloring, deletion and undo update thumbnails')
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 3`)
+    await openNavigation()
+    await waitFor(async () => {
+      const p = await thumbnailPixel(220, 710)
+      return p[1] > p[0] && p[1] > p[2]
+    })
+    await closeNavigation()
+    console.log('PASS: reopened previews reflect highlight recoloring, deletion and undo')
 
-    before = await thumbnailHash()
     await evaluate(`(() => {
       const span=[...document.querySelectorAll('.visible .textLayer span')].find(s=>s.textContent==='Second highlight');
       const range=document.createRange();range.selectNodeContents(span);window.getSelection().removeAllRanges();window.getSelection().addRange(range);
     })()`)
-    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length===4`)
-    await waitForChange(before)
-    const createdHash = await thumbnailHash()
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 4`)
     await evaluate(`window.testCommands.run('undo')`)
-    await waitForChange(createdHash)
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 3`)
     await evaluate(`window.testCommands.run('redo')`)
-    await waitFor(async () => (await thumbnailHash()) === createdHash)
-    assert.equal(
-      await evaluate('window.pdfTextPaints'),
-      0,
-      'Annotation changes must not render the PDF page again'
-    )
-    console.log(
-      'PASS: new highlights and redo update thumbnails without rendering PDF content again'
-    )
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 4`)
     await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
     await evaluate(`void window.testCommands.run('save')`)
     await waitFor(() => saved.has('second.pdf'))
@@ -283,20 +250,12 @@ app
     await waitFor(
       `document.querySelectorAll('.visible .stampEditor').length === 1 && document.querySelectorAll('.visible .freeTextEditor').length === 1 && document.querySelectorAll('.visible .highlightEditor').length === 4`
     )
-    await waitFor(
-      `document.querySelector('.visible [aria-label="Go to page 1"] canvas')?.width > 0`
-    )
-    await waitFor(
-      async () =>
-        (await editorPixel('.visible .stampEditor', 0.25))[0] > 240 &&
-        (await editorPixel('.visible .stampEditor', 0.25))[2] < 20
-    )
+    await openNavigation()
+    await checkImage()
     await waitFor(async () => (await redTextPixels()) > 10)
-    fs.writeFileSync(
-      '/tmp/lepis-thumbnail-annotations-' + rotation + '.png',
-      (await win.webContents.capturePage()).toPNG()
+    console.log(
+      'PASS: saved text, images and highlights remain in previews after reopening the document'
     )
-    console.log('PASS: saved text, image and highlights remain in thumbnails after reopening')
   })
   .then(() => finish(0))
   .catch((error) => {

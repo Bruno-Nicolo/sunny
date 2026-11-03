@@ -25,12 +25,6 @@ export const shortcuts = [
     accelerator: 'CmdOrCtrl+F',
     keys: [{ key: 'f', modifier: 'command' }]
   },
-  {
-    id: 'toggle-sidebar',
-    label: 'Toggle Sidebar',
-    accelerator: 'CmdOrCtrl+\\',
-    keys: [{ key: '\\', modifier: 'command' }]
-  },
   { id: 'toggle-chat', label: 'Toggle AI Chat', accelerator: 'CmdOrCtrl+L' },
   { id: 'new-chat', label: 'New AI Chat', accelerator: 'CmdOrCtrl+Shift+O' },
   {

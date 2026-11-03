@@ -9,14 +9,14 @@ Measurements are individual local samples, not a statistical performance guarant
 
 Visible thumbnails retain a small page bitmap and compose the current highlight, text and image
 records over it. Edits notify only subscribers for the affected page and updates are coalesced
-with requestAnimationFrame. Leaving the visible area (including a 200px preload margin), hiding
-the sidebar or deactivating the document releases thumbnail canvases and subscriptions.
+with requestAnimationFrame. Leaving the visible area (including a 200px preload margin), closing
+the navigation modal or deactivating the document releases thumbnail canvases and subscriptions.
 
 Thumbnails do not import annotations for unvisited pages. Those pages retain PDF.js's original
 annotation rendering. When the editor imports editable originals, it invalidates that thumbnail's base bitmap
 once, then subsequent annotation edits reuse the bitmap. Pages without editable originals keep
 their bitmap. This keeps document imports and image
-assets bounded by editor use rather than sidebar scrolling.
+assets bounded by editor use rather than thumbnail scrolling.
 
 ## Measurements
 
@@ -84,10 +84,11 @@ exercise full-document draft serialization.
 
 ## Functional checks
 
-`pnpm test:sidebar` runs navigation and pixel-based annotation thumbnail regressions. The latter
+`pnpm test:navigation` runs navigation and pixel-based annotation thumbnail regressions. The latter
 checks existing and newly created highlights, overlapping highlight colors, pasted multiline text,
-live text edits, size and color changes, pasted image colors, movement, resizing, deletion,
-undo/redo and save/reopen. It also counts PDF text renders to catch unnecessary page redraws.
+size and color changes, pasted image colors, deletion, undo/redo and save/reopen. Edits happen with
+the modal closed, then the test reopens it and checks the rendered pixels. The optional thumbnail
+benchmark counts PDF text renders for the edited thumbnail to detect unnecessary page redraws.
 
 The same test passed with intrinsic page rotations 0, 90, 180 and 270 degrees. To run another
 orientation after building:
@@ -96,7 +97,7 @@ orientation after building:
 LEPIS_THUMBNAIL_ROTATION=90 pnpm exec electron tests/thumbnail-annotations.integration.mjs
 ```
 
-The existing sidebar, annotation loading/forms, highlight, text and image integration suites
+The existing navigation, annotation loading/forms, highlight, text and image integration suites
 passed, as did all 68 unit tests, TypeScript checks and lint for changed source/test files.
 The integration suites' dirty-state selectors were corrected to target the indicator itself;
 their old selector also matched the tab close button.

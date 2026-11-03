@@ -68,7 +68,7 @@ app
     ]) {
       const result = await evaluate(`(async () => {
         const container = document.querySelector('.visible .pdf-viewer-container')
-        const focus = document.querySelector('[aria-label="Toggle PDF sidebar"]')
+        const focus = document.querySelector('[aria-label="Toggle PDF navigation"]')
         focus.focus()
         container.scrollTo({top: 600, left: 600, behavior: 'instant'})
         const start = container.${axis}

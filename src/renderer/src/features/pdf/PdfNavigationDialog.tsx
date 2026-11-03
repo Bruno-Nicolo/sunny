@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { ChevronRight } from 'lucide-react'
 import { Collapsible } from 'radix-ui'
-import { Sidebar, SidebarContent } from '@/components/ui/sidebar'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import type { PdfDocumentViewProps } from './types'
@@ -13,12 +13,13 @@ import {
 
 type Outline = NonNullable<Awaited<ReturnType<PDFDocumentProxy['getOutline']>>>
 type Props = {
+  open: boolean
+  onOpenChange(open: boolean): void
   document: PDFDocumentProxy
   annotations: ThumbnailAnnotations
-  tab: PdfDocumentViewProps['sidebarTab']
-  onTabChange: PdfDocumentViewProps['onSidebarTabChange']
+  tab: PdfDocumentViewProps['navigationTab']
+  onTabChange: PdfDocumentViewProps['onNavigationTabChange']
   page: number
-  active: boolean
   onPage(page: number): void
   onReleasePage(page: PDFPageProxy): void
   onDestination(destination: string | unknown[]): Promise<void>
@@ -162,8 +163,8 @@ const PageThumbnail = memo(function PageThumbnail({
       aria-current={selected ? 'page' : undefined}
       onClick={() => onPage(number)}
       className={cn(
-        'mx-auto flex w-full flex-col items-center gap-2 rounded-lg p-3 text-xs outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-        selected && 'bg-sidebar-accent text-sidebar-accent-foreground'
+        'mx-auto flex w-full flex-col items-center gap-2 rounded-lg p-3 text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring',
+        selected && 'bg-accent text-accent-foreground'
       )}
     >
       <div
@@ -208,7 +209,7 @@ function OutlineItems({
                     <button
                       type="button"
                       aria-label={`Toggle section: ${item.title}`}
-                      className="group mt-1 grid size-6 shrink-0 place-items-center rounded-md hover:bg-sidebar-accent focus-visible:outline-sidebar-ring"
+                      className="group mt-1 grid size-6 shrink-0 place-items-center rounded-md hover:bg-accent focus-visible:outline-ring"
                     >
                       <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
                     </button>
@@ -219,7 +220,7 @@ function OutlineItems({
                 {destination ? (
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1 py-1.5 text-left text-sm break-words hover:bg-sidebar-accent focus-visible:outline-sidebar-ring"
+                    className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1 py-1.5 text-left text-sm break-words hover:bg-accent focus-visible:outline-ring"
                     onClick={() =>
                       void onDestination(destination).catch(() =>
                         onError('The outline destination could not be opened.')
@@ -262,13 +263,14 @@ function OutlineItems({
   )
 }
 
-export function PdfSidebar({
+export function PdfNavigationDialog({
+  open,
+  onOpenChange,
   document,
   annotations,
   tab,
   onTabChange,
   page,
-  active,
   onPage,
   onReleasePage,
   onDestination,
@@ -298,37 +300,50 @@ export function PdfSidebar({
   }, [document])
 
   return (
-    <Sidebar
-      collapsible="none"
-      className="h-full w-60 shrink-0 border-r"
-      aria-label="PDF navigation"
-    >
-      <SidebarContent className="min-h-0 overflow-hidden">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="flex h-[min(80vh,720px)] flex-col overflow-hidden sm:max-w-3xl"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          window.document
+            .querySelector<HTMLButtonElement>('[aria-label="Toggle PDF navigation"]')
+            ?.focus()
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>PDF navigation</DialogTitle>
+        </DialogHeader>
         <Tabs
           value={tab}
           onValueChange={(value) => {
             if (value === 'pages' || value === 'outline') onTabChange(value)
           }}
-          className="h-full min-h-0 gap-0"
+          className="min-h-0 flex-1 gap-4"
         >
-          <TabsList className="mx-3 my-3 w-auto shrink-0" aria-label="PDF navigation views">
+          <TabsList className="w-full shrink-0" aria-label="PDF navigation views">
             <TabsTrigger value="pages">Pages</TabsTrigger>
             <TabsTrigger value="outline">Outline</TabsTrigger>
           </TabsList>
-          <TabsContent value="pages" className="min-h-0 space-y-2 overflow-y-auto px-2 pb-2">
-            {Array.from({ length: document.numPages }, (_, index) => (
-              <PageThumbnail
-                key={index}
-                document={document}
-                annotations={annotations}
-                number={index + 1}
-                selected={page === index + 1}
-                active={active}
-                onPage={onPage}
-                onReleasePage={onReleasePage}
-                enqueue={enqueue}
-              />
-            ))}
+          <TabsContent value="pages" className="min-h-0 overflow-y-auto">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(174px,1fr))] items-start gap-2 p-1">
+              {Array.from({ length: document.numPages }, (_, index) => (
+                <PageThumbnail
+                  key={index}
+                  document={document}
+                  annotations={annotations}
+                  number={index + 1}
+                  selected={page === index + 1}
+                  active={open}
+                  onPage={(number) => {
+                    onPage(number)
+                    onOpenChange(false)
+                  }}
+                  onReleasePage={onReleasePage}
+                  enqueue={enqueue}
+                />
+              ))}
+            </div>
           </TabsContent>
           <TabsContent value="outline" className="min-h-0 overflow-y-auto px-3 pb-3">
             {outlineError ? (
@@ -342,11 +357,18 @@ export function PdfSidebar({
             ) : outline.length === 0 ? (
               <p className="p-2 text-sm text-muted-foreground">This PDF has no outline.</p>
             ) : (
-              <OutlineItems items={outline} onDestination={onDestination} onError={onError} />
+              <OutlineItems
+                items={outline}
+                onDestination={async (destination) => {
+                  await onDestination(destination)
+                  onOpenChange(false)
+                }}
+                onError={onError}
+              />
             )}
           </TabsContent>
         </Tabs>
-      </SidebarContent>
-    </Sidebar>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -187,15 +187,21 @@ async function goTo(page) {
   return performance.now() - start
 }
 async function measureThumbnailEdits() {
-  await waitFor(`document.querySelector('.visible [aria-label="Go to page 1"] canvas')?.width > 0`)
+  await evaluate(`document.querySelector('[aria-label="Toggle PDF navigation"]').click()`)
+  await waitFor(`(() => {
+    const panel=document.querySelector('[role="tabpanel"]');if(!panel)return false;
+    const bounds=panel.getBoundingClientRect();
+    return [...panel.querySelectorAll('[aria-label^="Go to page"]')].filter(button=>{const r=button.getBoundingClientRect();return r.bottom>bounds.top-200 && r.top<bounds.bottom+200}).every(button=>button.querySelector('canvas').width>0);
+  })()`)
   await new Promise((resolve) => setTimeout(resolve, 250))
   await evaluate(`(() => {
-    window.thumbnailPaints=0;window.thumbnailEditTimes=[];window.pdfContentPaints=0;window.thumbnailEditStart=null;
-    const thumbnail=document.querySelector('.visible [aria-label="Go to page 1"] canvas');
+    window.thumbnailPaints=0;window.thumbnailEditTimes=[];window.pdfContentPaints=0;window.thumbnailEditStart=null;window.thumbnailBase=null;
+    const thumbnail=document.querySelector('[aria-label="Go to page 1"] canvas');
     const context=thumbnail.getContext('2d');const draw=context.drawImage;
-    context.drawImage=function(...args){const result=draw.apply(this,args);window.thumbnailPaints++;if(window.thumbnailEditStart!==null){queueMicrotask(()=>{window.thumbnailEditTimes.push(performance.now()-window.thumbnailEditStart);window.thumbnailEditStart=null})}return result};
+    context.drawImage=function(...args){window.thumbnailBase=args[0];const result=draw.apply(this,args);window.thumbnailPaints++;if(window.thumbnailEditStart!==null){queueMicrotask(()=>{window.thumbnailEditTimes.push(performance.now()-window.thumbnailEditStart);window.thumbnailEditStart=null})}return result};
+    // Other grid thumbnails may still render; count only the bitmap used by the edited page.
     const fill=CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText=function(...args){if(!this.canvas.isConnected)window.pdfContentPaints++;return fill.apply(this,args)};
+    CanvasRenderingContext2D.prototype.fillText=function(...args){if(this.canvas===window.thumbnailBase)window.pdfContentPaints++;return fill.apply(this,args)};
     document.querySelector('.visible .page[data-page-number="1"] .highlightEditor').dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
   })()`)
   const colors = ['Green', 'Pink', 'Yellow']

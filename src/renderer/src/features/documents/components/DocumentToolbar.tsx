@@ -1,4 +1,5 @@
-import { Minus, Plus } from 'lucide-react'
+import { LayoutGrid, Minus, Plus } from 'lucide-react'
+import { ToolbarButton } from '@/components/ToolbarButton'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
@@ -10,6 +11,8 @@ import { PdfViewDropdown } from './PdfViewDropdown'
 
 type Props = {
   activeTab: Pick<Tab, 'id' | 'view'> | null
+  navigationOpen: boolean
+  onToggleNavigation(): void
   invertColors: boolean
   annotationTool: AnnotationTool
   highlightColor: string
@@ -29,6 +32,8 @@ type Props = {
 
 export function DocumentToolbar({
   activeTab,
+  navigationOpen,
+  onToggleNavigation,
   invertColors,
   annotationTool,
   highlightColor,
@@ -49,6 +54,15 @@ export function DocumentToolbar({
     <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 bg-background px-3">
       {activeTab && (
         <>
+          <ToolbarButton
+            label="Toggle PDF navigation"
+            tooltip="Open navigation"
+            aria-expanded={navigationOpen}
+            aria-haspopup="dialog"
+            onClick={onToggleNavigation}
+          >
+            <LayoutGrid />
+          </ToolbarButton>
           <div className="flex items-center gap-1">
             <input
               aria-label="Current page"

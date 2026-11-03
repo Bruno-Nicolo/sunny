@@ -11,9 +11,10 @@ type Props = {
   activeId: string | null
   ready: boolean
   invertColors: boolean
-  sidebarOpen: boolean
-  sidebarTab: PdfDocumentViewProps['sidebarTab']
-  onSidebarTabChange: PdfDocumentViewProps['onSidebarTabChange']
+  navigationOpen: boolean
+  onNavigationOpenChange: PdfDocumentViewProps['onNavigationOpenChange']
+  navigationTab: PdfDocumentViewProps['navigationTab']
+  onNavigationTabChange: PdfDocumentViewProps['onNavigationTabChange']
   annotationTool: AnnotationTool
   highlightColor: string
   onAskAI: PdfDocumentViewProps['onAskAI']
@@ -31,9 +32,10 @@ export function DocumentWorkspace({
   activeId,
   ready,
   invertColors,
-  sidebarOpen,
-  sidebarTab,
-  onSidebarTabChange,
+  navigationOpen,
+  onNavigationOpenChange,
+  navigationTab,
+  onNavigationTabChange,
   annotationTool,
   highlightColor,
   onAskAI,
@@ -66,9 +68,10 @@ export function DocumentWorkspace({
             annotationTool={annotationTool}
             highlightColor={highlightColor}
             active={tab.id === activeId}
-            sidebarOpen={sidebarOpen}
-            sidebarTab={sidebarTab}
-            onSidebarTabChange={onSidebarTabChange}
+            navigationOpen={navigationOpen}
+            onNavigationOpenChange={onNavigationOpenChange}
+            navigationTab={navigationTab}
+            onNavigationTabChange={onNavigationTabChange}
             onDirtyChange={(dirty) => onDirtyChange(tab.id, dirty)}
             onSnapshot={(view) => onSnapshot(tab.id, view)}
             onError={(error) => onError(tab.id, error)}
