@@ -840,7 +840,12 @@ export function ChatPanel({
             }}
           >
             {historyOpen ? (
-              <ConversationHistory chats={conversations} label="All chats" {...historyProps} />
+              <ConversationHistory
+                chats={conversations}
+                label="All chats"
+                showLabel={false}
+                {...historyProps}
+              />
             ) : (
               !conversation?.messages.length && (
                 <div

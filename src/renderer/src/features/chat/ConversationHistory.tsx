@@ -24,6 +24,7 @@ import { ProviderLogo } from './ProviderLogo'
 type Props = {
   chats: ConversationSummary[]
   label: string
+  showLabel?: boolean
   disabled: boolean
   onOpen(id: string): Promise<void>
   onRename(id: string, title: string): Promise<void>
@@ -34,6 +35,7 @@ type Props = {
 export function ConversationHistory({
   chats,
   label,
+  showLabel = true,
   disabled,
   onOpen,
   onRename,
@@ -56,7 +58,7 @@ export function ConversationHistory({
   }
   return (
     <nav aria-label={label} className="w-full space-y-2">
-      <p className="px-2 text-xs font-medium text-muted-foreground">{label}</p>
+      {showLabel && <p className="px-2 text-xs font-medium text-muted-foreground">{label}</p>}
       <ul className="space-y-1">
         {chats.map((chat) => (
           <li key={chat.id} className="flex min-w-0 items-center gap-1">
