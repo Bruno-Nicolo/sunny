@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
@@ -7,6 +6,7 @@ import { Monitor, Moon, PanelRight, Plus, Sun, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { dragSensors } from '@/lib/dragSensors'
 import type { SessionState } from '../../../../../shared/contracts'
 import type { Tab } from '../types'
 import { DirectoryPath } from './DirectoryPath'
@@ -28,13 +28,6 @@ const tabModifiers = [
   RestrictToElement.configure({
     element: (operation) => operation.source?.element?.parentElement ?? null
   })
-]
-
-const sensors = [
-  PointerSensor.configure({
-    activationConstraints: [new PointerActivationConstraints.Distance({ value: 6 })]
-  }),
-  KeyboardSensor
 ]
 
 export function TabBar({
@@ -66,7 +59,7 @@ export function TabBar({
 
   return (
     <DragDropProvider
-      sensors={sensors}
+      sensors={dragSensors}
       onDragEnd={(event) => {
         if (event.canceled) return
         const { source } = event.operation

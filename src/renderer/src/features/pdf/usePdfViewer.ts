@@ -14,7 +14,8 @@ import type {
   PasswordRequest,
   PdfDocumentHandle,
   PdfDocumentViewProps,
-  PdfSearchSnapshot
+  PdfSearchSnapshot,
+  PdfViewPosition
 } from './types'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
@@ -23,7 +24,7 @@ type PdfViewerState = {
   viewerElementRef: RefObject<HTMLDivElement | null>
   handle: PdfDocumentHandle
   loading: boolean
-  document: { pdf: PDFDocumentProxy; annotations: ThumbnailAnnotations } | null
+  document: { pdf: PDFDocumentProxy; annotations: ThumbnailAnnotations; canReorder: boolean } | null
   page: number
   searchSnapshot: PdfSearchSnapshot
   searchRequest: number | null
@@ -31,11 +32,20 @@ type PdfViewerState = {
   closeSearch(): void
   releasePageResources(page: PDFPageProxy): void
   navigateToDestination(destination: string | unknown[]): Promise<void>
+  reorderPage(from: number, to: number): Promise<void>
   passwordRequest: PasswordRequest | null
   submitPassword(password: string): void
 }
 
 export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
+  const [replacement, setReplacement] = useState<{
+    original: PdfDocumentViewProps['source']
+    source: PdfDocumentViewProps['source']
+    view: PdfViewPosition
+  } | null>(null)
+  const currentReplacement = replacement?.original === props.source ? replacement : null
+  const replacementView = currentReplacement?.view
+  const viewerSource = currentReplacement?.source ?? props.source
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerElementRef = useRef<HTMLDivElement>(null)
   const controllerRef = useRef<PdfViewerController | null>(null)
@@ -93,8 +103,8 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         controller = createPdfViewer({
           container,
           viewerElement,
-          source: props.source,
-          initialView: {
+          source: viewerSource,
+          initialView: replacementView ?? {
             page: initial.initialPage,
             scale: initial.initialScale,
             scrollTop: initial.initialScrollTop,
@@ -106,8 +116,8 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
             setPage(snapshot.page)
             propsRef.current.onSnapshot(snapshot)
           },
-          onDocumentReady: (document, thumbnails) => {
-            setDocument({ pdf: document, annotations: thumbnails })
+          onDocumentReady: (document, thumbnails, canReorder) => {
+            setDocument({ pdf: document, annotations: thumbnails, canReorder })
             if (controller) resolveReady(controller)
           },
           onTextEditorChange: setTextEditor,
@@ -142,7 +152,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         console.error('The PDF viewer could not be released.', error)
       })
     }
-  }, [props.source, activated])
+  }, [props.source, viewerSource, replacementView, activated])
 
   useEffect(() => {
     const source = props.source
@@ -272,6 +282,16 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     search,
     closeSearch,
     releasePageResources,
+    async reorderPage(from, to) {
+      const controller = controllerRef.current
+      const original = propsRef.current.source
+      if (!controller) throw new Error('The PDF is not ready.')
+      const { data, view } = await controller.reorderPage(from, to)
+      if (controllerRef.current !== controller || propsRef.current.source !== original) return
+      setLoading(true)
+      setReplacement({ original, source: { kind: 'memory', data }, view })
+      propsRef.current.onDirtyChange(true)
+    },
     async navigateToDestination(destination) {
       await controllerRef.current?.navigateToDestination(destination)
     },

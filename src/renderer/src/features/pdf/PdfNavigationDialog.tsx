@@ -1,10 +1,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { DragDropProvider } from '@dnd-kit/react'
+import { isSortable, useSortable } from '@dnd-kit/react/sortable'
 import { ChevronRight } from 'lucide-react'
 import { Collapsible } from 'radix-ui'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { dragSensors } from '@/lib/dragSensors'
 import type { PdfDocumentViewProps } from './types'
 import {
   paintThumbnailAnnotations,
@@ -21,6 +24,8 @@ type Props = {
   onTabChange: PdfDocumentViewProps['onNavigationTabChange']
   page: number
   onPage(page: number): void
+  canReorder: boolean
+  onReorderPage(from: number, to: number): Promise<void>
   onReleasePage(page: PDFPageProxy): void
   onDestination(destination: string | unknown[]): Promise<void>
   onError(message: string): void
@@ -32,6 +37,7 @@ const PageThumbnail = memo(function PageThumbnail({
   document,
   annotations,
   number,
+  reorderDisabled,
   selected,
   active,
   onPage,
@@ -41,14 +47,21 @@ const PageThumbnail = memo(function PageThumbnail({
   document: PDFDocumentProxy
   annotations: ThumbnailAnnotations
   number: number
+  reorderDisabled: boolean
   selected: boolean
   active: boolean
   onPage(page: number): void
   onReleasePage(page: PDFPageProxy): void
   enqueue: ThumbnailQueue
 }): React.JSX.Element {
+  const { ref, isDragSource } = useSortable({
+    id: number,
+    index: number - 1,
+    disabled: reorderDisabled
+  })
   const buttonRef = useRef<HTMLButtonElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const observerRef = useRef<IntersectionObserver | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
@@ -136,14 +149,16 @@ const PageThumbnail = memo(function PageThumbnail({
     }
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting === visible) return
+        if (button.dataset.dragging === 'true' || entry.isIntersecting === visible) return
         visible = entry.isIntersecting
         render()
       },
       { root: button.closest('[data-slot="tabs-content"]'), rootMargin: '200px' }
     )
+    observerRef.current = observer
     observer.observe(button)
     return () => {
+      observerRef.current = null
       generation++
       observer.disconnect()
       cancel()
@@ -152,19 +167,34 @@ const PageThumbnail = memo(function PageThumbnail({
   }, [document, annotations, number, active, onReleasePage, enqueue])
 
   useEffect(() => {
+    const button = buttonRef.current
+    const observer = observerRef.current
+    if (!button || !observer) return
+    // Drag feedback leaves the scroll root; keep its bitmap until the drop completes.
+    observer.unobserve(button)
+    if (!isDragSource) observer.observe(button)
+  }, [isDragSource, active])
+
+  useEffect(() => {
     if (selected && active) buttonRef.current?.scrollIntoView({ block: 'nearest' })
   }, [selected, active])
 
   return (
     <button
-      ref={buttonRef}
+      ref={(element) => {
+        buttonRef.current = element
+        ref(element)
+      }}
+      data-dragging={isDragSource}
       type="button"
       aria-label={`Go to page ${number}`}
       aria-current={selected ? 'page' : undefined}
       onClick={() => onPage(number)}
       className={cn(
-        'mx-auto flex w-full flex-col items-center gap-2 rounded-lg p-3 text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring',
-        selected && 'bg-accent text-accent-foreground'
+        'mx-auto flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg p-3 text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring',
+        selected && 'bg-accent text-accent-foreground',
+        !reorderDisabled && 'touch-none select-none data-[dragging=true]:cursor-grabbing',
+        isDragSource && 'z-10 bg-accent shadow-lg'
       )}
     >
       <div
@@ -317,16 +347,26 @@ export function PdfNavigationDialog({
   onTabChange,
   page,
   onPage,
+  onReorderPage,
+  canReorder,
   onReleasePage,
   onDestination,
   onError
 }: Props): React.JSX.Element {
+  const [reordering, setReordering] = useState(false)
   const queue = useRef(Promise.resolve())
   const enqueue = useCallback<ThumbnailQueue>((render) => {
     const current = queue.current.then(render)
     queue.current = current.catch(() => {})
     return current
   }, [])
+  const navigateToPage = useCallback(
+    (number: number) => {
+      onPage(number)
+      onOpenChange(false)
+    },
+    [onPage, onOpenChange]
+  )
   const [outline, setOutline] = useState<Outline | null>(null)
   const [outlineError, setOutlineError] = useState(false)
   useEffect(() => {
@@ -371,24 +411,42 @@ export function PdfNavigationDialog({
             <TabsTrigger value="outline">Outline</TabsTrigger>
           </TabsList>
           <TabsContent value="pages" className="min-h-0 overflow-y-auto">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(174px,1fr))] items-start gap-2 p-1">
-              {Array.from({ length: document.numPages }, (_, index) => (
-                <PageThumbnail
-                  key={index}
-                  document={document}
-                  annotations={annotations}
-                  number={index + 1}
-                  selected={page === index + 1}
-                  active={open}
-                  onPage={(number) => {
-                    onPage(number)
-                    onOpenChange(false)
-                  }}
-                  onReleasePage={onReleasePage}
-                  enqueue={enqueue}
-                />
-              ))}
-            </div>
+            <DragDropProvider
+              sensors={dragSensors}
+              onDragEnd={(event) => {
+                const { source } = event.operation
+                if (event.canceled || !isSortable(source) || source.initialIndex === source.index)
+                  return
+                setReordering(true)
+                void onReorderPage(source.initialIndex, source.index)
+                  .catch((error: unknown) =>
+                    onError(
+                      error instanceof Error ? error.message : 'Pages could not be reordered.'
+                    )
+                  )
+                  .finally(() => setReordering(false))
+              }}
+            >
+              <div
+                aria-busy={reordering}
+                className="grid grid-cols-[repeat(auto-fit,minmax(174px,1fr))] items-start gap-2 p-1"
+              >
+                {Array.from({ length: document.numPages }, (_, index) => (
+                  <PageThumbnail
+                    key={index}
+                    document={document}
+                    annotations={annotations}
+                    number={index + 1}
+                    reorderDisabled={!canReorder || reordering || document.numPages < 2}
+                    selected={page === index + 1}
+                    active={open}
+                    onPage={navigateToPage}
+                    onReleasePage={onReleasePage}
+                    enqueue={enqueue}
+                  />
+                ))}
+              </div>
+            </DragDropProvider>
           </TabsContent>
           <TabsContent value="outline" className="min-h-0 overflow-y-auto px-3 pb-3">
             {outlineError ? (

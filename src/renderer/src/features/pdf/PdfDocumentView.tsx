@@ -23,6 +23,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
       closeSearch,
       releasePageResources,
       navigateToDestination,
+      reorderPage,
       passwordRequest,
       submitPassword
     } = usePdfViewer(props)
@@ -45,6 +46,8 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
               onTabChange={props.onNavigationTabChange}
               page={page}
               onPage={handle.setPage}
+              onReorderPage={reorderPage}
+              canReorder={document.canReorder}
               onReleasePage={releasePageResources}
               onDestination={navigateToDestination}
               onError={props.onError}

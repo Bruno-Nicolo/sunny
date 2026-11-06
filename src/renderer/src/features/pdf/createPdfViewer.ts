@@ -49,7 +49,11 @@ type Options = {
   onLoadingChange(loading: boolean): void
   onPasswordRequest(request: PasswordRequest | null): void
   onError(message: string): void
-  onDocumentReady(document: PDFDocumentProxy, thumbnails: ThumbnailAnnotations): void
+  onDocumentReady(
+    document: PDFDocumentProxy,
+    thumbnails: ThumbnailAnnotations,
+    canReorder: boolean
+  ): void
   onTextEditorChange(settings: TextEditorSettings | null): void
   onSearchChange(snapshot: PdfSearchSnapshot): void
 }
@@ -57,6 +61,7 @@ type Options = {
 export type PdfViewerController = Omit<PdfDocumentHandle, 'openSearch'> & {
   search(query: string, options: PdfSearchOptions, previous?: boolean): void
   closeSearch(): void
+  reorderPage(from: number, to: number): Promise<{ data: ArrayBuffer; view: PdfViewPosition }>
   navigateToDestination(destination: string | unknown[]): Promise<void>
   setAnnotationOptions(options: AnnotationOptions): void
   releasePageResources(page: PDFPageProxy): void
@@ -100,6 +105,7 @@ export function createPdfViewer({
   let document: PDFDocumentProxy | null = null
   let destroyed = false
   let loading = true
+  let canReorder = false
   let password: string | undefined
   const releasePage = (page: PDFPageProxy): void => {
     if (
@@ -229,7 +235,8 @@ export function createPdfViewer({
       viewer.currentScaleValue = initialView.scale || 'page-fit'
       scrollFrame = requestAnimationFrame(() => {
         scrollFrame = null
-        container.scrollTop = initialView.scrollTop
+        if (initialView.scrollTop > 0) container.scrollTop = initialView.scrollTop
+        else viewer.scrollPageIntoView({ pageNumber: viewer.currentPageNumber })
       })
       emitSnapshot({
         page: viewer.currentPageNumber,
@@ -334,11 +341,12 @@ export function createPdfViewer({
       const signed = Boolean(signatures?.length)
       const canAnnotate =
         !signed && (permissions === null || permissions.has(PermissionFlag.MODIFY_ANNOTATIONS))
+      canReorder = !signed && (permissions === null || permissions.has(PermissionFlag.ASSEMBLE))
       emitSnapshot({ pages: pdfDocument.numPages, canAnnotate, signed })
       annotations.setDocument(pdfDocument)
       linkService.setDocument(pdfDocument)
       viewer.setDocument(pdfDocument)
-      onDocumentReady(pdfDocument, annotations.thumbnails)
+      onDocumentReady(pdfDocument, annotations.thumbnails, canReorder)
     })
     .catch((error: unknown) => {
       if (destroyed) return
@@ -348,6 +356,32 @@ export function createPdfViewer({
     })
 
   return {
+    async reorderPage(from, to) {
+      if (destroyed || loading || !document) throw new Error('The PDF is not ready.')
+      if (!canReorder) throw new Error('This PDF does not allow page reordering.')
+      const order = Array.from({ length: document.numPages }, (_, index) => index)
+      if (
+        !Number.isInteger(from) ||
+        !Number.isInteger(to) ||
+        from < 0 ||
+        from >= document.numPages ||
+        to < 0 ||
+        to >= document.numPages
+      )
+        throw new Error('Invalid page position.')
+      order.splice(to, 0, order.splice(from, 1)[0])
+      annotations.commit()
+      const pageIndices = new Array<number>(order.length)
+      order.forEach((original, index) => {
+        pageIndices[original] = index
+      })
+      const pageInfo = { document: await annotations.save(), pageIndices, password }
+      const data = await document.extractPages([pageInfo])
+      return {
+        data: data.slice().buffer,
+        view: { ...snapshot, page: pageIndices[viewer.currentPageNumber - 1] + 1, scrollTop: 0 }
+      }
+    },
     async print() {
       if (destroyed || loading || !document) return
       await printPdf(async () => {
@@ -368,13 +402,7 @@ export function createPdfViewer({
     attachSelectedText: chat.selectedText,
     highlightSelectedText: annotations.highlightSelection,
     showCitation: chat.cite,
-    releasePageResources(page) {
-      if (
-        destroyed ||
-        viewer.getPageView(page.pageNumber - 1)?.renderingState === RenderingStates.INITIAL
-      )
-        page.cleanup()
-    },
+    releasePageResources: releasePage,
     get revision() {
       return annotations.hash
     },
