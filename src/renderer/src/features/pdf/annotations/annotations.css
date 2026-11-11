@@ -151,3 +151,34 @@
     right: -4px;
   }
 }
+
+.pdf-viewer-container .lepisAnnotationLayer .lepisFreehandPreview {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.pdf-viewer-container .lepisAnnotationLayer > .freehandHighlight .lepisHighlightContour path {
+  stroke: transparent;
+}
+
+.pdf-viewer-container .lepisAnnotationLayer > .freehandHighlight.selectedEditor {
+  outline: 1px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.pdf-viewer-container
+  .lepisAnnotationLayer:not(.disabled)
+  > .freehandHighlight
+  .lepisHighlightContour
+  path {
+  pointer-events: stroke;
+}
+
+.pdf-viewer-container .lepisAnnotationLayer .lepisFreehandStroke {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

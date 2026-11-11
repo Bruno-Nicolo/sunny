@@ -71,6 +71,15 @@ export async function readPageAnnotations(page: PDFPageProxy): Promise<Annotatio
         opacity: data.opacity ?? 0.9,
         quads: Array.from(data.quadPoints)
       }
+    } else if (data.annotationType === AnnotationType.INK && data.inkLists?.length) {
+      record = {
+        ...common,
+        kind: 'highlight',
+        color: hexColor(data.color, '#ffff00'),
+        opacity: data.opacity ?? 1,
+        thickness: data.borderStyle.rawWidth || 1,
+        strokes: data.inkLists.map((points: ArrayLike<number>) => Array.from(points))
+      }
     } else if (
       data.annotationType === AnnotationType.FREETEXT &&
       data.textContent?.join('\n').trim()

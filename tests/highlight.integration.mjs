@@ -328,6 +328,92 @@ app
       saved.get('second.pdf')?.toString('latin1').includes('Text after recoloring a highlight')
     )
     assert.match(saved.get('second.pdf').toString('latin1'), /Text after recoloring a highlight/)
+    // Draw in a blank area with native pointer input, then reopen the saved PDF.
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    const before = await evaluate(`document.querySelectorAll('.visible .highlightEditor').length`)
+    const blank = await evaluate(`(() => {
+      const bounds = document.querySelector('.visible .lepisAnnotationLayer').getBoundingClientRect();
+      return { x: Math.round(bounds.left + 100), y: Math.round(bounds.top + 330) };
+    })()`)
+    // Interrupted gestures must never become undo commands or saved annotations.
+    for (const interruption of ['pointercancel', 'Escape', 'tool']) {
+      await evaluate(`(() => {
+        const target = document.elementFromPoint(${blank.x}, ${blank.y});
+        target.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true, pointerId: 41, button: 0, clientX: ${blank.x}, clientY: ${blank.y}
+        }));
+        window.dispatchEvent(new PointerEvent('pointermove', {
+          pointerId: 41, clientX: ${blank.x + 40}, clientY: ${blank.y + 10}
+        }));
+      })()`)
+      await waitFor(`document.querySelector('.lepisFreehandPreview') !== null`)
+      assert.deepEqual(await evaluate('window.annotationErrors'), [])
+      if (interruption === 'pointercancel') {
+        await evaluate(`window.dispatchEvent(new PointerEvent('pointercancel', {pointerId: 41}))`)
+      } else if (interruption === 'Escape') {
+        pressKey('Escape')
+      } else {
+        await evaluate(`document.querySelector('[aria-label="Add text"]').click()`)
+      }
+      await waitFor(`!document.querySelector('.lepisFreehandPreview')`)
+      await evaluate(`window.dispatchEvent(new PointerEvent('pointerup', {
+        pointerId: 41, clientX: ${blank.x + 40}, clientY: ${blank.y + 10}
+      }))`)
+      assert.equal(
+        await evaluate(`document.querySelectorAll('.visible .highlightEditor').length`),
+        before
+      )
+      if (interruption !== 'pointercancel') {
+        await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+      }
+    }
+    console.log('PASS: pointer cancellation, Escape and tool changes discard unfinished strokes')
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...blank })
+    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...blank, clickCount: 1 })
+    for (let i = 1; i <= 10; i++) {
+      win.webContents.sendInputEvent({
+        type: 'mouseMove',
+        x: blank.x + i * 8,
+        y: blank.y + Math.round(Math.sin(i / 2) * 20)
+      })
+      await new Promise((resolve) => setTimeout(resolve, 16))
+    }
+    win.webContents.sendInputEvent({
+      type: 'mouseUp',
+      button: 'left',
+      x: blank.x + 80,
+      y: blank.y - 19,
+      clickCount: 1
+    })
+    await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
+    assert.equal(
+      await evaluate(
+        `getComputedStyle(document.querySelector('.visible .lepisHighlightDrawing .lepisFreehandStroke')).opacity`
+      ),
+      '0.9'
+    )
+    await evaluate(`void window.testCommands.run('undo')`)
+    await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === ${before}`)
+    await evaluate(`void window.testCommands.run('redo')`)
+    await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
+    await evaluate(`void window.testCommands.run('save')`)
+    await waitFor(() => saved.get('second.pdf')?.toString('latin1').includes('/InkList'))
+    assert.deepEqual(await evaluate('window.annotationErrors'), [])
+    await win.reload()
+    await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
+    await evaluate(`(() => {
+      window.annotationErrors = [];
+      window.addEventListener('error', event => window.annotationErrors.push(event.message));
+      window.addEventListener('unhandledrejection', event => window.annotationErrors.push(String(event.reason)));
+    })()`)
+    await evaluate(`document.querySelector('.visible .freehandHighlight').focus()`)
+    pressKey('Delete')
+    await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 0`)
+    await evaluate(`void window.testCommands.run('undo')`)
+    await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
+    console.log(
+      'PASS: freehand highlights draw on blank areas, undo, redo, save, reopen and delete'
+    )
     assert.deepEqual(await evaluate('window.annotationErrors'), [])
     console.log(
       'PASS: text can be created and saved after recoloring a highlight without renderer errors'

@@ -33,6 +33,23 @@ function serialize(record: Annotation): Record<string, unknown> {
         value: record.text
       }
     case 'highlight': {
+      if (record.strokes) {
+        return {
+          ...data,
+          annotationType: AnnotationEditorType.INK,
+          opacity: record.opacity ?? 0.9,
+          thickness: record.thickness,
+          paths: {
+            points: record.strokes,
+            lines: record.strokes.map((points) => {
+              const line: number[] = []
+              for (let i = 0; i < points.length; i += 2)
+                line.push(NaN, NaN, NaN, NaN, points[i], points[i + 1])
+              return line
+            })
+          }
+        }
+      }
       const quads = record.quads!
       const outlines: number[][] = []
       for (let i = 0; i < quads.length; i += 8) {

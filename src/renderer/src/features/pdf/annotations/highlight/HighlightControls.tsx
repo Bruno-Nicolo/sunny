@@ -42,7 +42,7 @@ export function HighlightControls({
     >
       <ToolbarButton
         label="Highlight text"
-        tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text (H)'}
+        tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text or draw on blank areas (H)'}
         aria-keyshortcuts="h"
         variant="ghost"
         pressed={selected}

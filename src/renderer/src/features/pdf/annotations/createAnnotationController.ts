@@ -358,6 +358,21 @@ export function createAnnotationController({
   container.addEventListener(
     'pointerdown',
     (event) => {
+      const target = event.target as Element
+      if (
+        canEdit() &&
+        options.annotationTool === 'highlight' &&
+        event.button === 0 &&
+        !target.closest('.lepisAnnotationLayer, .annotationLayer, .textLayer span')
+      ) {
+        const pageElement = target.closest<HTMLElement>('.page')
+        const pageIndex = Number(pageElement?.dataset.pageNumber) - 1
+        const layer = pages.get(pageIndex)
+        if (layer) {
+          layer.startHighlight(event, options.highlightColor)
+          return
+        }
+      }
       if ((event.target as Element).closest('.textLayer')) pointerSelection = true
       if (!(event.target as Element).closest('.lepisAnnotationLayer')) select(null)
     },

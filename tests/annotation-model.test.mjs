@@ -324,3 +324,47 @@ test('page cleanup retains stable IDs for native annotations without indirect re
   const [after] = await page.getAnnotations()
   assert.equal(after.id, before.id)
 })
+
+test('freehand highlights retain ink geometry through save, recolor, undo and deletion', async (t) => {
+  const document = await open(t, blankPdf)
+  const model = new AnnotationModel(() => {})
+  const record = {
+    key: 'freehand',
+    kind: 'highlight',
+    pageIndex: 0,
+    rotation: 0,
+    rect: [94, 594, 186, 646],
+    color: '#fde047',
+    opacity: 0.5,
+    thickness: 12,
+    strokes: [[100, 600, 130, 640, 180, 610]]
+  }
+  model.change(undefined, record)
+  const reopened = await open(t, await writeAnnotations(document, model))
+  const [ink] = await (await reopened.getPage(1)).getAnnotations()
+  assert.equal(ink.subtype, 'Ink')
+  assert.deepEqual(
+    ink.inkLists.map((points) => Array.from(points)),
+    record.strokes
+  )
+  assert.equal(ink.borderStyle.rawWidth, 12)
+  assert.equal(ink.opacity, 0.5)
+  const edited = new AnnotationModel(() => {})
+  const original = { ...record, key: ink.id, originalId: ink.id }
+  edited.import(original)
+  edited.change(original, { ...original, color: '#ff0000' })
+  const updated = await open(t, await writeAnnotations(reopened, edited))
+  const [result] = await (await updated.getPage(1)).getAnnotations()
+  assert.equal(result.id, ink.id)
+  assert.deepEqual(Array.from(result.color), [255, 0, 0])
+  assert.deepEqual(
+    result.inkLists.map((points) => Array.from(points)),
+    record.strokes
+  )
+  edited.undo()
+  assert.equal(edited.records.get(ink.id), original)
+  edited.redo()
+  edited.change(edited.records.get(ink.id), undefined)
+  const deleted = await open(t, await writeAnnotations(reopened, edited))
+  assert.equal((await (await deleted.getPage(1)).getAnnotations()).length, 0)
+})

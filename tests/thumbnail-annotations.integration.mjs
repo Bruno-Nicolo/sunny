@@ -275,13 +275,35 @@ app
     console.log(
       'PASS: new highlights and redo update thumbnails without rendering PDF content again'
     )
+    before = await thumbnailHash()
+    await evaluate(`(() => {
+      const [x,y,w,h] = ${JSON.stringify(rotation === 90 ? [200, 450, 792, 612] : rotation === 180 ? [162, 200, 612, 792] : rotation === 270 ? [592, 162, 792, 612] : [450, 592, 612, 792])};
+      const bounds = document.querySelector('.visible .lepisAnnotationLayer').getBoundingClientRect();
+      const input = { bubbles: true, pointerId: 42, button: 0,
+        clientX: bounds.left + x * bounds.width / w, clientY: bounds.top + y * bounds.height / h };
+      document.querySelector('.visible .textLayer').dispatchEvent(new PointerEvent('pointerdown', input));
+      window.dispatchEvent(new PointerEvent('pointerup', input));
+    })()`)
+    await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
+    await waitForChange(before)
+    const dotPixel = await thumbnailPixel(450, 200)
+    assert.ok(
+      dotPixel[0] < 220 && dotPixel[1] > 220 && dotPixel[2] < 220,
+      `A single-point freehand stroke must paint green in thumbnails, got ${dotPixel}`
+    )
+    const dotHash = await thumbnailHash()
+    await evaluate(`window.testCommands.run('undo')`)
+    await waitFor(async () => (await thumbnailHash()) === before)
+    await evaluate(`window.testCommands.run('redo')`)
+    await waitFor(async () => (await thumbnailHash()) === dotHash)
+    console.log('PASS: single-point freehand strokes paint in thumbnails and support undo and redo')
     await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
     await evaluate(`void window.testCommands.run('save')`)
     await waitFor(() => saved.has('second.pdf'))
     await win.reload()
     await enableTestFocus(win)
     await waitFor(
-      `document.querySelectorAll('.visible .stampEditor').length === 1 && document.querySelectorAll('.visible .freeTextEditor').length === 1 && document.querySelectorAll('.visible .highlightEditor').length === 4`
+      `document.querySelectorAll('.visible .stampEditor').length === 1 && document.querySelectorAll('.visible .freeTextEditor').length === 1 && document.querySelectorAll('.visible .highlightEditor').length === 5`
     )
     await waitFor(
       `document.querySelector('.visible [aria-label="Go to page 1"] canvas')?.width > 0`
@@ -292,6 +314,10 @@ app
         (await editorPixel('.visible .stampEditor', 0.25))[2] < 20
     )
     await waitFor(async () => (await redTextPixels()) > 10)
+    await waitFor(async () => {
+      const pixel = await thumbnailPixel(450, 200)
+      return pixel.every((value, index) => Math.abs(value - dotPixel[index]) <= 2)
+    })
     fs.writeFileSync(
       '/tmp/lepis-thumbnail-annotations-' + rotation + '.png',
       (await win.webContents.capturePage()).toPNG()
