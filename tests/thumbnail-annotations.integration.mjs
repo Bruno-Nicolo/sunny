@@ -11,7 +11,8 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lepis-thumbnail-annotations-
 app.setPath('userData', temp)
 const existingCount = 3
 const rotation = Number(process.env.LEPIS_THUMBNAIL_ROTATION ?? 0)
-const originalText = 'BT /F1 24 Tf 72 700 Td (First highlight) Tj 0 -40 Td (Second highlight) Tj ET'
+const originalText =
+  'BT /F1 24 Tf 72 700 Td (First highlight) Tj 0 -40 Td (Second highlight) Tj ET 0 G 0.2 w 72 100 m 540 100 l S 2 w 72 140 m 540 140 l S'
 const pdf = Buffer.from(
   createPdf([
     `<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [${existingCount + 6} 0 R] /DR << /Font << /Helv 5 0 R >> >> >> >>`,
@@ -168,6 +169,34 @@ app
         overlap[2] < 165,
       'Overlapping highlights blend their colors'
     )
+    if (rotation === 0) {
+      const strokes = await evaluate(`(() => {
+        const thumbnail = document.querySelector('[aria-label="Go to page 1"] canvas');
+        const reference = document.createElement('canvas');
+        reference.width = thumbnail.width; reference.height = thumbnail.height;
+        const context = reference.getContext('2d');
+        context.imageSmoothingQuality = 'high';
+        context.drawImage(document.querySelector('.visible .page canvas'), 0, 0, reference.width, reference.height);
+        const ink = (canvas, y) => {
+          const context = canvas.getContext('2d');
+          const x = Math.round(100 * canvas.width / 612);
+          const width = Math.round(400 * canvas.width / 612);
+          const center = Math.round((792 - y) * canvas.height / 792);
+          const pixels = context.getImageData(x, center - 4, width, 9).data;
+          let sum = 0;
+          for (let i = 0; i < pixels.length; i += 4) sum += (255 - pixels[i]) / 255;
+          return sum / width;
+        };
+        return [100, 140].map(y => ({ y, thumbnail: ink(thumbnail, y), reference: ink(reference, y) }));
+      })()`)
+      for (const stroke of strokes)
+        assert.ok(
+          stroke.thumbnail >= stroke.reference * 0.5 &&
+            stroke.thumbnail <= stroke.reference * 1.5 + 0.15,
+          `Thumbnail strokes retain the page proportions: ${JSON.stringify(stroke)}`
+        )
+      console.log('PASS: thin strokes retain the same weight as the reduced full-page rendering')
+    }
     await closeNavigation()
     console.log('PASS: modal previews retain saved highlights and blend overlapping colors')
 

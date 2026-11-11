@@ -98,6 +98,7 @@ export const PageThumbnail = memo(function PageThumbnail({
           onReleasePage(pdfPage)
           return
         }
+        const rendered = window.document.createElement('canvas')
         try {
           await annotations.prepare(number - 1)
           if (current !== generation) return
@@ -108,14 +109,21 @@ export const PageThumbnail = memo(function PageThumbnail({
           const ratio = window.devicePixelRatio || 1
           canvas.width = base.width = Math.ceil(viewport.width * ratio)
           canvas.height = base.height = Math.ceil(viewport.height * ratio)
+          // Downsampling keeps PDF.js's minimum one-pixel strokes proportional in thumbnails.
+          const renderRatio = ratio * 4
+          rendered.width = Math.ceil(viewport.width * renderRatio)
+          rendered.height = Math.ceil(viewport.height * renderRatio)
           const renderTask = pdfPage.render({
-            canvas: base,
+            canvas: rendered,
             viewport,
-            transform: [ratio, 0, 0, ratio, 0, 0]
+            transform: [renderRatio, 0, 0, renderRatio, 0, 0]
           })
           task = renderTask
           await renderTask.promise
           if (current !== generation) return
+          const baseContext = base.getContext('2d')!
+          baseContext.imageSmoothingQuality = 'high'
+          baseContext.drawImage(rendered, 0, 0, base.width, base.height)
           const context = canvas.getContext('2d')!
           redraw = () => {
             context.setTransform(1, 0, 0, 1, 0, 0)
@@ -126,6 +134,7 @@ export const PageThumbnail = memo(function PageThumbnail({
           }
           redraw()
         } finally {
+          rendered.width = rendered.height = 0
           task = null
           onReleasePage(pdfPage)
         }
