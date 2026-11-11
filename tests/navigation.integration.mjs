@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { blankPdf } from './fixtures/pdf.mjs'
+import { blankPdf, createPdf } from './fixtures/pdf.mjs'
 
 const { app, BrowserWindow, ipcMain } = electron
 const root = path.resolve(import.meta.dirname, '..')
@@ -35,8 +35,34 @@ pdf += `xref\n0 ${offsets.length}\n0000000000 65535 f \n${offsets
   .slice(1)
   .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
   .join('')}trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+const multiObjects = [
+  '<< /Type /Catalog /Pages 2 0 R >>',
+  '<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R] /Count 5 >>',
+  ...Array.from(
+    { length: 5 },
+    (_, i) => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${500 + i * 50} 800] /Resources << >> >>`
+  )
+]
+const multiPdf = createPdf(multiObjects)
+const manyPdf = createPdf([
+  '<< /Type /Catalog /Pages 2 0 R >>',
+  `<< /Type /Pages /Kids [${Array.from({ length: 12 }, (_, i) => `${i + 3} 0 R`).join(' ')}] /Count 12 >>`,
+  ...Array.from(
+    { length: 12 },
+    () => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>'
+  )
+])
 ipcMain.handle('test:read', (_, name) => {
-  const data = name === 'outline.pdf' ? Buffer.from(pdf) : blankPdf
+  const data =
+    name === 'export.pdf'
+      ? exportedPdf
+      : name === 'outline.pdf'
+        ? Buffer.from(pdf)
+        : name === 'multi.pdf'
+          ? multiPdf
+          : name === 'many.pdf'
+            ? manyPdf
+            : blankPdf
   return {
     path: name,
     name,
@@ -55,9 +81,10 @@ contextBridge.exposeInMainWorld('lepis', {
   releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
-  loadSession: async () => ({ tabs: ['empty.pdf', 'outline.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'outline.pdf', highlightColor:'#FDE047', theme:'light' }),
+  loadSession: async () => ({ tabs: ['many.pdf', 'multi.pdf', 'empty.pdf', 'outline.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'outline.pdf', highlightColor:'#FDE047', theme:'light' }),
   readPdf: path => ipcRenderer.invoke('test:read',path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),
+  savePdfAs: payload => ipcRenderer.invoke('test:export', payload),
   statPdf: async () => ({mtimeMs:1,size:1}), saveSession: async () => {}, closePdf: async () => {},
   openPdfDialog: async () => [], getPathForFile: () => '', confirmWindowClose: () => {},
   onOpenRequested: () => () => {}, onCommand: (name,cb) => {commands.set(name,cb);return () => commands.delete(name)}
@@ -65,7 +92,19 @@ contextBridge.exposeInMainWorld('lepis', {
 contextBridge.exposeInMainWorld('testCommands',{run:name => commands.get(name)?.()})`
 )
 let savedPdf
+let exportedPdf
+let saveFailure = null
+let cancelExport = false
+let saveCount = 0
+ipcMain.handle('test:export', (_, payload) => {
+  if (cancelExport) return null
+  exportedPdf = payload.data
+  assert.ok(payload.excludedPaths.includes('multi.pdf'))
+  return 'export.pdf'
+})
 ipcMain.handle('test:save', (_, payload) => {
+  if (saveFailure) throw new Error(saveFailure)
+  saveCount++
   savedPdf = payload.data
   return { mtimeMs: 1, size: savedPdf.byteLength }
 })
@@ -222,15 +261,19 @@ app
       evaluate(
         `Array.from(document.querySelector(${JSON.stringify(selector)}).getContext('2d').getImageData(10,10,1,1).data)`
       )
-    const dragPage = async (from, to) => {
-      await thumbnailsReady()
-      const initialPixels = await pagePixels(`[aria-label="Go to page ${from}"] canvas`)
+    const dragPage = async (from, to, label = 'Go to', groupSize = 1, cancel = false) => {
+      if (label === 'Go to') await thumbnailsReady()
+      await waitFor(
+        `(() => { const c = document.querySelector('[aria-label="${label} page ${from}"] canvas'); return c?.width > 0 && c.getContext('2d').getImageData(10,10,1,1).data[3] === 255 })()`
+      )
+      const initialPixels = await pagePixels(`[aria-label="${label} page ${from}"] canvas`)
       const [start, end] = await evaluate(`['${from}', '${to}'].map(number => {
-        const r = document.querySelector('[aria-label="Go to page ' + number + '"]').getBoundingClientRect();
-        return {x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2)};
+        const r = document.querySelector('[aria-label="${label} page ' + number + '"]').getBoundingClientRect();
+        return {x: Math.round(r.x + r.width * (number === '${to}' ? (${to} > ${from} ? 0.75 : 0.25) : 0.5)), y: Math.round(r.y + r.height / 2)};
       })`)
       win.webContents.sendInputEvent({ type: 'mouseMove', ...start })
       win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...start })
+      let animatedPages = false
       for (let step = 1; step <= 12; step++) {
         win.webContents.sendInputEvent({
           type: 'mouseMove',
@@ -238,23 +281,99 @@ app
           y: Math.round(start.y + ((end.y - start.y) * step) / 12)
         })
         await new Promise((resolve) => setTimeout(resolve, 30))
+        animatedPages ||= await evaluate(
+          `Array.from(document.querySelectorAll('[aria-label="PDF pages"] [data-page-id]:not([aria-hidden="true"])')).some(card => card.getAnimations().some(animation => animation.effect?.getKeyframes().some(frame => frame.translate || frame.transform)))`
+        )
+      }
+      if (!cancel)
+        assert.ok(animatedPages, 'Remaining pages animate smoothly when the insertion cell moves')
+      assert.ok(
+        await evaluate(`(() => {
+        const slot = document.querySelector('[data-page-drop-slot]');
+        const style = getComputedStyle(slot);
+        return style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.borderTopWidth === '0px' && style.borderRightWidth === '0px' && style.borderBottomWidth === '0px' && style.borderLeftWidth === '0px';
+      })()`),
+        'The insertion cell is empty, without a border or background fill'
+      )
+      if (groupSize > 1) {
+        assert.equal(
+          await evaluate(
+            `document.querySelector('[aria-label="Moving ${groupSize} pages"]')?.querySelectorAll('canvas').length ?? 0`
+          ),
+          Math.min(groupSize, 4),
+          'All selected pages follow the pointer together'
+        )
+        assert.ok(
+          await evaluate(`(() => {
+          const cards = [...document.querySelector('[aria-label="Moving ${groupSize} pages"]').querySelectorAll('canvas')].map(canvas => canvas.parentElement);
+          const rotations = cards.map(card => new DOMMatrix(getComputedStyle(card).transform).b);
+          return rotations[0] < 0 && rotations.at(-1) > 0;
+        })()`),
+          'Dragged pages fan out around the bottom of the cards'
+        )
+        assert.ok(
+          await evaluate(`(() => {
+          const originals = [...document.querySelector('[aria-label="PDF pages"]').querySelectorAll('[data-page-id][aria-selected="true"]')];
+          return originals.length >= ${groupSize} && originals.every(card => !card.getClientRects().length || getComputedStyle(card).opacity === '0');
+        })()`),
+          'Dragged pages disappear from the grid until they are dropped'
+        )
+        assert.ok(
+          await evaluate(`(() => {
+          const grid = document.querySelector('[aria-label="PDF pages"]');
+          const cells = [...grid.children].filter(cell => getComputedStyle(cell).position !== 'absolute' && getComputedStyle(cell).display !== 'none');
+          return grid.querySelectorAll('[data-page-drop-slot]').length === 1 && cells.length === grid.querySelectorAll('[data-page-id]').length - ${groupSize} + 1;
+        })()`),
+          'The compact grid contains only remaining pages and one insertion cell'
+        )
+        if (groupSize === 10)
+          assert.ok(
+            await evaluate(`(() => {
+          const scroll = document.querySelector('[data-page-scroll]');
+          return scroll.scrollHeight <= scroll.clientHeight + 2;
+        })()`),
+            'Hidden dragged pages do not leave a scrollable white area'
+          )
       }
       assert.deepEqual(
-        await pagePixels('[data-dragging="true"] canvas'),
+        await evaluate(`(() => {
+        const canvas = [...document.querySelectorAll('[data-dnd-overlay] canvas')].at(-1);
+        return Array.from(canvas.getContext('2d').getImageData(10,10,1,1).data);
+      })()`),
         initialPixels,
-        'The dragged thumbnail retains its page content before release'
+        'The frozen drag preview retains its page content before release'
       )
+      if (cancel) {
+        win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+        win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+      }
       win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...end })
+      if (cancel) {
+        await waitFor(`document.querySelector('[data-page-drop-slot]') === null`)
+        return
+      }
+
+      await waitFor(
+        `Array.from(document.querySelectorAll('[role="dialog"] button')).some(el => el.textContent === 'Save changes' && !el.disabled)`
+      )
     }
     await dragPage(1, 2)
-    await waitFor(`document.querySelector('[aria-label="Current page"]').value === '1'`)
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Current page"]').value`),
+      '2',
+      'Draft reorder does not mutate the viewer'
+    )
+    assert.equal(saveCount, 0, 'Draft reorder does not write the file')
     await thumbnailsReady()
     assert.deepEqual(
       (await pagePixels('[aria-label="Go to page 1"] canvas')).slice(0, 3),
       [0, 0, 255]
     )
-    await evaluate(`window.testCommands.run('save')`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="dialog"] button')).find(el => el.textContent === 'Save changes').click()`
+    )
     await waitFor(() => savedPdf)
+    await waitFor(`document.querySelector('[aria-label="Current page"]').value === '1'`)
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
     const savedTask = getDocument({ data: new Uint8Array(savedPdf) })
     try {
@@ -270,6 +389,9 @@ app
       await savedTask.destroy()
     }
     await dragPage(2, 1)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[role="dialog"] button')).find(el => el.textContent === 'Save changes').click()`
+    )
     await waitFor(`document.querySelector('[aria-label="Current page"]').value === '2'`)
     await thumbnailsReady()
     assert.deepEqual(
@@ -293,6 +415,219 @@ app
     await clickTab('Pages')
     await waitFor(`document.querySelectorAll('[aria-label^="Go to page"]').length === 1`)
     console.log('PASS: navigation shows the active document and handles PDFs without an outline')
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    await closed()
+    await evaluate(`window.testCommands.run('previous-tab')`)
+    await waitFor(
+      `document.querySelector('[aria-label="multi.pdf"]').getAttribute('aria-pressed') === 'true'`
+    )
+    await waitFor(`document.querySelector('.visible .pdfViewer .page canvas')?.width > 0`)
+    await openNavigation()
+    const button = (text, role = 'dialog') =>
+      evaluate(
+        `Array.from(document.querySelectorAll('[role="${role}"] button')).find(el => el.textContent === ${JSON.stringify(text)}).click()`
+      )
+    const select = (number, shift = false) =>
+      evaluate(
+        `document.querySelector('[aria-label="Select page ${number}"]').dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: ${shift} }))`
+      )
+    const selectMode = () => button('Select pages')
+    const selectedCount = () =>
+      evaluate(
+        `document.querySelectorAll('[aria-label^="Select page"][aria-selected="true"]').length`
+      )
+    const widths = async (data) => {
+      const task = getDocument({ data: new Uint8Array(data) })
+      try {
+        const doc = await task.promise
+        return await Promise.all(
+          Array.from(
+            { length: doc.numPages },
+            async (_, i) => (await doc.getPage(i + 1)).getViewport({ scale: 1 }).width
+          )
+        )
+      } finally {
+        await task.destroy()
+      }
+    }
+    await selectMode()
+    assert.equal(await selectedCount(), 0)
+    await select(2)
+    await waitFor(
+      `document.querySelectorAll('[aria-label^="Select page"][aria-selected="true"]').length === 1`
+    )
+    await select(4, true)
+    await waitFor(
+      `document.querySelectorAll('[aria-label^="Select page"][aria-selected="true"]').length === 3`
+    )
+    assert.equal(await selectedCount(), 3, 'Shift selects an interval')
+    await evaluate(
+      `document.querySelector('[aria-label="Select page 2"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true, cancelable: true }))`
+    )
+    assert.equal(
+      await selectedCount(),
+      5,
+      'Command-A selects all pages while the app shortcuts are blocked'
+    )
+    assert.equal(
+      await evaluate(
+        `Array.from(document.querySelectorAll('[role="dialog"] button')).find(el => el.textContent === 'Delete').disabled`
+      ),
+      true
+    )
+    await button('Done selecting')
+    await selectMode()
+    await select(2)
+    await select(4)
+    await dragPage(2, 1, 'Select', 2)
+    assert.equal(
+      await evaluate(
+        `Array.from(document.querySelectorAll('[role="dialog"] button')).some(el => el.textContent === 'Move')`
+      ),
+      false
+    )
+    assert.equal(await selectedCount(), 2, 'Moving keeps the same pages selected')
+    const beforeExport = saveCount
+    cancelExport = true
+    await button('Export')
+    await waitFor(
+      `!document.querySelector('[aria-label="PDF pages"]').getAttribute('aria-busy') || document.querySelector('[aria-label="PDF pages"]').getAttribute('aria-busy') === 'false'`
+    )
+    assert.equal(exportedPdf, undefined)
+    assert.equal(await selectedCount(), 2, 'Cancelling export keeps the selection')
+    cancelExport = false
+    await button('Export')
+    await waitFor(() => exportedPdf)
+    assert.deepEqual(await widths(exportedPdf), [550, 650], 'Export uses the draft order')
+    assert.equal(saveCount, beforeExport, 'Export leaves the original PDF unchanged')
+    await button('Select all')
+    exportedPdf = undefined
+    await button('Export')
+    await waitFor(() => exportedPdf)
+    assert.deepEqual(
+      await widths(exportedPdf),
+      [550, 650, 500, 600, 700],
+      'Export preserves the complete draft permutation'
+    )
+    await button('Done selecting')
+    await selectMode()
+    await select(1)
+    await select(2)
+
+    await button('Delete')
+    await waitFor(`document.querySelector('[role="alertdialog"]') !== null`)
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[aria-label^="Select page"]').length`),
+      5
+    )
+    await button('Cancel', 'alertdialog')
+    await button('Delete')
+    await button('Delete pages', 'alertdialog')
+    await waitFor(`document.querySelectorAll('[aria-label^="Select page"]').length === 3`)
+    assert.equal(await selectedCount(), 0)
+    await button('Discard page changes')
+    await button('Discard page changes', 'alertdialog')
+    await waitFor(`document.querySelectorAll('[aria-label^="Select page"]').length === 5`)
+    await select(1)
+    await button('Delete')
+    await button('Delete pages', 'alertdialog')
+    await button('Done selecting')
+    await evaluate(`document.querySelector('[aria-label="Go to page 1"]').click()`)
+    await waitFor(`document.querySelector('[role="alertdialog"]') !== null`)
+    await button('Continue editing', 'alertdialog')
+    assert.ok(await evaluate(`document.querySelector('[role="dialog"]') !== null`))
+    saveFailure = 'SIMULATED_WRITE_FAILURE'
+    await button('Save changes')
+    await waitFor(
+      `document.querySelector('[role="dialog"] [role="alert"]')?.textContent.includes('not saved')`
+    )
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[aria-label^="Go to page"]').length`),
+      4,
+      'Write errors retain the draft'
+    )
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Current page"]').value`), '1')
+    saveFailure = null
+    await evaluate(`document.querySelector('[aria-label="Go to page 1"]').click()`)
+    const saves = saveCount
+    await button('Save changes', 'alertdialog')
+    await waitFor(() => saveCount > saves)
+    await closed()
+    assert.deepEqual(await widths(savedPdf), [550, 600, 650, 700])
+    await openNavigation()
+    await selectMode()
+    await select(4)
+    await button('Delete')
+    await button('Delete pages', 'alertdialog')
+    await waitFor(`document.querySelector('[role="alertdialog"]') === null`)
+    await evaluate(`void window.testCommands.run('window-close-requested')`)
+    await waitFor(
+      `Array.from(document.querySelectorAll('[role="alertdialog"] button')).some(el => el.textContent === 'Continue editing')`
+    )
+    await button('Continue editing', 'alertdialog')
+    await waitFor(`document.querySelector('[role="alertdialog"]') === null`)
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    await waitFor(`document.querySelector('[role="alertdialog"]') !== null`)
+    await button('Discard', 'alertdialog')
+    await closed()
+    console.log(
+      'PASS: selection, range and select-all; group move; export/cancel; delete confirmation; reset; guarded exit; write failure and atomic save'
+    )
+    await openNavigation()
+    await selectMode()
+    await select(4)
+    await button('Delete')
+    await button('Delete pages', 'alertdialog')
+    await waitFor(`document.querySelector('[role="alertdialog"]') === null`)
+    saveFailure = 'FILE_CHANGED_EXTERNALLY'
+    await button('Save changes')
+    await waitFor(
+      `Array.from(document.querySelectorAll('[role="dialog"]')).some(el => el.textContent.includes('The original file is unavailable or changed'))`
+    )
+    exportedPdf = undefined
+    await button('Save as copy')
+    await waitFor(() => exportedPdf)
+    await waitFor(
+      `document.querySelector('[aria-label="export.pdf"]')?.getAttribute('aria-pressed') === 'true'`
+    )
+    assert.deepEqual(
+      await widths(exportedPdf),
+      [550, 600, 650],
+      'Conflict copies include the page draft'
+    )
+    assert.deepEqual(
+      await widths(savedPdf),
+      [550, 600, 650, 700],
+      'Conflict leaves the original unchanged'
+    )
+    saveFailure = null
+    console.log('PASS: window-close guard and conflict Save as copy preserve the page draft')
+    await waitFor(`document.querySelectorAll('[aria-label^="Go to page"]').length === 3`)
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    await closed()
+    await evaluate(`window.testCommands.run('previous-tab')`)
+    await waitFor(
+      `document.querySelector('[aria-label="many.pdf"]')?.getAttribute('aria-pressed') === 'true'`
+    )
+    await openNavigation()
+    await selectMode()
+    await select(1)
+    await select(10, true)
+    await waitFor(
+      `document.querySelectorAll('[aria-label^="Select page"][aria-selected="true"]').length === 10`
+    )
+    await dragPage(1, 2, 'Select', 10, true)
+    assert.equal(await evaluate(`document.querySelectorAll('[data-page-id]').length`), 12)
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[data-page-id][aria-hidden="true"]').length`),
+      0
+    )
+    console.log(
+      'PASS: ten dragged pages collapse into one insertion cell; cancel restores every page'
+    )
   })
   .then(() => finish(0))
   .catch((error) => {

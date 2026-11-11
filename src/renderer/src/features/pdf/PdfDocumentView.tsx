@@ -1,10 +1,10 @@
-import { forwardRef, useImperativeHandle } from 'react'
+import { forwardRef, useImperativeHandle, useRef } from 'react'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import './annotations/annotations.css'
 import { PasswordDialog } from './PasswordDialog'
 import { usePdfViewer } from './usePdfViewer'
 import type { PdfDocumentHandle, PdfDocumentViewProps } from './types'
-import { PdfNavigationDialog } from './PdfNavigationDialog'
+import { PdfNavigationDialog, type NavigationHandle } from './PdfNavigationDialog'
 import { PdfSearchInput } from './PdfSearchInput'
 import { TextSelectionPopover } from './TextSelectionPopover'
 
@@ -23,11 +23,23 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
       closeSearch,
       releasePageResources,
       navigateToDestination,
-      reorderPage,
+      extractPages,
       passwordRequest,
       submitPassword
     } = usePdfViewer(props)
-    useImperativeHandle(ref, () => handle, [handle])
+    const navigationRef = useRef<NavigationHandle>(null)
+    useImperativeHandle(
+      ref,
+      () => ({
+        ...handle,
+        get revision() {
+          return handle.revision
+        },
+        confirmPageChanges: async () => navigationRef.current?.confirmLeave() ?? true,
+        preparePageChanges: async () => navigationRef.current?.prepareChanges() ?? null
+      }),
+      [handle]
+    )
     return (
       <div className="relative flex h-full min-h-0 flex-col">
         {loading && props.active && (
@@ -38,6 +50,8 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
         <div className="flex min-h-0 flex-1">
           {document && props.active && (
             <PdfNavigationDialog
+              key={document.pdf.loadingTask.docId}
+              ref={navigationRef}
               open={props.navigationOpen}
               onOpenChange={props.onNavigationOpenChange}
               document={document.pdf}
@@ -46,7 +60,10 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
               onTabChange={props.onNavigationTabChange}
               page={page}
               onPage={handle.setPage}
-              onReorderPage={reorderPage}
+              onExtractPages={extractPages}
+              onSavePages={props.onSavePages}
+              onExportPages={props.onExportPages}
+              onPageDraftChange={props.onPageDraftChange}
               canReorder={document.canReorder}
               onReleasePage={releasePageResources}
               onDestination={navigateToDestination}

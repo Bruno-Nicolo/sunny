@@ -187,3 +187,29 @@ test('recovery replaces a clean startup tab, remains dirty, and survives a late 
   assert.deepEqual(new Uint8Array(state.tabs[0].source.data), new Uint8Array([9]))
   assert.equal(state.tabs[1].unavailable, true)
 })
+
+test('saving page changes replaces source and reading position together and clears the draft', () => {
+  const first = tab('first.pdf')
+  first.dirty = true
+  first.pageDraft = true
+  first.view = { ...first.view, page: 4, scrollTop: 950, scale: 'page-width', rotation: 90 }
+  const source = { kind: 'memory', data: new Uint8Array([2, 3]).buffer }
+  const state = reduce(
+    { ...initialDocumentsState, tabs: [first], activeId: first.id },
+    {
+      type: 'replace',
+      id: first.id,
+      pdf: { ...first, source, mtimeMs: 5 },
+      page: 2
+    }
+  )
+  const saved = state.tabs[0]
+  assert.equal(saved.id, first.id)
+  assert.equal(saved.source, source)
+  assert.equal(saved.view.page, 2)
+  assert.equal(saved.view.scrollTop, 0)
+  assert.equal(saved.view.scale, 'page-width')
+  assert.equal(saved.view.rotation, 90)
+  assert.equal(saved.dirty, false)
+  assert.equal(saved.pageDraft, false)
+})

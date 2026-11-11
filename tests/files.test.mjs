@@ -173,10 +173,11 @@ test('invalid PDF output leaves the original intact and creates no backup or cop
   await assert.rejects(readFile(copyPath), { code: 'ENOENT' })
 })
 
-test('saving a copy returns the new document without changing the original', async (t) => {
+test('saving a copy writes an independently openable PDF without changing the original', async (t) => {
   const { directory, filePath } = await fixture(t)
   const copyPath = join(directory, 'copy.pdf')
-  const copy = await writePdfCopy(copyPath, new Uint8Array(edited))
+  await writePdfCopy(copyPath, new Uint8Array(edited))
+  const copy = await readPdf(copyPath)
   assert.equal(copy.path, copyPath)
   assert.equal(copy.name, 'copy.pdf')
   assert.deepEqual(

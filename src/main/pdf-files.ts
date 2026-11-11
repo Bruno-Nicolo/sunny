@@ -73,10 +73,9 @@ export async function savePdf(
   return statPdf(filePath)
 }
 
-export async function writePdfCopy(filePath: string, data: Uint8Array): Promise<OpenedPdf> {
+export async function writePdfCopy(filePath: string, data: Uint8Array): Promise<void> {
   validatePdfOutput(data)
   await writeFileAtomically(filePath, data)
-  return readPdf(filePath)
 }
 
 export async function deleteBackup(userDataPath: string, tabId: string): Promise<void> {

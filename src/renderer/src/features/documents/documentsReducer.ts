@@ -7,7 +7,9 @@ export type DocumentsState = {
   ready: boolean
 }
 
-export type TabChanges = Partial<Pick<Tab, 'dirty' | 'unavailable' | 'error' | 'view'>>
+export type TabChanges = Partial<
+  Pick<Tab, 'dirty' | 'unavailable' | 'error' | 'view' | 'pageDraft'>
+>
 
 export type DocumentsAction =
   | { type: 'open'; tabs: Tab[] }
@@ -18,7 +20,7 @@ export type DocumentsAction =
   | { type: 'close'; id: string }
   | { type: 'restore'; tabs: Tab[]; activePath: string | null }
   | { type: 'saved'; id: string; stats: PdfFileStats; dirty: boolean }
-  | { type: 'replace'; id: string; pdf: OpenedPdf }
+  | { type: 'replace'; id: string; pdf: OpenedPdf; page?: number }
 
 export const initialDocumentsState: DocumentsState = { tabs: [], activeId: null, ready: false }
 
@@ -27,6 +29,7 @@ export function createTab(pdf: OpenedPdf, restored?: SessionTab): Tab {
     ...pdf,
     id: crypto.randomUUID(),
     dirty: false,
+    pageDraft: false,
     unavailable: false,
     error: null,
     view: {
@@ -130,7 +133,14 @@ export function documentsReducer(state: DocumentsState, action: DocumentsAction)
                 ...tab,
                 ...action.pdf,
                 id: tab.id,
-                view: { ...tab.view, canAnnotate: false, signed: false },
+                view: {
+                  ...tab.view,
+                  page: action.page ?? tab.view.page,
+                  scrollTop: action.page === undefined ? tab.view.scrollTop : 0,
+                  canAnnotate: false,
+                  signed: false
+                },
+                pageDraft: false,
                 dirty: false,
                 unavailable: false,
                 error: null

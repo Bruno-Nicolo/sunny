@@ -10,6 +10,8 @@ excerpts and needed conversation history to the service chosen by the user, afte
 - Keep documents in tabs and restore the last session.
 - Keep local recovery copies of unsaved annotations and offer recovery after an interrupted session.
 - Scroll pages vertically, jump to a page, zoom, fit width, and fit page.
+- Organize pages in the navigation dialog: select pages, move them together, delete them, or export them to one PDF.
+- Preview page changes before saving them to the original PDF; discard the draft without changing annotations.
 - Highlight selectable text with a small color palette.
 - Add editable text boxes by choosing Add text and clicking on a page; open Text settings next to the selected box to choose a preset color and size.
 - Type multiple lines, move text boxes, and edit saved text by selecting it and pressing Enter.
@@ -105,6 +107,30 @@ Opened PDF bytes use `ArrayBuffer` across IPC and React props. React's developme
 tracing enumerates typed-array entries when describing props; exposing a large `Uint8Array`
 there can exhaust the renderer heap. PDF.js accepts the opaque buffer directly, and receives
 a copy because it transfers ownership to its worker. Saved PDF output remains `Uint8Array`.
+
+## Organizing pages
+
+Open PDF navigation to browse thumbnails or the document outline. Choose **Select pages** to
+select individual pages, Shift-click an interval, or use Command-A to select all pages.
+Move selected pages together by dragging a selected thumbnail. During dragging, remaining
+pages compact around one empty cell that marks the insertion position. The drag preview shows
+at most four cards and the total number of selected pages.
+Deletion requires confirmation, and at least one page must remain.
+
+Reordering and deletion remain in a temporary draft until **Save changes** writes the PDF,
+including any unsaved annotations. Saving keeps the dialog open and clears the selection.
+**Discard page changes** restores the page order and removed pages without discarding
+annotations. Leaving with pending changes offers continue, discard, or save. A failed save
+keeps the draft available. Draft page changes are not recovered after an interrupted session.
+
+**Export** saves selected pages in the draft order as one separate PDF with their current
+annotations. It does not apply the draft or open the exported file. Exports and conflict
+copies cannot overwrite an open PDF.
+
+Saved page changes cannot be undone, and saving them clears the previous annotation undo
+history. Annotations added afterward have their own undo history. Existing AI conversations
+remain readable but their citations are disabled when they refer to the previous document
+version; start a new conversation to ask about the changed PDF.
 
 ## Recovery copies
 

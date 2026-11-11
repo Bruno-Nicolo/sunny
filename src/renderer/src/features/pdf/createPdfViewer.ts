@@ -18,6 +18,7 @@ import {
   RenderingStates,
   SpreadMode
 } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
+import { validatePageOrder } from './pageOperations'
 import { FileRangeTransport } from './fileRangeTransport'
 import { createAnnotationController } from './annotations/createAnnotationController'
 import type { AnnotationOptions } from './annotations/types'
@@ -58,10 +59,13 @@ type Options = {
   onSearchChange(snapshot: PdfSearchSnapshot): void
 }
 
-export type PdfViewerController = Omit<PdfDocumentHandle, 'openSearch'> & {
+export type PdfViewerController = Omit<
+  PdfDocumentHandle,
+  'openSearch' | 'confirmPageChanges' | 'preparePageChanges'
+> & {
   search(query: string, options: PdfSearchOptions, previous?: boolean): void
   closeSearch(): void
-  reorderPage(from: number, to: number): Promise<{ data: ArrayBuffer; view: PdfViewPosition }>
+  extractPages(order: number[]): Promise<Uint8Array>
   navigateToDestination(destination: string | unknown[]): Promise<void>
   setAnnotationOptions(options: AnnotationOptions): void
   releasePageResources(page: PDFPageProxy): void
@@ -356,31 +360,20 @@ export function createPdfViewer({
     })
 
   return {
-    async reorderPage(from, to) {
+    async extractPages(order) {
       if (destroyed || loading || !document) throw new Error('The PDF is not ready.')
-      if (!canReorder) throw new Error('This PDF does not allow page reordering.')
-      const order = Array.from({ length: document.numPages }, (_, index) => index)
-      if (
-        !Number.isInteger(from) ||
-        !Number.isInteger(to) ||
-        from < 0 ||
-        from >= document.numPages ||
-        to < 0 ||
-        to >= document.numPages
-      )
-        throw new Error('Invalid page position.')
-      order.splice(to, 0, order.splice(from, 1)[0])
+      if (!canReorder) throw new Error('This PDF does not allow page extraction or reordering.')
+      validatePageOrder(order, document.numPages)
       annotations.commit()
-      const pageIndices = new Array<number>(order.length)
-      order.forEach((original, index) => {
-        pageIndices[original] = index
-      })
-      const pageInfo = { document: await annotations.save(), pageIndices, password }
-      const data = await document.extractPages([pageInfo])
-      return {
-        data: data.slice().buffer,
-        view: { ...snapshot, page: pageIndices[viewer.currentPageNumber - 1] + 1, scrollTop: 0 }
+      const positions = new Map(order.map((original, index) => [original, index]))
+      const included = [...order].sort((a, b) => a - b)
+      const pageInfo = {
+        document: await annotations.save(),
+        includePages: included,
+        pageIndices: included.map((original) => positions.get(original)!),
+        password
       }
+      return document.extractPages([pageInfo])
     },
     async print() {
       if (destroyed || loading || !document) return

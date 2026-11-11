@@ -3,6 +3,7 @@ import type { ViewerSnapshot } from '@/features/pdf/types'
 
 export type Tab = OpenedPdf & {
   id: string
+  pageDraft: boolean
   dirty: boolean
   unavailable: boolean
   error: string | null

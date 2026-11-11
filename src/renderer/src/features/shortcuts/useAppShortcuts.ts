@@ -18,6 +18,13 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
       // Capture editor commands before PDF.js document listeners while a modal is open.
       const blockEditorKeys = (event: KeyboardEvent): void => {
         if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key.toLowerCase() === 'a' &&
+          event.target instanceof HTMLElement &&
+          event.target.closest('[data-page-selection="true"]')
+        )
+          return
+        if (
           event.target instanceof HTMLElement &&
           event.target.closest(
             'input, textarea, select, [contenteditable]:not([contenteditable="false"])'

@@ -11,6 +11,8 @@ import {
 } from './documentsReducer'
 import type { CloseRequest, Tab } from './types'
 
+type PageSave = { data: Uint8Array; page: number; onSaved(): void }
+
 type DocumentsController = DocumentsState & {
   activeTab: Tab | null
   dirtyTabs: Tab[]
@@ -27,7 +29,8 @@ type DocumentsController = DocumentsState & {
   getActiveViewer(): PdfDocumentHandle | undefined
   openDialog(): Promise<void>
   openPaths(paths: string[]): Promise<void>
-  saveTab(id: string): Promise<boolean>
+  exportPages(id: string, data: Uint8Array): Promise<boolean>
+  saveTab(id: string, pages?: PageSave): Promise<boolean>
   closeTab(id: string, discard?: boolean): Promise<boolean>
   cancelClose(): void
   saveAndResolveClose(): Promise<void>
@@ -141,16 +144,25 @@ export function useDocuments(
     dispatch({ type: 'open', tabs: pdfs.map((pdf) => createTab(pdf)) })
   }, [])
 
+  const confirmActivePageChanges = useCallback(async (): Promise<boolean> => {
+    const current = stateRef.current.tabs.find((tab) => tab.id === stateRef.current.activeId)
+    return (
+      !current?.pageDraft || (await viewers.current.get(current.id)?.confirmPageChanges()) === true
+    )
+  }, [])
+
   const openDialog = useCallback(async (): Promise<void> => {
+    if (!(await confirmActivePageChanges())) return
     try {
       addOpenedPdfs(await window.lepis.openPdfDialog())
     } catch (error) {
       showMessage(error instanceof Error ? error.message : 'The PDF could not be opened.')
     }
-  }, [addOpenedPdfs, showMessage])
+  }, [addOpenedPdfs, confirmActivePageChanges, showMessage])
 
   const openPaths = useCallback(
     async (paths: string[]): Promise<void> => {
+      if (!(await confirmActivePageChanges())) return
       // Keep successful documents when one of the requested paths is unavailable.
       const results = await Promise.allSettled(
         paths.map((path) => {
@@ -168,14 +180,14 @@ export function useDocuments(
       }
       addOpenedPdfs(pdfs)
     },
-    [addOpenedPdfs, showMessage]
+    [addOpenedPdfs, confirmActivePageChanges, showMessage]
   )
 
   const saveTab = useCallback(
-    async (id: string): Promise<boolean> => {
+    async (id: string, pages?: PageSave): Promise<boolean> => {
       const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
       if (!tab) return false
-      if (!tab.dirty) return true
+      if (!tab.dirty && !pages) return true
       const viewer = viewers.current.get(id)
       if (!viewer) {
         showMessage('The PDF is not ready for saving.')
@@ -187,7 +199,7 @@ export function useDocuments(
       }
       return draftAutosave.withPaused([id], async () => {
         try {
-          const saving = viewer.saveDocument()
+          const saving = pages?.data ?? viewer.saveDocument()
           const revision = viewer.revision
           const data = await saving
           const stats = await window.lepis.savePdf({
@@ -196,17 +208,30 @@ export function useDocuments(
             data,
             expectedMtimeMs: tab.mtimeMs
           })
-          const dirty = viewer.revision !== revision
-          dispatch({ type: 'saved', id, stats, dirty })
-          if (!dirty) await window.lepis.deleteDraft(tab.path)
+          const dirty = !pages && viewer.revision !== revision
+          if (pages) {
+            pages.onSaved()
+            dispatch({
+              type: 'replace',
+              id,
+              pdf: { ...tab, ...stats, source: { kind: 'memory', data: data.slice().buffer } },
+              page: pages.page
+            })
+          } else dispatch({ type: 'saved', id, stats, dirty })
+          if (!dirty) {
+            try {
+              await window.lepis.deleteDraft(tab.path)
+            } catch {
+              showMessage('Saved. The recovery copy could not be removed.')
+              return true
+            }
+          }
           showMessage(dirty ? 'Saved. Newer changes are still unsaved.' : 'Saved')
           return !dirty
         } catch (error) {
-          if (error instanceof Error && error.message.includes('FILE_CHANGED_EXTERNALLY')) {
+          if (error instanceof Error && error.message.includes('FILE_CHANGED_EXTERNALLY'))
             setConflictId(id)
-          } else {
-            showMessage(error instanceof Error ? error.message : 'The PDF could not be saved.')
-          }
+          else showMessage(error instanceof Error ? error.message : 'The PDF could not be saved.')
           return false
         }
       })
@@ -214,10 +239,26 @@ export function useDocuments(
     [draftAutosave, showMessage]
   )
 
+  const exportPages = useCallback(async (id: string, data: Uint8Array): Promise<boolean> => {
+    const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
+    if (!tab) return false
+    const saved = await window.lepis.savePdfAs({
+      data,
+      suggestedName: tab.name.replace(/\.pdf$/i, ' - pages.pdf'),
+      excludedPaths: stateRef.current.tabs.map((tab) => tab.path)
+    })
+    return saved !== null
+  }, [])
+
   const closeTab = useCallback(
     async (id: string, discard = false): Promise<boolean> => {
-      const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
+      let tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
       if (!tab) return true
+      if (tab.pageDraft) {
+        if (!(await viewers.current.get(id)?.confirmPageChanges())) return false
+        tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
+        if (!tab) return true
+      }
       if (tab.dirty && !discard) {
         setCloseRequest({ type: 'tab', id })
         return false
@@ -273,7 +314,10 @@ export function useDocuments(
     [draftAutosave, persistSession, recoveryDrafts, showMessage]
   )
 
-  const requestWindowClose = useCallback((): void => {
+  const requestWindowClose = useCallback(async (): Promise<void> => {
+    for (const tab of stateRef.current.tabs) {
+      if (tab.pageDraft && !(await viewers.current.get(tab.id)?.confirmPageChanges())) return
+    }
     if (stateRef.current.tabs.some((tab) => tab.dirty)) setCloseRequest({ type: 'window' })
     else void finishWindowClose()
   }, [finishWindowClose])
@@ -306,15 +350,18 @@ export function useDocuments(
     if (!id || !tab || !viewer) return
     return draftAutosave.withPaused([id], async () => {
       try {
-        const data = await viewer.saveDocument()
-        const saved = await window.lepis.savePdfAs({
+        const pending = await viewer.preparePageChanges()
+        const data = pending?.data ?? (await viewer.saveDocument())
+        const path = await window.lepis.savePdfAs({
           data,
-          suggestedName: tab.name.replace(/\.pdf$/i, ' - Sunny.pdf')
+          suggestedName: tab.name.replace(/\.pdf$/i, ' - Sunny.pdf'),
+          excludedPaths: stateRef.current.tabs.map((tab) => tab.path)
         })
-        if (!saved) return
+        if (!path) return
+        const saved = await window.lepis.readPdf(path)
         await window.lepis.closePdf(id)
         await window.lepis.deleteDraft(tab.path)
-        dispatch({ type: 'replace', id, pdf: saved })
+        dispatch({ type: 'replace', id, pdf: saved, page: pending?.page })
         setConflictId(null)
         showMessage('Saved as a copy')
       } catch (error) {
@@ -367,7 +414,7 @@ export function useDocuments(
               if (current.unavailable) updateTab(tab.id, { unavailable: false })
               continue
             }
-            if (current.dirty) {
+            if (current.dirty || current.pageDraft) {
               setConflictId(tab.id)
             } else {
               const fresh = await window.lepis.readPdf(tab.path)
@@ -379,7 +426,7 @@ export function useDocuments(
                 latest.mtimeMs !== tab.mtimeMs
               )
                 continue
-              if (latest.dirty) setConflictId(tab.id)
+              if (latest.dirty || latest.pageDraft) setConflictId(tab.id)
               else dispatch({ type: 'replace', id: tab.id, pdf: fresh })
             }
           } catch {
@@ -415,6 +462,7 @@ export function useDocuments(
     openDialog,
     openPaths,
     saveTab,
+    exportPages,
     closeTab,
     saveAndResolveClose,
     discardAndResolveClose,

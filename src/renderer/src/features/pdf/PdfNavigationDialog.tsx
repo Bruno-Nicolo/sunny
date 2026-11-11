@@ -1,20 +1,39 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { DragDropProvider } from '@dnd-kit/react'
-import { isSortable, useSortable } from '@dnd-kit/react/sortable'
-import { ChevronRight } from 'lucide-react'
-import { Collapsible } from 'radix-ui'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useImperativeHandle,
+  useMemo,
+  useReducer,
+  useRef,
+  useState
+} from 'react'
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { cn } from '@/lib/utils'
-import { dragSensors } from '@/lib/dragSensors'
-import type { PdfDocumentViewProps } from './types'
+import { Button } from '@/components/ui/button'
 import {
-  paintThumbnailAnnotations,
-  type ThumbnailAnnotations
-} from './annotations/thumbnailAnnotations'
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel
+} from '@/components/ui/alert-dialog'
+import type { PdfDocumentViewProps } from './types'
+import type { ThumbnailAnnotations } from './annotations/thumbnailAnnotations'
+import type { ThumbnailQueue } from './PageThumbnail'
+import { PdfPageGrid } from './PdfPageGrid'
+import { OutlineItems, type Outline } from './PdfOutline'
+import { retainedPage } from './pageOperations'
+import { createPageDraft, pageDraftReducer } from './pageDraft'
 
-type Outline = NonNullable<Awaited<ReturnType<PDFDocumentProxy['getOutline']>>>
+export type NavigationHandle = {
+  confirmLeave(): Promise<boolean>
+  prepareChanges(): Promise<{ data: Uint8Array; page: number } | null>
+}
 type Props = {
   open: boolean
   onOpenChange(open: boolean): void
@@ -25,351 +44,165 @@ type Props = {
   page: number
   onPage(page: number): void
   canReorder: boolean
-  onReorderPage(from: number, to: number): Promise<void>
+  onExtractPages(order: number[]): Promise<Uint8Array>
+  onSavePages: PdfDocumentViewProps['onSavePages']
+  onExportPages: PdfDocumentViewProps['onExportPages']
+  onPageDraftChange: PdfDocumentViewProps['onPageDraftChange']
   onReleasePage(page: PDFPageProxy): void
   onDestination(destination: string | unknown[]): Promise<void>
   onError(message: string): void
 }
+type LeaveRequest = { finish(saved?: boolean): void; cancel?(): void; page?: number }
 
-type ThumbnailQueue = (render: () => Promise<void>) => Promise<void>
-
-const PageThumbnail = memo(function PageThumbnail({
-  document,
-  annotations,
-  number,
-  reorderDisabled,
-  selected,
-  active,
-  onPage,
-  onReleasePage,
-  enqueue
-}: {
-  document: PDFDocumentProxy
-  annotations: ThumbnailAnnotations
-  number: number
-  reorderDisabled: boolean
-  selected: boolean
-  active: boolean
-  onPage(page: number): void
-  onReleasePage(page: PDFPageProxy): void
-  enqueue: ThumbnailQueue
-}): React.JSX.Element {
-  const { ref, isDragSource } = useSortable({
-    id: number,
-    index: number - 1,
-    disabled: reorderDisabled
-  })
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const observerRef = useRef<IntersectionObserver | null>(null)
-  const [error, setError] = useState(false)
-
-  useEffect(() => {
-    const button = buttonRef.current
-    const canvas = canvasRef.current
-    if (!button || !canvas || !active) return
-    let task: RenderTask | null = null
-    let redraw: (() => void) | null = null
-    let frame: number | null = null
-    const base = window.document.createElement('canvas')
-    base.width = base.height = 0
-    let unsubscribe: (() => void) | undefined
-    const scheduleRedraw = (): void => {
-      if (!redraw || frame !== null) return
-      frame = requestAnimationFrame(() => {
-        frame = null
-        redraw?.()
-      })
-    }
-    const cancel = (): void => {
-      unsubscribe?.()
-      unsubscribe = undefined
-      redraw = null
-      if (frame !== null) cancelAnimationFrame(frame)
-      frame = null
-      task?.cancel()
-      task = null
-    }
-    let generation = 0
-    let visible = false
-    const render = (): void => {
-      const current = ++generation
-      cancel()
-      canvas.width = canvas.height = base.width = base.height = 0
-      if (!visible) return
-      unsubscribe = annotations.subscribe(number - 1, (baseChanged) => {
-        if (baseChanged) render()
-        else scheduleRedraw()
-      })
-      void enqueue(async () => {
-        if (current !== generation) return
-        await new Promise<void>((resolve) => requestIdleCallback(() => resolve(), { timeout: 100 }))
-        if (current !== generation) return
-        const pdfPage = await document.getPage(number)
-        if (current !== generation) {
-          onReleasePage(pdfPage)
-          return
-        }
-        try {
-          await annotations.prepare(number - 1)
-          if (current !== generation) return
-          setError(false)
-          const size = pdfPage.getViewport({ scale: 1 })
-          const viewport = pdfPage.getViewport({ scale: 150 / size.width })
-          button.style.setProperty('--page-ratio', `${viewport.width} / ${viewport.height}`)
-          const ratio = window.devicePixelRatio || 1
-          canvas.width = base.width = Math.ceil(viewport.width * ratio)
-          canvas.height = base.height = Math.ceil(viewport.height * ratio)
-          const renderTask = pdfPage.render({
-            canvas: base,
-            viewport,
-            transform: [ratio, 0, 0, ratio, 0, 0]
-          })
-          task = renderTask
-          await renderTask.promise
-          if (current !== generation) return
-          const context = canvas.getContext('2d')!
-          redraw = () => {
-            context.setTransform(1, 0, 0, 1, 0, 0)
-            context.clearRect(0, 0, canvas.width, canvas.height)
-            context.drawImage(base, 0, 0)
-            context.setTransform(ratio, 0, 0, ratio, 0, 0)
-            paintThumbnailAnnotations(context, viewport, annotations.forPage(number - 1))
-          }
-          redraw()
-        } finally {
-          task = null
-          onReleasePage(pdfPage)
-        }
-      }).catch((cause: unknown) => {
-        if (current !== generation) return
-        if (cause instanceof Error && cause.name === 'RenderingCancelledException') return
-        setError(true)
-      })
-    }
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (button.dataset.dragging === 'true' || entry.isIntersecting === visible) return
-        visible = entry.isIntersecting
-        render()
-      },
-      { root: button.closest('[data-slot="tabs-content"]'), rootMargin: '200px' }
-    )
-    observerRef.current = observer
-    observer.observe(button)
-    return () => {
-      observerRef.current = null
-      generation++
-      observer.disconnect()
-      cancel()
-      canvas.width = canvas.height = base.width = base.height = 0
-    }
-  }, [document, annotations, number, active, onReleasePage, enqueue])
-
-  useEffect(() => {
-    const button = buttonRef.current
-    const observer = observerRef.current
-    if (!button || !observer) return
-    // Drag feedback leaves the scroll root; keep its bitmap until the drop completes.
-    observer.unobserve(button)
-    if (!isDragSource) observer.observe(button)
-  }, [isDragSource, active])
-
-  useEffect(() => {
-    if (selected && active) buttonRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [selected, active])
-
-  return (
-    <button
-      ref={(element) => {
-        buttonRef.current = element
-        ref(element)
-      }}
-      data-dragging={isDragSource}
-      type="button"
-      aria-label={`Go to page ${number}`}
-      aria-current={selected ? 'page' : undefined}
-      onClick={() => onPage(number)}
-      className={cn(
-        'mx-auto flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg p-3 text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring',
-        selected && 'bg-accent text-accent-foreground',
-        !reorderDisabled && 'touch-none select-none data-[dragging=true]:cursor-grabbing',
-        isDragSource && 'z-10 bg-accent shadow-lg'
-      )}
-    >
-      <div
-        className={cn(
-          'relative w-[150px] overflow-hidden border bg-white shadow-sm',
-          selected && 'ring-2 ring-primary'
-        )}
-        style={{ aspectRatio: 'var(--page-ratio, 612 / 792)' }}
-      >
-        <canvas ref={canvasRef} className="h-full w-full" aria-hidden="true" />
-        {error && (
-          <span className="absolute inset-0 grid place-items-center p-2 text-muted-foreground">
-            Preview unavailable
-          </span>
-        )}
-      </div>
-      <span>{number}</span>
-    </button>
+export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function PdfNavigationDialog(
+  {
+    open,
+    onOpenChange,
+    document,
+    annotations,
+    tab,
+    onTabChange,
+    page,
+    onPage,
+    onExtractPages,
+    onSavePages,
+    onExportPages,
+    onPageDraftChange,
+    canReorder,
+    onReleasePage,
+    onDestination,
+    onError
+  },
+  ref
+) {
+  const [{ order, selected, selecting }, dispatch] = useReducer(
+    pageDraftReducer,
+    document.numPages,
+    createPageDraft
   )
-})
-
-function OutlinePageNumber({
-  document,
-  destination
-}: Pick<Props, 'document'> & { destination: string | unknown[] }): React.JSX.Element | null {
-  const [page, setPage] = useState<number | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    const resolvePage = async (): Promise<number | null> => {
-      const target =
-        typeof destination === 'string' ? await document.getDestination(destination) : destination
-      if (!target) return null
-      const reference = target[0]
-      const index =
-        typeof reference === 'number'
-          ? reference
-          : await document.getPageIndex(reference as { num: number; gen: number })
-      return Number.isInteger(index) && index >= 0 && index < document.numPages ? index + 1 : null
-    }
-    void resolvePage()
-      .then((number) => {
-        if (!cancelled) setPage(number)
-      })
-      .catch(() => {
-        if (!cancelled) setPage(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [document, destination])
-
-  return page === null ? null : (
-    <span
-      aria-label={`Page ${page}`}
-      className="ml-auto shrink-0 pl-4 text-muted-foreground tabular-nums"
-    >
-      p. {page}
-    </span>
+  const reorderPages = useCallback(
+    (order: number[]): void => dispatch({ type: 'reorder', order }),
+    []
   )
-}
-
-function OutlineItems({
-  document,
-  items,
-  prefix = '',
-  onDestination,
-  onError
-}: Pick<Props, 'document' | 'onDestination' | 'onError'> & {
-  items: Outline
-  prefix?: string
-}): React.JSX.Element {
-  return (
-    <ul className="space-y-1">
-      {items.map((item, index) => {
-        const destination = item.dest
-        const number = `${prefix}${index + 1}`
-        return (
-          <Collapsible.Root key={index} asChild>
-            <li>
-              <div className="flex items-start gap-1">
-                {item.items.length > 0 ? (
-                  <Collapsible.Trigger asChild>
-                    <button
-                      type="button"
-                      aria-label={`Toggle section: ${item.title}`}
-                      className="group mt-1 grid size-6 shrink-0 place-items-center rounded-md hover:bg-accent focus-visible:outline-ring"
-                    >
-                      <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-                    </button>
-                  </Collapsible.Trigger>
-                ) : (
-                  <span className="w-6 shrink-0" />
-                )}
-                {destination ? (
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1 py-1.5 text-left text-sm break-words hover:bg-accent focus-visible:outline-ring"
-                    onClick={() =>
-                      void onDestination(destination).catch(() =>
-                        onError('The outline destination could not be opened.')
-                      )
-                    }
-                  >
-                    <span className="shrink-0 text-muted-foreground tabular-nums">{number}</span>
-                    <span
-                      data-slot="outline-title"
-                      className="min-w-0 flex-1"
-                      style={{
-                        fontWeight: item.bold ? 600 : undefined,
-                        fontStyle: item.italic ? 'italic' : undefined
-                      }}
-                    >
-                      {item.title}
-                    </span>
-                    <OutlinePageNumber document={document} destination={destination} />
-                  </button>
-                ) : (
-                  <span className="flex min-w-0 flex-1 items-start gap-2 px-1 py-1.5 text-sm break-words text-muted-foreground">
-                    <span className="shrink-0 tabular-nums">{number}</span>
-                    <span className="min-w-0">{item.title}</span>
-                  </span>
-                )}
-              </div>
-              {item.items.length > 0 && (
-                <Collapsible.Content className="ml-3 border-l pl-2">
-                  <OutlineItems
-                    document={document}
-                    items={item.items}
-                    prefix={`${number}.`}
-                    onDestination={onDestination}
-                    onError={onError}
-                  />
-                </Collapsible.Content>
-              )}
-            </li>
-          </Collapsible.Root>
-        )
-      })}
-    </ul>
+  const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
+  const [confirmation, setConfirmation] = useState<'delete' | 'reset' | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  const leaveRef = useRef<LeaveRequest | null>(null)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const dirty = useMemo(
+    () => order.length !== document.numPages || order.some((original, index) => original !== index),
+    [order, document.numPages]
   )
-}
-
-export function PdfNavigationDialog({
-  open,
-  onOpenChange,
-  document,
-  annotations,
-  tab,
-  onTabChange,
-  page,
-  onPage,
-  onReorderPage,
-  canReorder,
-  onReleasePage,
-  onDestination,
-  onError
-}: Props): React.JSX.Element {
-  const [reordering, setReordering] = useState(false)
   const queue = useRef(Promise.resolve())
   const enqueue = useCallback<ThumbnailQueue>((render) => {
     const current = queue.current.then(render)
     queue.current = current.catch(() => {})
     return current
   }, [])
-  const navigateToPage = useCallback(
-    (number: number) => {
-      onPage(number)
-      onOpenChange(false)
-    },
-    [onPage, onOpenChange]
-  )
-  const [outline, setOutline] = useState<Outline | null>(null)
-  const [outlineError, setOutlineError] = useState(false)
+  const reportDraftChange = useEffectEvent(onPageDraftChange)
   useEffect(() => {
+    reportDraftChange(dirty)
+  }, [dirty])
+  useEffect(
+    () => () => {
+      reportDraftChange(false)
+      leaveRef.current?.cancel?.()
+    },
+    []
+  )
+
+  const reset = (selectingMode = selecting): void => {
+    dispatch({ type: 'reset', count: document.numPages, selecting: selectingMode })
+    setError('')
+    setNotice('')
+  }
+  const requestLeave = useCallback(
+    (request: LeaveRequest): void => {
+      if (busyRef.current) {
+        request.cancel?.()
+        return
+      }
+      if (!dirty) {
+        request.finish()
+        return
+      }
+      leaveRef.current?.cancel?.()
+      leaveRef.current = request
+      setLeaving(true)
+    },
+    [dirty]
+  )
+  const takeLeaveRequest = (): LeaveRequest | null => {
+    const request = leaveRef.current
+    leaveRef.current = null
+    setLeaving(false)
+    return request
+  }
+  const cancelLeave = (): void => {
+    takeLeaveRequest()?.cancel?.()
+  }
+  useImperativeHandle(ref, () => ({
+    prepareChanges: async () =>
+      dirty ? { data: await onExtractPages(order), page: retainedPage(order, page) } : null,
+    confirmLeave: () =>
+      new Promise<boolean>((resolve) =>
+        requestLeave({
+          finish: () => resolve(true),
+          cancel: () => resolve(false)
+        })
+      )
+  }))
+
+  const run = async (operation: () => Promise<void>): Promise<void> => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await operation()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The page operation failed.')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+  const save = (): void => {
+    void run(async () => {
+      const request = leaveRef.current
+      const data = await onExtractPages(order)
+      const saved = await onSavePages(data, retainedPage(order, request?.page ?? page), () => {
+        takeLeaveRequest()?.finish(true)
+      })
+      if (!saved) setError('Changes were not saved. Your page draft is still available.')
+    })
+  }
+  const navigateToPage = useCallback(
+    (original: number): void => {
+      requestLeave({
+        page: original,
+        finish: (saved) => {
+          // The saved replacement's initial position is supplied to onSavePages.
+          if (!saved) onPage(original)
+          onOpenChange(false)
+        }
+      })
+    },
+    [requestLeave, onPage, onOpenChange]
+  )
+  const selectPage = useCallback(
+    (number: number, range: boolean): void => {
+      if (selecting) dispatch({ type: 'select', page: number - 1, range })
+      else navigateToPage(number)
+    },
+    [selecting, navigateToPage]
+  )
+  const [outline, setOutline] = useState<Outline | 'error' | null>(null)
+  useEffect(() => {
+    if (!open || tab !== 'outline' || outline !== null) return
     let cancelled = false
     void document
       .getOutline()
@@ -377,102 +210,268 @@ export function PdfNavigationDialog({
         if (!cancelled) setOutline(items ?? [])
       })
       .catch(() => {
-        if (!cancelled) setOutlineError(true)
+        if (!cancelled) setOutline('error')
       })
     return () => {
       cancelled = true
     }
-  }, [document])
+  }, [document, open, tab, outline])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        aria-describedby={undefined}
-        className="flex h-[min(80vh,720px)] flex-col overflow-hidden sm:max-w-3xl"
-        onCloseAutoFocus={(event) => {
-          event.preventDefault()
-          window.document
-            .querySelector<HTMLButtonElement>('[aria-label="Toggle PDF navigation"]')
-            ?.focus()
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(value) => {
+          if (value) onOpenChange(true)
+          else
+            requestLeave({
+              finish: () => {
+                reset(false)
+                onOpenChange(false)
+              }
+            })
         }}
       >
-        <DialogHeader>
-          <DialogTitle>PDF navigation</DialogTitle>
-        </DialogHeader>
-        <Tabs
-          value={tab}
-          onValueChange={(value) => {
-            if (value === 'pages' || value === 'outline') onTabChange(value)
+        <DialogContent
+          aria-describedby={undefined}
+          data-page-selection={selecting && tab === 'pages'}
+          className="flex h-[min(85vh,820px)] flex-col overflow-hidden sm:max-w-3xl"
+          onKeyDownCapture={(event) => {
+            if (
+              event.key.toLowerCase() === 'a' &&
+              (event.metaKey || event.ctrlKey) &&
+              selecting &&
+              tab === 'pages' &&
+              !busy &&
+              !(event.target instanceof HTMLInputElement)
+            ) {
+              event.preventDefault()
+              event.stopPropagation()
+              dispatch({ type: 'select-all' })
+            }
           }}
-          className="min-h-0 flex-1 gap-4"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            window.document
+              .querySelector<HTMLButtonElement>('[aria-label="Toggle PDF navigation"]')
+              ?.focus()
+          }}
         >
-          <TabsList className="w-full shrink-0" aria-label="PDF navigation views">
-            <TabsTrigger value="pages">Pages</TabsTrigger>
-            <TabsTrigger value="outline">Outline</TabsTrigger>
-          </TabsList>
-          <TabsContent value="pages" className="min-h-0 overflow-y-auto">
-            <DragDropProvider
-              sensors={dragSensors}
-              onDragEnd={(event) => {
-                const { source } = event.operation
-                if (event.canceled || !isSortable(source) || source.initialIndex === source.index)
-                  return
-                setReordering(true)
-                void onReorderPage(source.initialIndex, source.index)
-                  .catch((error: unknown) =>
-                    onError(
-                      error instanceof Error ? error.message : 'Pages could not be reordered.'
-                    )
-                  )
-                  .finally(() => setReordering(false))
+          <DialogHeader>
+            <DialogTitle>PDF navigation</DialogTitle>
+          </DialogHeader>
+          <Tabs
+            value={tab}
+            onValueChange={(value) => {
+              if (!busy && (value === 'pages' || value === 'outline')) onTabChange(value)
+            }}
+            className="min-h-0 flex-1 gap-4"
+          >
+            <TabsList className="w-full shrink-0" aria-label="PDF navigation views">
+              <TabsTrigger value="pages" disabled={busy}>
+                Pages
+              </TabsTrigger>
+              <TabsTrigger value="outline" disabled={busy}>
+                Outline
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="pages" className="flex min-h-0 flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !canReorder}
+                  onClick={() => dispatch({ type: 'toggle-selection' })}
+                >
+                  {selecting ? 'Done selecting' : 'Select pages'}
+                </Button>
+                {selecting && (
+                  <>
+                    <span role="status" className="mr-auto text-sm text-muted-foreground">
+                      {selected.size} pages selected
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => dispatch({ type: 'select-all' })}
+                    >
+                      Select all
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy || !selected.size}
+                      onClick={() =>
+                        void run(async () => {
+                          const data = await onExtractPages(order.filter((id) => selected.has(id)))
+                          if (await onExportPages(data)) setNotice('Pages exported')
+                        })
+                      }
+                    >
+                      Export
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy || !selected.size || selected.size === order.length}
+                      onClick={() => setConfirmation('delete')}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto" data-page-scroll>
+                <PdfPageGrid
+                  document={document}
+                  annotations={annotations}
+                  order={order}
+                  selected={selected}
+                  selecting={selecting}
+                  page={page}
+                  busy={busy}
+                  canReorder={canReorder}
+                  open={open}
+                  onOrderChange={reorderPages}
+                  onPage={selectPage}
+                  onReleasePage={onReleasePage}
+                  enqueue={enqueue}
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="outline" className="min-h-0 overflow-y-auto px-3 pb-3">
+              {outline === 'error' ? (
+                <p role="status">The outline could not be loaded.</p>
+              ) : outline === null ? (
+                <p role="status">Loading outline…</p>
+              ) : !outline.length ? (
+                <p role="status">This PDF has no outline.</p>
+              ) : (
+                <OutlineItems
+                  document={document}
+                  items={outline}
+                  onError={onError}
+                  onDestination={async (destination) => {
+                    if (!dirty) {
+                      await onDestination(destination)
+                      onOpenChange(false)
+                      return
+                    }
+                    const target =
+                      typeof destination === 'string'
+                        ? await document.getDestination(destination)
+                        : destination
+                    if (!target) throw new Error('The outline destination is missing.')
+                    const index =
+                      typeof target[0] === 'number'
+                        ? target[0]
+                        : await document.getPageIndex(target[0] as { num: number; gen: number })
+                    navigateToPage(index + 1)
+                  }}
+                />
+              )}
+            </TabsContent>
+          </Tabs>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          {notice && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {notice}
+            </p>
+          )}
+          {dirty && (
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+              <span className="mr-auto text-xs text-muted-foreground">
+                {busy ? 'Working…' : 'Unsaved page changes'}
+              </span>
+              <Button variant="outline" disabled={busy} onClick={() => setConfirmation('reset')}>
+                Discard page changes
+              </Button>
+              <Button disabled={busy || !canReorder} onClick={save}>
+                Save changes
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <AlertDialog
+        open={confirmation !== null}
+        onOpenChange={(value) => {
+          if (!value) setConfirmation(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmation === 'delete'
+                ? `Delete ${selected.size} pages?`
+                : 'Discard page changes?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmation === 'delete'
+                ? 'The selected pages will be removed when you save changes. Page changes cannot be undone after saving.'
+                : 'Restore the page order and deleted pages from before this draft. Your annotations will be kept.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmation === 'delete') {
+                  dispatch({ type: 'delete-selected' })
+                } else reset()
+                setConfirmation(null)
               }}
             >
-              <div
-                aria-busy={reordering}
-                className="grid grid-cols-[repeat(auto-fit,minmax(174px,1fr))] items-start gap-2 p-1"
-              >
-                {Array.from({ length: document.numPages }, (_, index) => (
-                  <PageThumbnail
-                    key={index}
-                    document={document}
-                    annotations={annotations}
-                    number={index + 1}
-                    reorderDisabled={!canReorder || reordering || document.numPages < 2}
-                    selected={page === index + 1}
-                    active={open}
-                    onPage={navigateToPage}
-                    onReleasePage={onReleasePage}
-                    enqueue={enqueue}
-                  />
-                ))}
-              </div>
-            </DragDropProvider>
-          </TabsContent>
-          <TabsContent value="outline" className="min-h-0 overflow-y-auto px-3 pb-3">
-            {outlineError ? (
-              <p className="p-2 text-sm text-muted-foreground" role="status">
-                The outline could not be loaded.
-              </p>
-            ) : outline === null ? (
-              <p className="p-2 text-sm text-muted-foreground" role="status">
-                Loading outline…
-              </p>
-            ) : outline.length === 0 ? (
-              <p className="p-2 text-sm text-muted-foreground">This PDF has no outline.</p>
-            ) : (
-              <OutlineItems
-                document={document}
-                items={outline}
-                onDestination={async (destination) => {
-                  await onDestination(destination)
-                  onOpenChange(false)
-                }}
-                onError={onError}
-              />
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+              {confirmation === 'delete' ? 'Delete pages' : 'Discard page changes'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={leaving}
+        onOpenChange={(value) => {
+          if (!value && !busy) cancelLeave()
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved page changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              Save the new page order and deletions to the PDF, or discard them. Saving also
+              includes your current annotations and clears their previous undo history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <Button variant="outline" disabled={busy} onClick={cancelLeave}>
+              Continue editing
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => {
+                reset()
+                takeLeaveRequest()?.finish()
+              }}
+            >
+              Discard
+            </Button>
+            <Button disabled={busy} onClick={save}>
+              Save changes
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
-}
+})

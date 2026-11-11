@@ -8,7 +8,7 @@ import type { PdfDocumentHandle } from './types'
 type Props = {
   containerRef: RefObject<HTMLDivElement | null>
   canAnnotate: boolean
-  handle: PdfDocumentHandle
+  handle: Pick<PdfDocumentHandle, 'highlightSelectedText' | 'attachSelectedText'>
   onAskAI(attachments: ChatAttachment[]): void
 }
 

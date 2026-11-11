@@ -77,6 +77,7 @@ function App(): React.JSX.Element {
     openDialog,
     openPaths,
     saveTab,
+    exportPages,
     closeTab,
     cancelClose,
     saveAndResolveClose,
@@ -122,7 +123,7 @@ function App(): React.JSX.Element {
   })
 
   const { addImages, onImageDrop } = useAnnotationInsertion({
-    enabled: !!activeTab?.view.canAnnotate && !closeRequest && !conflictId,
+    enabled: !!activeTab?.view.canAnnotate && !closeRequest && !conflictId && !navigationOpen,
     getActiveViewer,
     onToolChange: setAnnotationTool,
     onError: showMessage
@@ -228,7 +229,8 @@ function App(): React.JSX.Element {
       recoveryDrafts !== null &&
       recoveryDrafts.length === 0 &&
       closeRequest === null &&
-      conflictId === null
+      conflictId === null &&
+      !navigationOpen
   )
 
   const cycleTheme = (): void => {
@@ -327,6 +329,9 @@ function App(): React.JSX.Element {
           onOpen={() => void openDialog()}
           onOpenPath={(path) => openPaths([path])}
           onViewerHandle={registerDocumentViewer}
+          onSavePages={(id, data, page, onSaved) => saveTab(id, { data, page, onSaved })}
+          onExportPages={exportPages}
+          onPageDraftChange={(id, pageDraft) => updateTab(id, { pageDraft })}
           onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
           onSnapshot={(id, view) => updateTab(id, { view })}
           onError={(id, error) => updateTab(id, { error })}

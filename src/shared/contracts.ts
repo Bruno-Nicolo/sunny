@@ -45,6 +45,7 @@ export type SavePdfRequest = {
 export type SavePdfAsRequest = {
   data: Uint8Array
   suggestedName: string
+  excludedPaths: string[]
 }
 
 export type SavePdfDraftRequest = PdfFileStats & {
@@ -69,7 +70,7 @@ export interface LepisApi {
   releasePdfSource(source: PdfSource): Promise<void>
   statPdf(path: string): Promise<PdfFileStats>
   savePdf(payload: SavePdfRequest): Promise<PdfFileStats>
-  savePdfAs(payload: SavePdfAsRequest): Promise<OpenedPdf | null>
+  savePdfAs(payload: SavePdfAsRequest): Promise<string | null>
   closePdf(tabId: string): Promise<void>
   showTabContextMenu(path: string): void
   loadSession(): Promise<SessionState>

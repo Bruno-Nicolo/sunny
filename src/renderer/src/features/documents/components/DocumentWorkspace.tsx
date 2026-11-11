@@ -18,6 +18,9 @@ type Props = {
   annotationTool: AnnotationTool
   highlightColor: string
   onAskAI: PdfDocumentViewProps['onAskAI']
+  onSavePages(id: string, data: Uint8Array, page: number, onSaved: () => void): Promise<boolean>
+  onExportPages(id: string, data: Uint8Array): Promise<boolean>
+  onPageDraftChange(id: string, dirty: boolean): void
   onOpen(): void
   onOpenPath(path: string): Promise<void>
   onViewerHandle(id: string, handle: PdfDocumentHandle | null): void
@@ -39,6 +42,9 @@ export function DocumentWorkspace({
   annotationTool,
   highlightColor,
   onAskAI,
+  onSavePages,
+  onExportPages,
+  onPageDraftChange,
   onOpen,
   onOpenPath,
   onViewerHandle,
@@ -60,6 +66,9 @@ export function DocumentWorkspace({
             canAnnotate={tab.view.canAnnotate}
             onAskAI={onAskAI}
             source={tab.source}
+            onSavePages={(data, page, onSaved) => onSavePages(tab.id, data, page, onSaved)}
+            onExportPages={(data) => onExportPages(tab.id, data)}
+            onPageDraftChange={(dirty) => onPageDraftChange(tab.id, dirty)}
             initialPage={tab.view.page}
             initialScale={tab.view.scale}
             initialScrollTop={tab.view.scrollTop}

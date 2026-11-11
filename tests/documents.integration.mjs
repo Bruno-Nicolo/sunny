@@ -59,7 +59,7 @@ ipcMain.handle('test:save', (_, payload) => {
 ipcMain.handle('test:copy', (_, payload) => {
   if (copyCanceled) return null
   files.set('copy.pdf', payload.data)
-  return document('copy.pdf')
+  return 'copy.pdf'
 })
 ipcMain.handle('test:close', (_, id) => {
   if (closeFailed) throw new Error('Close failed')

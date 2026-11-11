@@ -80,7 +80,10 @@ ipcMain.handle('pdf:save', (_, value) => {
   if (failSave) throw new Error('Simulated save failure')
   return savePdf(value, temp)
 })
-ipcMain.handle('pdf:save-as', (_, value) => writePdfCopy(copyPath, value.data))
+ipcMain.handle('pdf:save-as', async (_, value) => {
+  await writePdfCopy(copyPath, value.data)
+  return copyPath
+})
 ipcMain.handle('pdf:close', () => {})
 ipcMain.handle('pdf:open-dialog', () => [])
 const preload = path.join(temp, 'preload.cjs')
@@ -189,7 +192,9 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`document.activeElement?.classList.contains('internal')`), true)
     assert.equal(await evaluate(`window.getSelection().anchorOffset`), 4)
     assert.equal(
-      await evaluate(`document.querySelector('.document-tab-active > .rounded-full') !== null`),
+      await evaluate(
+        `document.querySelector('.document-tab[data-active="true"] > .size-2.rounded-full') !== null`
+      ),
       true
     )
     console.log(
@@ -207,7 +212,9 @@ app.whenReady().then(async () => {
     await button('Recover changes')
     await ready()
     assert.equal(
-      await evaluate(`document.querySelector('.document-tab-active > .rounded-full') !== null`),
+      await evaluate(
+        `document.querySelector('.document-tab[data-active="true"] > .size-2.rounded-full') !== null`
+      ),
       true
     )
     await evaluate(`window.testCommands.run('save')`)

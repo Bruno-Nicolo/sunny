@@ -33,6 +33,8 @@ export type PdfDocumentHandle = {
   highlightSelectedText(): void
   showCitation(source: DocumentSource): void
   readonly revision: string
+  preparePageChanges(): Promise<{ data: Uint8Array; page: number } | null>
+  confirmPageChanges(): Promise<boolean>
   openSearch(): void
   snapshotDocument(previousHash?: string): Promise<PdfSnapshot | null>
   saveDocument(): Promise<Uint8Array>
@@ -70,6 +72,9 @@ export type PdfDocumentViewProps = AnnotationOptions & {
   onNavigationOpenChange(open: boolean): void
   navigationTab: 'pages' | 'outline'
   onNavigationTabChange(tab: 'pages' | 'outline'): void
+  onSavePages(data: Uint8Array, page: number, onSaved: () => void): Promise<boolean>
+  onExportPages(data: Uint8Array): Promise<boolean>
+  onPageDraftChange(dirty: boolean): void
   source: PdfSource
   initialPage: number
   initialScale: string
