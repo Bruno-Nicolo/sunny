@@ -10,6 +10,7 @@ export type PageDraftAction =
   | { type: 'toggle-selection' }
   | { type: 'select'; page: number; range: boolean }
   | { type: 'select-all' }
+  | { type: 'deselect-all' }
   | { type: 'reorder'; order: number[] }
   | { type: 'delete-selected' }
   | { type: 'reset'; count: number; selecting: boolean }
@@ -25,6 +26,8 @@ export function pageDraftReducer(state: PageDraft, action: PageDraftAction): Pag
       return { ...state, selecting: !state.selecting, selected: new Set(), anchor: null }
     case 'select-all':
       return { ...state, selected: new Set(state.order) }
+    case 'deselect-all':
+      return { ...state, selected: new Set(), anchor: null }
     case 'select': {
       const selected = new Set(state.selected)
       const from = state.anchor === null ? -1 : state.order.indexOf(state.anchor)

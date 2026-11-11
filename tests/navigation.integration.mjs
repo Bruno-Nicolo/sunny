@@ -531,7 +531,7 @@ app
     await waitFor(`document.querySelectorAll('[aria-label^="Select page"]').length === 5`)
     await select(1)
     await button('Delete')
-    await button('Delete pages', 'alertdialog')
+    await button('Delete page', 'alertdialog')
     await button('Done selecting')
     await evaluate(`document.querySelector('[aria-label="Go to page 1"]').click()`)
     await waitFor(`document.querySelector('[role="alertdialog"]') !== null`)
@@ -559,7 +559,7 @@ app
     await selectMode()
     await select(4)
     await button('Delete')
-    await button('Delete pages', 'alertdialog')
+    await button('Delete page', 'alertdialog')
     await waitFor(`document.querySelector('[role="alertdialog"]') === null`)
     await evaluate(`void window.testCommands.run('window-close-requested')`)
     await waitFor(
@@ -579,7 +579,7 @@ app
     await selectMode()
     await select(4)
     await button('Delete')
-    await button('Delete pages', 'alertdialog')
+    await button('Delete page', 'alertdialog')
     await waitFor(`document.querySelector('[role="alertdialog"]') === null`)
     saveFailure = 'FILE_CHANGED_EXTERNALLY'
     await button('Save changes')

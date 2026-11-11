@@ -11,8 +11,9 @@ export const PageDragPreview = memo(function PageDragPreview({
   images: PageDragImage[]
 }): React.JSX.Element {
   const center = (images.length - 1) / 2
+  const pageCount = `${count} ${count === 1 ? 'page' : 'pages'}`
   return (
-    <div role="group" aria-label={`Moving ${count} pages`} className="relative h-[240px] w-[174px]">
+    <div role="group" aria-label={`Moving ${pageCount}`} className="relative h-[240px] w-[174px]">
       {images.map(({ number, canvas: image }, index) => (
         <div
           key={number}
@@ -37,7 +38,7 @@ export const PageDragPreview = memo(function PageDragPreview({
         </div>
       ))}
       <span className="absolute -top-2 -right-2 z-10 rounded-full bg-primary px-2 py-1 text-xs text-primary-foreground shadow">
-        {count} pages
+        {pageCount}
       </span>
     </div>
   )

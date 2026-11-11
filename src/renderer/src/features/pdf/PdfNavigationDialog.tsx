@@ -80,6 +80,8 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
     document.numPages,
     createPageDraft
   )
+  const allSelected = selected.size === order.length
+  const selectedPageLabel = selected.size === 1 ? 'page' : 'pages'
   const reorderPages = useCallback(
     (order: number[]): void => dispatch({ type: 'reorder', order }),
     []
@@ -90,7 +92,6 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
   const [leaving, setLeaving] = useState(false)
   const leaveRef = useRef<LeaveRequest | null>(null)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
   const dirty = useMemo(
     () => order.length !== document.numPages || order.some((original, index) => original !== index),
     [order, document.numPages]
@@ -116,7 +117,6 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
   const reset = (selectingMode = selecting): void => {
     dispatch({ type: 'reset', count: document.numPages, selecting: selectingMode })
     setError('')
-    setNotice('')
   }
   const requestLeave = useCallback(
     (request: LeaveRequest): void => {
@@ -160,7 +160,6 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
     busyRef.current = true
     setBusy(true)
     setError('')
-    setNotice('')
     try {
       await operation()
     } catch (cause) {
@@ -288,15 +287,17 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
                 {selecting && (
                   <>
                     <span role="status" className="mr-auto text-sm text-muted-foreground">
-                      {selected.size} pages selected
+                      {selected.size} {selectedPageLabel} selected
                     </span>
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={busy}
-                      onClick={() => dispatch({ type: 'select-all' })}
+                      onClick={() =>
+                        dispatch({ type: allSelected ? 'deselect-all' : 'select-all' })
+                      }
                     >
-                      Select all
+                      {allSelected ? 'Deselect all' : 'Select all'}
                     </Button>
                     <Button
                       size="sm"
@@ -305,7 +306,7 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
                       onClick={() =>
                         void run(async () => {
                           const data = await onExtractPages(order.filter((id) => selected.has(id)))
-                          if (await onExportPages(data)) setNotice('Pages exported')
+                          await onExportPages(data)
                         })
                       }
                     >
@@ -314,7 +315,7 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
                     <Button
                       size="sm"
                       variant="destructive"
-                      disabled={busy || !selected.size || selected.size === order.length}
+                      disabled={busy || !selected.size || allSelected}
                       onClick={() => setConfirmation('delete')}
                     >
                       Delete
@@ -378,16 +379,9 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
               {error}
             </p>
           )}
-          {notice && (
-            <p role="status" className="text-sm text-muted-foreground">
-              {notice}
-            </p>
-          )}
           {dirty && (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
-              <span className="mr-auto text-xs text-muted-foreground">
-                {busy ? 'Working…' : 'Unsaved page changes'}
-              </span>
+              {busy && <span className="mr-auto text-xs text-muted-foreground">Working…</span>}
               <Button variant="outline" disabled={busy} onClick={() => setConfirmation('reset')}>
                 Discard page changes
               </Button>
@@ -408,12 +402,12 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirmation === 'delete'
-                ? `Delete ${selected.size} pages?`
+                ? `Delete ${selected.size} ${selectedPageLabel}?`
                 : 'Discard page changes?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmation === 'delete'
-                ? 'The selected pages will be removed when you save changes. Page changes cannot be undone after saving.'
+                ? `The selected ${selectedPageLabel} will be removed when you save changes. Page changes cannot be undone after saving.`
                 : 'Restore the page order and deleted pages from before this draft. Your annotations will be kept.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -428,7 +422,7 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
                 setConfirmation(null)
               }}
             >
-              {confirmation === 'delete' ? 'Delete pages' : 'Discard page changes'}
+              {confirmation === 'delete' ? `Delete ${selectedPageLabel}` : 'Discard page changes'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
