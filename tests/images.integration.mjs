@@ -1,7 +1,7 @@
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { blankPdf, createPdf } from './fixtures/pdf.mjs'
-const { app, BrowserWindow, ipcMain } = electron
+const { app, BrowserWindow, clipboard, ipcMain } = electron
 import fs from 'node:fs'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -131,6 +131,16 @@ app
       window.dispatchEvent(new PointerEvent('pointerup', {button:0, pointerId:1}));
     })()`)
     await waitFor(`document.querySelectorAll('.visible .stampEditor .resizer').length === 8`)
+    clipboard.writeText('Before image copy')
+    win.webContents.copy()
+    await waitFor(
+      `navigator.clipboard.read().then(items => items.some(item => item.types.includes('image/png')))`
+    )
+    const copiedImage = clipboard.readImage()
+    assert.deepEqual(copiedImage.getSize(), { width: 80, height: 40 })
+    const copiedPixel = copiedImage.toBitmap()
+    assert.deepEqual([...copiedPixel.subarray(0, 4)], [0, 0, 255, 255])
+    console.log('PASS: native Copy writes the selected image pixels to the system clipboard')
     assert.equal(
       await evaluate(`document.querySelector('.visible .stampEditor .editToolbar')`),
       null,
@@ -203,6 +213,12 @@ app
     await waitFor(
       `document.querySelector('.visible .freeTextEditor').style.left === ${JSON.stringify(textLeft)}`
     )
+    clipboard.writeText('Before text copy')
+    win.webContents.copy()
+    await waitFor(
+      `navigator.clipboard.readText().then(text => text === 'Pasted text\\nSecond line')`
+    )
+    console.log('PASS: native Copy writes the whole selected text block to the system clipboard')
     await evaluate(
       `document.querySelector('.visible .freeTextEditor .internal').dispatchEvent(new MouseEvent('dblclick', {bubbles:true}))`
     )
@@ -213,6 +229,14 @@ app
       true,
       'Double-clicking pasted text must start editing'
     )
+    await evaluate(`(() => {
+      const input = document.querySelector('.visible .freeTextEditor .internal');
+      input.focus();
+      window.getSelection().setBaseAndExtent(input.firstChild, 0, input.firstChild, 6);
+    })()`)
+    win.webContents.copy()
+    await waitFor(`navigator.clipboard.readText().then(text => text === 'Pasted')`)
+    console.log('PASS: copying during text editing preserves the native character selection')
     for (const selector of ['.visible .freeTextEditor .internal', '[aria-label="Current page"]']) {
       assert.equal(
         await evaluate(`(() => {

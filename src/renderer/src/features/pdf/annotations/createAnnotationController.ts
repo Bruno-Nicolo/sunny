@@ -389,6 +389,34 @@ export function createAnnotationController({
       { signal }
     )
   container.addEventListener(
+    'copy',
+    (event) => {
+      if (!canEdit() || !selected || !(event.target instanceof HTMLElement)) return
+      if (event.target.isContentEditable || event.target.closest('input, textarea, select')) return
+      const record = model.records.get(selected)
+      if (!record || record.kind === 'highlight') return
+      if (record.kind === 'text') {
+        if (!event.clipboardData) return
+        event.clipboardData.setData('text/plain', record.text ?? '')
+      } else if (record.image) {
+        const { canvas } = record.image
+        const png = new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob)
+            else reject(new Error('The image could not be copied.'))
+          }, 'image/png')
+        })
+        void navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]).catch((error) => {
+          if (!signal.aborted)
+            onError(error instanceof Error ? error.message : 'The image could not be copied.')
+        })
+      } else return
+      event.preventDefault()
+      event.stopPropagation()
+    },
+    { signal }
+  )
+  container.addEventListener(
     'keydown',
     (event) => {
       if (!canEdit()) return

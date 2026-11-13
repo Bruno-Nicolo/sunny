@@ -34,6 +34,10 @@ The document revision advances on user edits, including native form input. Recov
 not change the document's save state. Explicit saving retains the dirty flag if another edit arrives
 while the PDF is being written. Pending text remains editable and retains its caret during recovery.
 
+The native Copy command copies a selected text annotation as plain text or an image annotation as
+PNG to the system clipboard. The controller handles copy events only within its active viewer;
+editable text fields keep native character-selection copying. Copying does not change the model.
+
 ## PDF.js patch
 
 `patches/pdfjs-dist@6.3.289.patch` is applied by pnpm. It adds `setOverlayAnnotationIds()` to storage
