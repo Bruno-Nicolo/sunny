@@ -385,7 +385,7 @@ export class AnnotationLayer {
         if ((event.target as HTMLElement).isContentEditable) return
         event.preventDefault()
         editor.focus({ preventScroll: true })
-        if (record.kind !== 'highlight') this.startDrag(record.key, event)
+        if (record.kind !== 'highlight' || record.strokes) this.startDrag(record.key, event)
       },
       { signal }
     )
@@ -463,6 +463,13 @@ export class AnnotationLayer {
             ? layoutText({ ...original, rect, textResized: true }, original.text ?? '')
             : { ...original, rect }
         if (next.rect.every((value, index) => value === after.rect[index])) return
+        if (original.strokes) {
+          const dx = rect[0] - original.rect[0]
+          const dy = rect[1] - original.rect[1]
+          next.strokes = original.strokes.map((points) =>
+            points.map((value, index) => value + (index % 2 === 0 ? dx : dy))
+          )
+        }
         after = next
         model.change(model.records.get(key), after, true)
       },

@@ -396,11 +396,35 @@ app
     await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === ${before}`)
     await evaluate(`void window.testCommands.run('redo')`)
     await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    const strokeBounds = () =>
+      evaluate(`(() => {
+      const { x, y } = document.querySelector('.visible .lepisHighlightDrawing .lepisFreehandStroke').getBBox();
+      return { x, y };
+    })()`)
+    const original = await strokeBounds()
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...blank })
+    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...blank, clickCount: 1 })
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: blank.x + 40, y: blank.y + 32 })
+    win.webContents.sendInputEvent({
+      type: 'mouseUp',
+      button: 'left',
+      x: blank.x + 40,
+      y: blank.y + 32,
+      clickCount: 1
+    })
+    await waitFor(async () => Math.abs((await strokeBounds()).x - original.x - 40) < 0.1)
+    const moved = await strokeBounds()
+    assert.ok(Math.abs(moved.y - original.y - 32) < 0.1, 'Dragging must translate the stroke')
     await evaluate(`void window.testCommands.run('save')`)
     await waitFor(() => saved.get('second.pdf')?.toString('latin1').includes('/InkList'))
     assert.deepEqual(await evaluate('window.annotationErrors'), [])
     await win.reload()
     await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
+    const reopened = await strokeBounds()
+    assert.ok(Math.abs(reopened.x - moved.x) < 0.1, 'Saved stroke must retain its moved x position')
+    assert.ok(Math.abs(reopened.y - moved.y) < 0.1, 'Saved stroke must retain its moved y position')
+    console.log('PASS: freehand highlights drag and retain their position after reopening')
     await evaluate(`(() => {
       window.annotationErrors = [];
       window.addEventListener('error', event => window.annotationErrors.push(event.message));
