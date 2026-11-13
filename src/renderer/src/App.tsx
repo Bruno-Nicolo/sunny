@@ -223,15 +223,20 @@ function App(): React.JSX.Element {
     tabs
   ])
 
-  useAppShortcuts(
-    shortcutHandlers,
+  const shortcutsEnabled =
     ready &&
-      recoveryDrafts !== null &&
-      recoveryDrafts.length === 0 &&
-      closeRequest === null &&
-      conflictId === null &&
-      !navigationOpen
-  )
+    recoveryDrafts !== null &&
+    recoveryDrafts.length === 0 &&
+    closeRequest === null &&
+    conflictId === null &&
+    !navigationOpen
+  useAppShortcuts(shortcutHandlers, shortcutsEnabled)
+
+  const askAI = (attachments: ChatAttachment[]): void => {
+    if (!activeId) return
+    setChatSelection({ tabId: activeId, attachments })
+    setChatOpen(true)
+  }
 
   const cycleTheme = (): void => {
     setTheme((current) =>
@@ -301,6 +306,8 @@ function App(): React.JSX.Element {
       )}
 
       <ChatDock
+        shortcutsEnabled={shortcutsEnabled}
+        onAskAI={askAI}
         selection={chatSelection}
         onSelectionConsumed={consumeChatSelection}
         open={chatOpen}
@@ -311,11 +318,7 @@ function App(): React.JSX.Element {
         onSelectionTool={() => setAnnotationTool('none')}
       >
         <DocumentWorkspace
-          onAskAI={(attachments) => {
-            if (!activeId) return
-            setChatSelection({ tabId: activeId, attachments })
-            setChatOpen(true)
-          }}
+          onAskAI={askAI}
           tabs={tabs}
           invertColors={invertColors}
           activeId={activeId}

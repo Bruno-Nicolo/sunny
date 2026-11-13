@@ -2,6 +2,8 @@ import type { PDFPageView } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import type { Annotation, AnnotationModel, PdfRect } from './model'
 import type { AnnotationTool } from './types'
 import { annotationOrientation, normalizedRect } from './geometry'
+import { drawHighlight } from './highlight/freehand'
+import { highlightPath as viewportHighlightPath } from './highlight/geometry'
 
 type Options = {
   page: PDFPageView
@@ -28,6 +30,7 @@ export class AnnotationLayer {
   private tool: AnnotationTool = 'none'
   private editingKey: string | null = null
   private drag: AbortController | null = null
+  private cancelStroke?: () => void
   private readonly editorLifetimes = new Map<string, AbortController>()
 
   constructor(private readonly options: Options) {
@@ -57,6 +60,7 @@ export class AnnotationLayer {
     signal.addEventListener(
       'abort',
       () => {
+        this.cancelStroke?.()
         this.drag?.abort()
         this.element.remove()
       },
@@ -70,6 +74,27 @@ export class AnnotationLayer {
       number,
       number
     ]
+  }
+
+  startHighlight(event: PointerEvent, color: string): void {
+    const { page, model, select } = this.options
+    event.preventDefault()
+    select(null)
+    window.getSelection()?.removeAllRanges()
+    this.cancelStroke?.()
+    this.cancelStroke = drawHighlight({
+      event,
+      element: this.element,
+      viewport: page.viewport,
+      pageIndex: page.id! - 1,
+      color,
+      signal: AbortSignal.any([this.options.signal, this.lifetime.signal]),
+      complete: (record) => {
+        this.cancelStroke = undefined
+        model.change(undefined, record)
+        select(record.key)
+      }
+    })
   }
 
   edit(key: string): void {
@@ -98,6 +123,10 @@ export class AnnotationLayer {
     this.element.style.height = `${page.viewport.height}px`
     const viewportKey = page.viewport.transform.join(',')
     const viewportChanged = viewportKey !== this.renderedViewport
+    if (viewportChanged || tool !== 'highlight' || !canEdit()) {
+      this.cancelStroke?.()
+      this.cancelStroke = undefined
+    }
     this.renderedViewport = viewportKey
     if (this.lastSelected !== selected()) {
       if (this.lastSelected) this.editors.get(this.lastSelected)?.classList.remove('selectedEditor')
@@ -121,6 +150,7 @@ export class AnnotationLayer {
       }
     }
     let highlightGroup: SVGSVGElement | null = null
+    let freehandGroup = false
     const usedGroups = new Set<SVGSVGElement>()
     for (const record of model.forPage(page.id! - 1)) {
       let editor = this.editors.get(record.key)
@@ -131,6 +161,8 @@ export class AnnotationLayer {
       }
       let highlightPath = this.highlightPaths.get(record.key)
       if (record.kind === 'highlight') {
+        if (freehandGroup !== !!record.strokes) highlightGroup = null
+        freehandGroup = !!record.strokes
         if (!highlightGroup) {
           const candidate = highlightPath?.ownerSVGElement
           highlightGroup =
@@ -138,6 +170,7 @@ export class AnnotationLayer {
               ? candidate
               : document.createElementNS('http://www.w3.org/2000/svg', 'svg')
           highlightGroup.classList.add('lepisHighlightDrawing')
+          highlightGroup.style.mixBlendMode = record.strokes ? 'normal' : 'multiply'
           highlightGroup.setAttribute('aria-hidden', 'true')
           this.highlightDrawings.add(highlightGroup)
           if (highlightGroup.nextSibling !== editor)
@@ -151,7 +184,6 @@ export class AnnotationLayer {
         }
         if (!highlightPath) {
           highlightPath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-          highlightPath.style.mixBlendMode = 'multiply'
           this.highlightPaths.set(record.key, highlightPath)
         }
         if (highlightPath.parentNode !== highlightGroup) highlightGroup.append(highlightPath)
@@ -170,26 +202,24 @@ export class AnnotationLayer {
         this.orient(input, record)
       }
       if (highlightPath) {
-        const points = record.quads!
-        const paths: string[] = []
-        for (let i = 0; i < points.length; i += 8) {
-          const converted = [0, 2, 6, 4].map((offset) => {
-            const [x, y] = page.viewport.convertToViewportPoint(
-              points[i + offset],
-              points[i + offset + 1]
-            )
-            return `${x},${y}`
-          })
-          paths.push(`M${converted.join(' L')} Z`)
-        }
-        const path = paths.join(' ')
+        const path = viewportHighlightPath(record, page.viewport)
         highlightPath.setAttribute('d', path)
-        highlightPath.style.fill = record.color
+        highlightPath.classList.toggle('lepisFreehandStroke', !!record.strokes)
+        highlightPath.style.fill = record.strokes ? 'none' : record.color
+        highlightPath.style.stroke = record.strokes ? record.color : 'none'
+        highlightPath.style.strokeWidth = `${(record.thickness ?? 0) * page.viewport.scale}px`
+        highlightPath.style.mixBlendMode = record.strokes ? 'normal' : 'multiply'
+        editor.classList.toggle('freehandHighlight', !!record.strokes)
         highlightPath.style.opacity = String(record.opacity ?? 0.9)
         const contour = editor.querySelector('svg')!
         const [x1, y1, x2, y2] = this.bounds(record.rect)
         contour.setAttribute('viewBox', `${x1} ${y1} ${x2 - x1} ${y2 - y1}`)
         contour.firstElementChild!.setAttribute('d', path)
+        if (record.strokes) {
+          const hit = contour.firstElementChild as SVGPathElement
+          hit.classList.add('lepisFreehandStroke')
+          hit.style.strokeWidth = highlightPath.style.strokeWidth
+        }
       }
       const canvas = editor.querySelector<HTMLCanvasElement>('canvas')
       if (canvas) this.orient(canvas, record)

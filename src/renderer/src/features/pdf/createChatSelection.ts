@@ -2,6 +2,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf
 import type { PDFViewer, EventBus } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import type { ChatAttachment, DocumentSource, PdfRect } from '../../../../shared/ai'
 import { normalizedRect } from './annotations/geometry'
+import type { PageAnnotations } from './annotations/pageAnnotations'
 import { indexPdf, regionText, regionImage, type IndexedPdf } from './chatDocument'
 
 type Options = {
@@ -10,6 +11,7 @@ type Options = {
   container: HTMLDivElement
   signal: AbortSignal
   document(): PDFDocumentProxy | null
+  annotations: PageAnnotations
   release(page: PDFPageProxy): void
   onError(message: string): void
 }
@@ -20,6 +22,7 @@ export function createChatSelection({
   container,
   signal,
   document,
+  annotations,
   release,
   onError
 }: Options): {
@@ -41,6 +44,8 @@ export function createChatSelection({
   let drag: { page: number; x: number; y: number; pointer: number; box: HTMLDivElement } | null =
     null
   const clearDrag = (): void => {
+    if (drag && container.hasPointerCapture(drag.pointer))
+      container.releasePointerCapture(drag.pointer)
     drag?.box.remove()
     drag = null
   }
@@ -70,7 +75,7 @@ export function createChatSelection({
       ]
       const element = window.document.createElement('div')
       element.className =
-        'chat-citation pointer-events-none absolute z-20 border border-[#4f46e5] bg-[#6366f1]/22 animate-[chat-citation-fade_var(--chat-citation-duration)_cubic-bezier(0.2,0,0,1)_forwards]'
+        'chat-citation pointer-events-none absolute z-20 border border-primary/60 bg-primary/10 animate-[chat-citation-fade_var(--chat-citation-duration)_cubic-bezier(0.2,0,0,1)_forwards]'
       element.style.setProperty('--chat-citation-duration', `${citationDuration}ms`)
       Object.assign(element.style, {
         animationDelay: `${citationStartedAt - performance.now()}ms`,
@@ -103,7 +108,7 @@ export function createChatSelection({
       const bounds = element.getBoundingClientRect()
       const box = window.document.createElement('div')
       box.className =
-        'chat-region-drag pointer-events-none absolute z-20 border-2 border-dashed border-[#4f46e5] bg-[#6366f1]/22'
+        'chat-region-drag pointer-events-none absolute z-20 border-2 border-dashed border-primary/60 bg-primary/10'
       element.append(box)
       drag = {
         page: Number(element.dataset.pageNumber),
@@ -117,7 +122,7 @@ export function createChatSelection({
     { capture: true, signal }
   )
   const dragRect = (event: PointerEvent): PdfRect | null => {
-    if (!drag) return null
+    if (!drag || event.pointerId !== drag.pointer) return null
     const page = viewer.getPageView(drag.page - 1)
     const bounds = page.div.getBoundingClientRect()
     const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left))
@@ -150,8 +155,6 @@ export function createChatSelection({
       event.preventDefault()
       event.stopImmediatePropagation()
       clearDrag()
-      if (container.hasPointerCapture(event.pointerId))
-        container.releasePointerCapture(event.pointerId)
       if (bounds[2] - bounds[0] < 5 || bounds[3] - bounds[1] < 5) return
       const view = viewer.getPageView(selection.page - 1)
       const rect = normalizedRect(
@@ -159,6 +162,7 @@ export function createChatSelection({
         view.viewport.convertToPdfPoint(bounds[2], bounds[3])
       )
       const rotation = view.viewport.rotation
+      captureAbort?.abort()
       const capture = new AbortController()
       captureAbort = capture
       const captureSignal = AbortSignal.any([signal, capture.signal])
@@ -167,8 +171,18 @@ export function createChatSelection({
         if (!pdf) throw new Error('The PDF is not ready.')
         const page = await pdf.getPage(selection.page)
         try {
-          const text = await regionText(page, rect)
-          const image = await regionImage(page, rect, rotation, captureSignal)
+          await annotations.prepare(selection.page - 1)
+          captureSignal.throwIfAborted()
+          const [text, image] = await Promise.all([
+            regionText(page, rect),
+            regionImage(
+              page,
+              rect,
+              rotation,
+              annotations.forPage(selection.page - 1),
+              captureSignal
+            )
+          ])
           if (!captureSignal.aborted && regionCallback === callback)
             callback({
               id: `a_${crypto.randomUUID()}`,
@@ -184,6 +198,7 @@ export function createChatSelection({
       })().catch((error) => {
         if (!captureSignal.aborted)
           onError(error instanceof Error ? error.message : 'Cannot capture this region.')
+        capture.abort()
       })
     },
     { capture: true, signal }

@@ -11,6 +11,8 @@ export type Annotation = {
   color: string
   kind: 'highlight' | 'text' | 'image'
   quads?: number[]
+  strokes?: number[][]
+  thickness?: number
   opacity?: number
   text?: string
   fontSize?: number

@@ -16,7 +16,7 @@ Changing tools never changes PDF.js's rendering mode or reloads a page.
   disposes editor DOM and listeners; an evicted or cancelled page draw cannot recreate the overlay; document disposal also releases image assets and history.
 - `geometry.ts` uses PDF coordinates and saved annotation orientation. Viewport conversion handles
   zoom, intrinsic page rotation and user rotation. Resize handles act on visual edges.
-- `pdfAnnotationReader.ts` imports editable highlights, FreeText and image Stamps. Original object
+- `pdfAnnotationReader.ts` imports editable text highlights, freehand Ink strokes, FreeText and image Stamps. Original object
   references and popup references stay attached to the imported records. Other annotation types and
   locked annotations remain on PDF.js's original rendering path and are preserved in the PDF.
   Annotations with NoZoom/NoRotate flags or without an indirect object reference also remain on that
@@ -148,6 +148,12 @@ the app's actual toolbar and navigation handlers.
 
 ## Navigation modal annotation previews
 
+`pageAnnotations.ts` exposes current page records and draws them for sidebar previews and AI region attachments.
+Region attachments render the PDF crop with native annotations, then compose the editor's records
+in the same viewport coordinates. Imported originals remain excluded from the base display render,
+so edited or deleted annotations are not drawn twice. Captures include unsaved changes and omit
+editor controls and selection overlays.
+
 Visible thumbnails compose current annotation records over a cached PDF bitmap and coalesce
 page-specific changes in animation frames. Pages not yet imported by the editor keep their native
 PDF annotation rendering; thumbnails never trigger imports. Importing editable originals invalidates the page’s base
@@ -163,3 +169,11 @@ model revision and viewport are unchanged.
 performance suite. The configurable larger fixture uses `LEPIS_PERF_PAGES`,
 `LEPIS_PERF_ANNOTATIONS_PER_PAGE` and `LEPIS_PERF_OPENING_READ_MB`.
 See [measurements and reproduction commands](../../../../../../docs/thumbnail-performance.md).
+
+With the highlight tool active, dragging on text selects text and dragging from a blank area
+creates a freehand stroke. Freehand strokes use the selected highlight color, a 12-point round
+stroke and 90% opacity. They save as standard editable Ink annotations. Pointer cancellation,
+Escape, tool changes and loss of window focus discard the gesture; a completed stroke adds one
+undo command. The page layer owns the gesture lifetime, including cancellation on viewport changes
+and page disposal. The SVG preview appends points and updates bounds incrementally. `highlight/geometry.ts`
+builds the shared path for page overlays, thumbnail previews and region captures.

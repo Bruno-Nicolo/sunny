@@ -1,4 +1,4 @@
-import type { AiProvider, ApiProvider } from '../../../../shared/ai'
+import type { AiProvider, ApiProvider, ReasoningLevel } from '../../../../shared/ai'
 
 export const providerNames: Record<AiProvider, string> = {
   chatgpt: 'ChatGPT plan',
@@ -14,3 +14,13 @@ export const providerSections: { id: ApiProvider; name: string; providers: AiPro
   { id: 'google', name: 'Gemini', providers: ['google'] },
   { id: 'openrouter', name: 'OpenRouter', providers: ['openrouter'] }
 ]
+
+export const reasoningLabels: Record<ReasoningLevel, string> = {
+  none: 'None',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max'
+}

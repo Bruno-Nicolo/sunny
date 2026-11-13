@@ -1,10 +1,25 @@
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
-import { GoogleGenAI } from '@google/genai'
-import type { AiModel, AiProvider, DocumentSource } from '../../shared/ai'
+import { GoogleGenAI, ThinkingLevel } from '@google/genai'
+import {
+  type AiModel,
+  type AiProvider,
+  type DocumentSource,
+  type ReasoningLevel
+} from '../../shared/ai'
 import { ChatgptAuth } from './chatgpt-auth'
 import { CredentialStore } from './credentials'
 
+function openaiReasoningLevels(model: string): ReasoningLevel[] {
+  if (model.includes('chat') || !/^(?:o[3-9](?:-|$)|gpt-[5-9](?:[.-]|$))/.test(model)) return []
+  if (/^gpt-[6-9]/.test(model)) return ['low', 'medium', 'high', 'xhigh', 'max']
+  if (model.startsWith('o3-pro')) return ['high']
+  if (model.includes('-pro')) return ['medium', 'high', 'xhigh']
+  if (/^gpt-5(?:-|$)/.test(model)) return ['minimal', 'low', 'medium', 'high']
+  if (/^gpt-5\.1(?:-|$)/.test(model)) return ['none', 'low', 'medium', 'high']
+  if (model.startsWith('gpt-5.')) return ['none', 'low', 'medium', 'high', 'xhigh']
+  return ['low', 'medium', 'high']
+}
 export type ModelTurn = {
   role: 'user' | 'assistant'
   text: string
@@ -14,6 +29,7 @@ export type ModelTurn = {
 export type GenerateRequest = {
   provider: AiProvider
   model: string
+  reasoning?: ReasoningLevel
   instructions: string
   turns: ModelTurn[]
   signal: AbortSignal
@@ -52,7 +68,11 @@ export class AiProviders {
       }
       return body.models
         .filter((model) => model.visibility === 'list')
-        .map((model) => ({ id: model.slug, name: model.display_name }))
+        .map((model) => ({
+          id: model.slug,
+          name: model.display_name,
+          reasoningLevels: openaiReasoningLevels(model.slug)
+        }))
     }
     if (provider === 'anthropic') {
       const result: AiModel[] = []
@@ -73,7 +93,11 @@ export class AiProviders {
             budget_tokens: 2048,
             display: 'summarized'
           })
-        result.push({ id: model.id, name: model.display_name })
+        const effort = model.capabilities?.effort
+        const levels = (['low', 'medium', 'high', 'xhigh', 'max'] as const).filter(
+          (level) => effort?.[level]?.supported
+        )
+        result.push({ id: model.id, name: model.display_name, reasoningLevels: levels })
       }
       return result
     }
@@ -86,7 +110,13 @@ export class AiProviders {
           if (model.thinking) this.googleThinking.add(id)
           result.push({
             id,
-            name: model.displayName ?? model.name
+            name: model.displayName ?? model.name,
+            reasoningLevels:
+              model.thinking && /^gemini-3/.test(id)
+                ? id.includes('flash')
+                  ? ['low', 'medium', 'high']
+                  : ['low', 'high']
+                : []
           })
         }
       }
@@ -115,7 +145,13 @@ export class AiProviders {
             model.architecture.input_modalities.includes('text') &&
             model.architecture.input_modalities.includes('image')
         )
-        .map((model) => ({ id: model.id, name: model.name }))
+        .map((model) => ({
+          id: model.id,
+          name: model.name,
+          reasoningLevels: model.supported_parameters?.includes('reasoning')
+            ? ['low', 'medium', 'high']
+            : []
+        }))
     }
     const models = await new OpenAI({ apiKey: key, maxRetries: 0, timeout: 30_000 }).models.list()
     return models.data
@@ -124,12 +160,16 @@ export class AiProviders {
           /^(gpt-(?:4o|4\.1|[5-9])|o[3-9](?:-|$)|chatgpt-)/.test(model.id) &&
           !/audio|realtime|transcribe|tts|image|codex/.test(model.id)
       )
-      .map((model) => ({ id: model.id, name: model.id }))
+      .map((model) => ({
+        id: model.id,
+        name: model.id,
+        reasoningLevels: openaiReasoningLevels(model.id)
+      }))
       .sort((a, b) => a.name.localeCompare(b.name))
   }
 
   async generate(request: GenerateRequest): Promise<string> {
-    const { provider, model, instructions, turns, signal, onText, onReasoning } = request
+    const { provider, model, reasoning, instructions, turns, signal, onText, onReasoning } = request
     signal.throwIfAborted()
     const key = await this.key(provider, signal)
     signal.throwIfAborted()
@@ -146,11 +186,10 @@ export class AiProviders {
           instructions,
           store: false,
           stream: true,
-          ...(onReasoning &&
-          /^(?:o[3-9](?:-|$)|gpt-[5-9](?:[.-]|$))/.test(model) &&
-          !model.includes('chat')
-            ? { reasoning: { summary: 'auto' as const } }
-            : {}),
+          reasoning:
+            (onReasoning || reasoning) && openaiReasoningLevels(model).length
+              ? { summary: onReasoning ? 'auto' : undefined, effort: reasoning }
+              : undefined,
           input: turns.map((turn) => ({
             role: turn.role,
             content:
@@ -198,6 +237,11 @@ export class AiProviders {
           system: instructions,
           max_tokens: Math.min(8192, this.anthropicOutputLimits.get(model) ?? 8192),
           ...(thinking ? { thinking } : {}),
+          ...(reasoning
+            ? {
+                output_config: { effort: reasoning as 'low' | 'medium' | 'high' | 'xhigh' | 'max' }
+              }
+            : {}),
           messages: turns.map((turn) => ({
             role: turn.role,
             content: [
@@ -235,9 +279,13 @@ export class AiProviders {
         config: {
           systemInstruction: instructions,
           abortSignal: signal,
-          ...(onReasoning && this.googleThinking.has(model)
-            ? { thinkingConfig: { includeThoughts: true } }
-            : {})
+          thinkingConfig:
+            (onReasoning || reasoning) && this.googleThinking.has(model)
+              ? {
+                  includeThoughts: Boolean(onReasoning),
+                  thinkingLevel: reasoning?.toUpperCase() as ThinkingLevel | undefined
+                }
+              : undefined
         },
         contents: turns.map((turn) => ({
           role: turn.role === 'assistant' ? 'model' : 'user',
@@ -272,8 +320,14 @@ export class AiProviders {
         {
           model,
           stream: true,
-          ...(onReasoning && this.openrouterThinking.has(model)
-            ? { reasoning: { enabled: true, exclude: false } }
+          ...((onReasoning || reasoning) && this.openrouterThinking.has(model)
+            ? {
+                reasoning: {
+                  enabled: true,
+                  exclude: false,
+                  effort: reasoning
+                }
+              }
             : {}),
           messages: [
             { role: 'system', content: instructions },

@@ -1,4 +1,4 @@
-import type { ThumbnailAnnotations } from './annotations/thumbnailAnnotations'
+import type { PageAnnotations } from './annotations/pageAnnotations'
 import type { TextEditorSettings } from './annotations/text/types'
 import {
   useCallback,
@@ -23,7 +23,7 @@ type PdfViewerState = {
   viewerElementRef: RefObject<HTMLDivElement | null>
   handle: Omit<PdfDocumentHandle, 'confirmPageChanges' | 'preparePageChanges'>
   loading: boolean
-  document: { pdf: PDFDocumentProxy; annotations: ThumbnailAnnotations; canReorder: boolean } | null
+  document: { pdf: PDFDocumentProxy; annotations: PageAnnotations; canReorder: boolean } | null
   page: number
   searchSnapshot: PdfSearchSnapshot
   searchRequest: number | null

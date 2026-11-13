@@ -2,7 +2,7 @@ import { useRef, useState, type CSSProperties } from 'react'
 import { DragDropProvider, DragOverlay, type DragMoveEvent } from '@dnd-kit/react'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { dragSensors } from '@/lib/dragSensors'
-import type { ThumbnailAnnotations } from './annotations/thumbnailAnnotations'
+import type { PageAnnotations } from './annotations/pageAnnotations'
 import { PageThumbnail, type ThumbnailQueue } from './PageThumbnail'
 import { PageDragPreview, type PageDragImage } from './PageDragPreview'
 import { findPageDropBefore, movePages } from './pageOperations'
@@ -21,7 +21,7 @@ type Drag = {
 }
 type Props = {
   document: PDFDocumentProxy
-  annotations: ThumbnailAnnotations
+  annotations: PageAnnotations
   order: number[]
   selected: ReadonlySet<number>
   selecting: boolean

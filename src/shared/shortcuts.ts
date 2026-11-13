@@ -43,6 +43,7 @@ export const shortcuts = [
   { id: 'toggle-invert-colors', label: 'Invert Colors', keys: [{ key: 'i' }] },
   { id: 'activate-highlight', label: 'Highlight text', keys: [{ key: 'h' }] },
   { id: 'activate-text', label: 'Add text', keys: [{ key: 't' }] },
+  { id: 'activate-lasso', label: 'Attach PDF region', keys: [{ key: 'l' }] },
   { id: 'deactivate-tool', label: 'Selection Tool', keys: [{ key: 'Escape' }] },
   { id: 'toggle-two-page-view', label: 'Toggle Two-Page View' },
   {

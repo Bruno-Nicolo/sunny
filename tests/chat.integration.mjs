@@ -38,7 +38,12 @@ async function waitFor(code, timeout = 20000) {
 }
 const click = (label) =>
   evaluate(
-    `Array.from(document.querySelectorAll('[aria-label="${label}"]')).find(element => element.getBoundingClientRect().width > 0).click()`
+    `(() => {
+      const element = Array.from(document.querySelectorAll('[aria-label="${label}"]')).find(element => element.getBoundingClientRect().width > 0);
+      if (element.getAttribute('aria-haspopup') === 'menu') {
+        element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      } else element.click();
+    })()`
   )
 const setInput = (label, text) =>
   evaluate(`(() => {
@@ -192,7 +197,7 @@ app
       if (provider === 'anthropic') throw new Error('Fixture Anthropic catalog unavailable')
       if (provider === 'openai') return [{ id: 'test-model', name: 'OpenAI test model' }]
       if (catalogUnavailable) throw new Error('Fixture catalog temporarily unavailable')
-      return [{ id: 'test-model', name: 'Test model' }]
+      return [{ id: 'test-model', name: 'Test model', reasoningLevels: ['low', 'medium', 'high'] }]
     }
     service.providers.generate = async (request) => {
       generated.push(request)
@@ -395,6 +400,35 @@ app
       true,
       'model selector is inside the composer'
     )
+    await click('AI model')
+    await waitFor(
+      `document.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]').length === 2`
+    )
+    assert.equal(
+      await evaluate(
+        `Array.from(document.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]')).map(item => item.textContent).join('|')`
+      ),
+      'Model|Effort'
+    )
+    await click('Select effort')
+    await waitFor(
+      `document.querySelector('[aria-label="Thinking time"] [aria-checked="true"]')?.textContent === 'Medium'`
+    )
+    await waitFor(`(() => {
+      const trigger = document.querySelector('[aria-label="Select effort"]').getBoundingClientRect();
+      const submenu = document.querySelector('[data-slot="dropdown-menu-sub-content"]').getBoundingClientRect();
+      return Math.abs(submenu.bottom - trigger.bottom) < 2 && submenu.top >= 0;
+    })()`)
+    await evaluate(
+      `Array.from(document.querySelectorAll('[aria-label="Thinking time"] [role="menuitemradio"]')).find(option => option.textContent === 'High').click()`
+    )
+    await waitFor(
+      `document.querySelector('[aria-label="AI model"]').getAttribute('aria-expanded') === 'false'`
+    )
+    assert.equal(service.store.settings().reasoning['chatgpt:test-model'], 'high')
+    await waitFor(
+      `!document.querySelector('[role="menu"]') && document.body.style.pointerEvents !== 'none'`
+    )
     assert.equal(await evaluate(`document.body.innerText.includes('PDF + model knowledge')`), false)
     const newChatButton = await evaluate(
       `(() => { const rect = document.querySelector('aside:not(.hidden) [aria-label="New chat"]').getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; })()`
@@ -427,22 +461,30 @@ app
       '1px'
     )
     await click('AI model')
-    await waitFor(`document.querySelector('[role="option"]')?.textContent.includes('Test model')`)
-    await evaluate(`document.querySelector('[role="option"]').click()`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelector('[aria-label="Models"] [role="menuitemradio"]')?.textContent.includes('Test model')`
+    )
+    await evaluate(`document.querySelector('[aria-label="Models"] [role="menuitemradio"]').click()`)
     await waitFor(
       `document.querySelector('[aria-label="AI model"]').getAttribute('aria-expanded') === 'false'`
     )
     await click('AI model')
-    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]').length === 2`
+    )
     assert.equal(
       await evaluate(
-        `Array.from(document.querySelectorAll('[data-slot="select-label"]')).map(label => label.textContent).join('|')`
+        `Array.from(document.querySelectorAll('[aria-label="Models"] [data-slot="dropdown-menu-label"]')).map(label => label.textContent).join('|')`
       ),
       'OpenAI'
     )
     assert.equal(await evaluate(`document.querySelector('[aria-label="AI provider"]')`), null)
     assert.equal(
-      await evaluate(`document.querySelectorAll('[role="option"] [data-provider-logo]').length`),
+      await evaluate(
+        `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"] [data-provider-logo]').length`
+      ),
       2
     )
     assert.equal(
@@ -453,12 +495,12 @@ app
     )
     assert.equal(
       await evaluate(
-        `document.querySelectorAll('[data-slot="select-label"] [data-provider-logo]').length`
+        `document.querySelectorAll('[aria-label="Models"] [data-slot="dropdown-menu-label"] [data-provider-logo]').length`
       ),
       0
     )
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'OpenAI test model').click()`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).find(option => option.textContent === 'OpenAI test model').click()`
     )
     await waitFor(
       `document.querySelector('[aria-label="AI model"]').textContent === 'OpenAI test model'`
@@ -469,13 +511,24 @@ app
       'model selection persists the corresponding provider'
     )
     await click('AI model')
-    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]').length === 2`
+    )
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'Test model').click()`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).find(option => option.textContent === 'Test model').click()`
     )
     await waitFor(`document.querySelector('[aria-label="AI model"]').textContent === 'Test model'`)
-    await waitFor(`!document.querySelector('[role="option"]')`)
+    await waitFor(`!document.querySelector('[aria-label="Models"] [role="menuitemradio"]')`)
     assert.equal(service.store.settings().provider, 'chatgpt')
+    await click('AI model')
+    await click('Select effort')
+    await waitFor(
+      `document.querySelector('[aria-label="Thinking time"] [aria-checked="true"]')?.textContent === 'High'`
+    )
+    await click('AI model')
+    await waitFor(`!document.querySelector('[role="menu"]')`)
+
     console.log(
       'PASS: modal settings, grouped connected providers, duplicate model IDs and partial catalog failure'
     )
@@ -749,6 +802,34 @@ app
     )
     await waitFor(`document.querySelector('[aria-label="Remove selection on page 1"]')`)
     console.log('PASS: Ask AI opens the chat with selected PDF text attached')
+    await click('Highlight text')
+    await evaluate(`(() => {
+      const span = document.querySelector('.visible .textLayer span');
+      const range = document.createRange(); range.selectNodeContents(span);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    })()`)
+    await waitFor(`document.querySelector('.visible .highlightEditor')`)
+    await evaluate(`(() => {
+      const data = new DataTransfer(); data.setData('text/plain', 'Unsaved annotation');
+      document.querySelector('.visible .pdf-viewer-container').dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
+    })()`)
+    await waitFor(`document.querySelector('.visible .freeTextEditor')`)
+    await click('Text settings')
+    await waitFor(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
+    await evaluate(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]').click()`)
+    await click('Text settings')
+    await evaluate(`(async () => {
+      const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 40;
+      const context = canvas.getContext('2d'); context.fillStyle = 'blue'; context.fillRect(0, 0, 80, 40);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const data = new DataTransfer(); data.items.add(new File([blob], 'pasted.png', {type:'image/png'}));
+      document.querySelector('.visible .pdf-viewer-container').dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
+    })()`)
+    await waitFor(`document.querySelector('.visible .stampEditor canvas')`)
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="first.pdf"] > span.size-2') !== null`),
+      true
+    )
     await evaluate(
       `document.querySelector('[aria-label="Add attachment"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`
     )
@@ -765,7 +846,7 @@ app
       y: Math.round(bounds.y + y * bounds.height)
     })
     const start = point(0.1, 0.08),
-      end = point(0.85, 0.24)
+      end = point(0.85, 0.7)
     await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mousePressed',
       ...start,
@@ -790,7 +871,27 @@ app
     await waitFor(
       `document.querySelector('img[alt="Page 1 · Region"]')?.src.startsWith('data:image/png')`
     )
-    assert.equal(await evaluate(`document.querySelector('[data-dirty="true"]') !== null`), false)
+    const annotationPixels = await evaluate(`(async () => {
+      const image = document.querySelector('img[alt="Page 1 · Region"]'); await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const counts = {highlight:0, text:0, image:0};
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i], g = pixels[i+1], b = pixels[i+2];
+        if (r > 180 && g > 150 && b < 120) counts.highlight++;
+        if (r > 150 && g < 100 && b < 100) counts.text++;
+        if (b > 200 && r < 50 && g < 50) counts.image++;
+      }
+      return counts;
+    })()`)
+    assert.ok(annotationPixels.highlight > 100, 'The region image must include unsaved highlights')
+    assert.ok(annotationPixels.text > 10, 'The region image must include unsaved added text')
+    assert.ok(annotationPixels.image > 100, 'The region image must include pasted images')
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="first.pdf"] > span.size-2') !== null`),
+      true
+    )
     await setInput('Message AI', 'Compare these selections')
     await click('Send message')
     await waitFor(
@@ -803,7 +904,7 @@ app
     assert.equal(service.store.get(firstChat.id).messages[2].attachments.length, 2)
     assert.equal(service.store.get(firstChat.id).messages[2].attachments[1].kind, 'region')
     console.log(
-      'PASS: text and rectangle selections, multiple attachments, original image and persistent history'
+      'PASS: rectangle selections include unsaved highlights, added text and pasted images in persistent history'
     )
 
     await evaluate(`document.querySelector('aside:not(.hidden) .chat-source').click()`)
@@ -822,11 +923,16 @@ app
     )
     for (let index = 0; index < 3; index++) win.webContents.send('menu:rotate-clockwise')
     await waitFor(`document.querySelector('.visible .textLayer span') !== null`)
+    const highlightsBeforeSave = await evaluate(
+      `document.querySelectorAll('.visible .highlightEditor').length`
+    )
     await click('Highlight text')
     await evaluate(
       `(() => { const text = document.querySelector('.visible .textLayer span').firstChild; const range = document.createRange(); range.selectNodeContents(text); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`
     )
-    await waitFor(`document.querySelector('.visible .highlightEditor') !== null`)
+    await waitFor(
+      `document.querySelectorAll('.visible .highlightEditor').length === ${highlightsBeforeSave + 1}`
+    )
     const originalLength = files.get('first.pdf').length
     win.webContents.send('menu:save')
     const saveDeadline = Date.now() + 10000
@@ -1178,9 +1284,12 @@ app
     )
     await setInput('Message AI', 'Explain this PDF using OpenAI')
     await click('AI model')
-    await waitFor(`document.querySelectorAll('[role="option"]').length === 2`)
+    await click('Select model')
+    await waitFor(
+      `document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]').length === 2`
+    )
     await evaluate(
-      `Array.from(document.querySelectorAll('[role="option"]')).find(option => option.textContent === 'OpenAI test model').click()`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).find(option => option.textContent === 'OpenAI test model').click()`
     )
     await waitFor(
       `document.querySelector('aside:not(.hidden) [aria-label="AI model"]').textContent === 'OpenAI test model'`
@@ -1380,13 +1489,14 @@ app
     assert.deepEqual(rendererErrors, [])
     fs.writeFileSync('/tmp/lepis-chat.png', (await win.webContents.capturePage()).toPNG())
     await click('AI model')
+    await click('Select model')
     await waitFor(
-      `Array.from(document.querySelectorAll('[role="option"]')).filter(option => option.getBoundingClientRect().width > 0).length === 2`
+      `Array.from(document.querySelectorAll('[aria-label="Models"] [role="menuitemradio"]')).filter(option => option.getBoundingClientRect().width > 0).length === 2`
     )
     await evaluate(
       `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
     )
-    await waitFor(`getComputedStyle(document.querySelector('[role="listbox"]')).opacity === '1'`)
+    await waitFor(`getComputedStyle(document.querySelector('[role="menu"]')).opacity === '1'`)
     fs.writeFileSync('/tmp/lepis-model-groups.png', (await win.webContents.capturePage()).toPNG())
     console.log('PASS: stop persists interrupted responses; no renderer errors')
   })

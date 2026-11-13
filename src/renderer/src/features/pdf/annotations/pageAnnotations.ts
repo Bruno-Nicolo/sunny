@@ -1,39 +1,44 @@
 import type { PageViewport } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import type { Annotation } from './model'
+import type { Annotation, PdfRect } from './model'
 import { annotationOrientation } from './geometry'
+import { highlightPath } from './highlight/geometry'
 
-const quadCorners = [0, 2, 6, 4]
-
-export type ThumbnailAnnotations = {
+export type PageAnnotations = {
   prepare(pageIndex: number): Promise<void>
   forPage(pageIndex: number): Iterable<Annotation>
   subscribe(pageIndex: number, listener: (baseChanged: boolean) => void): () => void
 }
 
-// Paint the current annotation records over the cached page bitmap, without editor DOM or assets.
-export function paintThumbnailAnnotations(
+// Paint current annotations in viewport coordinates over a rendered PDF page.
+export function paintAnnotations(
   context: CanvasRenderingContext2D,
   viewport: PageViewport,
-  records: Iterable<Annotation>
+  records: Iterable<Annotation>,
+  clip?: PdfRect
 ): void {
   for (const record of records) {
+    if (
+      clip &&
+      (record.rect[0] >= clip[2] ||
+        record.rect[1] >= clip[3] ||
+        record.rect[2] <= clip[0] ||
+        record.rect[3] <= clip[1])
+    )
+      continue
     context.save()
     if (record.kind === 'highlight') {
-      context.globalCompositeOperation = 'multiply'
       context.globalAlpha = record.opacity ?? 0.9
-      context.fillStyle = record.color
-      context.beginPath()
-      const points = record.quads!
-      for (let i = 0; i < points.length; i += 8) {
-        for (let corner = 0; corner < quadCorners.length; corner++) {
-          const offset = quadCorners[corner]
-          const [x, y] = viewport.convertToViewportPoint(points[i + offset], points[i + offset + 1])
-          if (corner === 0) context.moveTo(x, y)
-          else context.lineTo(x, y)
-        }
-        context.closePath()
+      const path = new Path2D(highlightPath(record, viewport))
+      if (record.strokes) {
+        context.strokeStyle = record.color
+        context.lineWidth = record.thickness! * viewport.scale
+        context.lineCap = context.lineJoin = 'round'
+        context.stroke(path)
+      } else {
+        context.globalCompositeOperation = 'multiply'
+        context.fillStyle = record.color
+        context.fill(path)
       }
-      context.fill()
     } else {
       const [x1, y1] = viewport.convertToViewportPoint(record.rect[0], record.rect[1])
       const [x2, y2] = viewport.convertToViewportPoint(record.rect[2], record.rect[3])

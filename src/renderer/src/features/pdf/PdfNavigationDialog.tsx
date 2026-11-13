@@ -23,7 +23,7 @@ import {
   AlertDialogCancel
 } from '@/components/ui/alert-dialog'
 import type { PdfDocumentViewProps } from './types'
-import type { ThumbnailAnnotations } from './annotations/thumbnailAnnotations'
+import type { PageAnnotations } from './annotations/pageAnnotations'
 import type { ThumbnailQueue } from './PageThumbnail'
 import { PdfPageGrid } from './PdfPageGrid'
 import { OutlineItems, type Outline } from './PdfOutline'
@@ -39,7 +39,7 @@ type Props = {
   open: boolean
   onOpenChange(open: boolean): void
   document: PDFDocumentProxy
-  annotations: ThumbnailAnnotations
+  annotations: PageAnnotations
   tab: PdfDocumentViewProps['navigationTab']
   onTabChange: PdfDocumentViewProps['onNavigationTabChange']
   page: number

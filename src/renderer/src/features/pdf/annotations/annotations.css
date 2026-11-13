@@ -38,7 +38,7 @@
 }
 .pdf-viewer-container
   .lepisAnnotationLayer
-  > :is(.freeTextEditor, .stampEditor, .highlightEditor):is(:hover, .selectedEditor) {
+  > :is(.freeTextEditor, .stampEditor):is(:hover, .selectedEditor) {
   border: 0;
   outline: none;
 
@@ -60,7 +60,8 @@
   }
   path {
     fill: transparent;
-    stroke: none;
+    stroke: var(--annotation-border-color);
+    stroke-width: 1px;
     pointer-events: fill;
   }
 }
@@ -149,4 +150,35 @@
   &.middleRight {
     right: -4px;
   }
+}
+
+.pdf-viewer-container .lepisAnnotationLayer .lepisFreehandPreview {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.pdf-viewer-container .lepisAnnotationLayer > .freehandHighlight .lepisHighlightContour path {
+  stroke: transparent;
+}
+
+.pdf-viewer-container .lepisAnnotationLayer > .freehandHighlight.selectedEditor {
+  outline: 1px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.pdf-viewer-container
+  .lepisAnnotationLayer:not(.disabled)
+  > .freehandHighlight
+  .lepisHighlightContour
+  path {
+  pointer-events: stroke;
+}
+
+.pdf-viewer-container .lepisAnnotationLayer .lepisFreehandStroke {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }

@@ -2,10 +2,7 @@ import { memo, useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { useSortable } from '@dnd-kit/react/sortable'
 import { cn } from '@/lib/utils'
-import {
-  paintThumbnailAnnotations,
-  type ThumbnailAnnotations
-} from './annotations/thumbnailAnnotations'
+import { paintAnnotations, type PageAnnotations } from './annotations/pageAnnotations'
 export type ThumbnailQueue = (render: () => Promise<void>) => Promise<void>
 
 export const PageThumbnail = memo(function PageThumbnail({
@@ -26,7 +23,7 @@ export const PageThumbnail = memo(function PageThumbnail({
   enqueue
 }: {
   document: PDFDocumentProxy
-  annotations: ThumbnailAnnotations
+  annotations: PageAnnotations
   number: number
   position: number
   selecting: boolean
@@ -130,7 +127,7 @@ export const PageThumbnail = memo(function PageThumbnail({
             context.clearRect(0, 0, canvas.width, canvas.height)
             context.drawImage(base, 0, 0)
             context.setTransform(ratio, 0, 0, ratio, 0, 0)
-            paintThumbnailAnnotations(context, viewport, annotations.forPage(number - 1))
+            paintAnnotations(context, viewport, annotations.forPage(number - 1))
           }
           redraw()
         } finally {

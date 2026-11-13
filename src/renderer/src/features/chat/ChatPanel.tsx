@@ -17,7 +17,6 @@ import {
   Plus,
   Settings,
   Square,
-  Type,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -37,19 +36,10 @@ import {
   DropdownMenuItem
 } from '@/components/ui/dropdown-menu'
 import { InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectLabel,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import type { Tab } from '@/features/documents/types'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
 import type {
-  AiModel,
+  AiSettings,
   AiProvider,
   AiStatus,
   ChatAttachment,
@@ -59,9 +49,10 @@ import type {
   ConversationSummary,
   DocumentSource
 } from '../../../../shared/ai'
+import type { ReasoningLevel } from '../../../../shared/ai'
+import { ChatModelSelector, type ModelCatalog } from './ChatModelSelector'
 import { AiSettingsView } from './AiSettingsView'
-import { providerNames, providerSections } from './labels'
-import { ProviderLogo } from './ProviderLogo'
+import { providerNames } from './labels'
 import { ConversationHistory } from './ConversationHistory'
 import { ChatMessageView } from './ChatMessageView'
 import { MessageGroup } from '@/components/ui/message'
@@ -83,7 +74,6 @@ type Props = {
   onWidth(width: number): void
   onShowDocument(): void
   onSelectRegion(callback: (attachment: ChatAttachment) => void): void
-  onCancelSelection(): void
 }
 
 export function ChatPanel({
@@ -95,14 +85,11 @@ export function ChatPanel({
   getViewer,
   onWidth,
   onShowDocument,
-  onSelectRegion,
-  onCancelSelection
+  onSelectRegion
 }: Props): React.JSX.Element {
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [catalog, setCatalog] = useState<
-    { provider: AiProvider; models: AiModel[]; error?: string }[]
-  >([])
+  const [catalog, setCatalog] = useState<ModelCatalog>([])
   const [modelChanging, setModelChanging] = useState(false)
   const [settingsError, setSettingsError] = useState('')
   const [modelsLoading, setModelsLoading] = useState(false)
@@ -138,7 +125,6 @@ export function ChatPanel({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [attachingFiles, setAttachingFiles] = useState(false)
   const attachmentImportRef = useRef<AbortController | null>(null)
-  const selectedTextRef = useRef<ChatAttachment[]>([])
   useEffect(() => {
     if (!selectedAttachments) return
     onSelectionConsumed()
@@ -252,6 +238,16 @@ export function ChatPanel({
   const connected = status?.connected.includes(provider) ?? false
   const selectedModel = status?.settings.models[provider] ?? ''
   const models = catalog.find((group) => group.provider === provider)?.models ?? []
+  const model = models.find((model) => model.id === selectedModel)
+  const levels = model?.reasoningLevels ?? []
+  const reasoningKey = `${provider}:${selectedModel}`
+  const savedReasoning = status?.settings.reasoning[reasoningKey]
+  const selectedReasoning =
+    savedReasoning && levels.includes(savedReasoning)
+      ? savedReasoning
+      : levels.includes('medium')
+        ? 'medium'
+        : levels[0]
   const modelsError = catalog
     .filter((group) => group.error)
     .map((group) => `${providerNames[group.provider]}: ${group.error}`)
@@ -272,7 +268,7 @@ export function ChatPanel({
     selectedModel &&
     !modelsLoading &&
     !modelChanging &&
-    models.some((model) => model.id === selectedModel) &&
+    model &&
     !stale &&
     !busy &&
     !loginBusy
@@ -540,6 +536,7 @@ export function ChatPanel({
           ? undefined
           : { version: document!.version, path: tab.path, provider },
         model: selectedModel,
+        reasoning: selectedReasoning,
         text: edit?.text ?? submittedDraft,
         attachments: submittedAttachments,
         summarize: submittedSummarize,
@@ -589,8 +586,34 @@ export function ChatPanel({
     },
     [document, stale, onShowDocument, getViewer, tab.id]
   )
+  const saveSelection = async (update: Partial<AiSettings>): Promise<void> => {
+    setModelChanging(true)
+    try {
+      await window.lepis.ai.settings(update)
+      if (update.provider && conversation && conversation.provider !== update.provider)
+        resetConversation()
+      setStatus((current) =>
+        current
+          ? {
+              ...current,
+              settings: {
+                ...current.settings,
+                ...update,
+                models: { ...current.settings.models, ...update.models },
+                reasoning: { ...current.settings.reasoning, ...update.reasoning }
+              }
+            }
+          : current
+      )
+      setError('')
+    } catch (error) {
+      showError(error)
+    } finally {
+      setModelChanging(false)
+    }
+  }
   const chooseModel = async (value: string): Promise<void> => {
-    if (!status || modelChanging || !value) return
+    if (!status || modelChanging) return
     const group = catalog.find((group) =>
       group.models.some((model) => `${group.provider}:${model.id}` === value)
     )
@@ -602,31 +625,11 @@ export function ChatPanel({
       (busy && group.provider !== provider)
     )
       return
-    setModelChanging(true)
-    try {
-      await window.lepis.ai.settings({
-        provider: group.provider,
-        models: { [group.provider]: model.id }
-      })
-      if (conversation && conversation.provider !== group.provider) resetConversation()
-      setStatus((current) =>
-        current
-          ? {
-              ...current,
-              settings: {
-                ...current.settings,
-                provider: group.provider,
-                models: { ...current.settings.models, [group.provider]: model.id }
-              }
-            }
-          : current
-      )
-      setError('')
-    } catch (error) {
-      showError(error)
-    } finally {
-      setModelChanging(false)
-    }
+    await saveSelection({ provider: group.provider, models: { [group.provider]: model.id } })
+  }
+  const chooseReasoning = async (level: ReasoningLevel): Promise<void> => {
+    if (!status || modelChanging || !levels.includes(level)) return
+    await saveSelection({ reasoning: { [reasoningKey]: level } })
   }
   const action = (text: string, whole = false): void => {
     setDraft(text)
@@ -837,7 +840,12 @@ export function ChatPanel({
             }}
           >
             {historyOpen ? (
-              <ConversationHistory chats={conversations} label="All chats" {...historyProps} />
+              <ConversationHistory
+                chats={conversations}
+                label="All chats"
+                showLabel={false}
+                {...historyProps}
+              />
             ) : (
               !conversation?.messages.length && (
                 <div
@@ -1092,12 +1100,7 @@ export function ChatPanel({
                     }}
                   />
                   <InputGroupAddon align="block-end" className="text-foreground">
-                    <DropdownMenu
-                      onOpenChange={(open) => {
-                        if (open)
-                          selectedTextRef.current = getViewer(tab.id)?.attachSelectedText() ?? []
-                      }}
-                    >
+                    <DropdownMenu>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuTrigger asChild>
@@ -1126,15 +1129,7 @@ export function ChatPanel({
                           Attach files
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onSelect={() => {
-                            onCancelSelection()
-                            addAttachments(selectedTextRef.current)
-                          }}
-                        >
-                          <Type />
-                          Attach text
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
+                          aria-keyshortcuts="l"
                           onSelect={() =>
                             onSelectRegion((attachment) => addAttachments([attachment]))
                           }
@@ -1144,57 +1139,17 @@ export function ChatPanel({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <Select
-                      value={
-                        connected && models.some((model) => model.id === selectedModel)
-                          ? `${provider}:${selectedModel}`
-                          : ''
-                      }
-                      disabled={
-                        modelChanging ||
-                        modelsLoading ||
-                        !catalog.some((group) => group.models.length)
-                      }
-                      onValueChange={(value) => void chooseModel(value)}
-                    >
-                      <SelectTrigger
-                        aria-label="AI model"
-                        size="sm"
-                        className="ml-auto min-w-24 max-w-[calc(100%-6rem)] border-0 bg-transparent px-2 shadow-none dark:bg-transparent"
-                      >
-                        <SelectValue
-                          placeholder={modelsLoading ? 'Loading models…' : 'Choose model'}
-                        />
-                      </SelectTrigger>
-                      <SelectContent position="popper">
-                        {providerSections.map((section) => {
-                          const groups = catalog.filter(
-                            (group) =>
-                              section.providers.includes(group.provider) && group.models.length
-                          )
-                          if (!groups.length) return null
-                          return (
-                            <SelectGroup key={section.id}>
-                              <SelectLabel>{section.name}</SelectLabel>
-                              {groups.map((group) => (
-                                <div key={group.provider}>
-                                  {group.models.map((model) => (
-                                    <SelectItem
-                                      value={`${group.provider}:${model.id}`}
-                                      key={model.id}
-                                      disabled={busy && group.provider !== provider}
-                                    >
-                                      <ProviderLogo provider={group.provider} />
-                                      {model.name}
-                                    </SelectItem>
-                                  ))}
-                                </div>
-                              ))}
-                            </SelectGroup>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
+                    <ChatModelSelector
+                      catalog={catalog}
+                      provider={provider}
+                      model={connected ? model : undefined}
+                      selectedReasoning={selectedReasoning}
+                      busy={busy}
+                      loading={modelsLoading}
+                      disabled={modelChanging}
+                      onModelChange={(value) => void chooseModel(value)}
+                      onReasoningChange={(level) => void chooseReasoning(level)}
+                    />
                     {busy ? (
                       <Tooltip>
                         <TooltipTrigger asChild>

@@ -1,14 +1,15 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { X } from 'lucide-react'
 import type { Tab } from '@/features/documents/types'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
 import type { ChatAttachment } from '../../../../shared/ai'
+import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
 const ChatPanel = lazy(() =>
   import('./ChatPanel').then((module) => ({ default: module.ChatPanel }))
 )
 
 type Props = {
+  shortcutsEnabled: boolean
+  onAskAI(attachments: ChatAttachment[]): void
   selection: { tabId: string; attachments: ChatAttachment[] } | null
   onSelectionConsumed(): void
   open: boolean
@@ -21,6 +22,8 @@ type Props = {
 }
 
 export function ChatDock({
+  shortcutsEnabled,
+  onAskAI,
   selection,
   onSelectionConsumed,
   open,
@@ -35,10 +38,7 @@ export function ChatDock({
   const [maxWidth, setMaxWidth] = useState(window.innerWidth / 2)
   const [narrow, setNarrow] = useState(window.innerWidth < 1000)
   const [activated, setActivated] = useState<string[]>([])
-  const [previousOpen, setPreviousOpen] = useState(open)
-  const [selecting, setSelecting] = useState<string | null>(null)
   const selectedViewer = useRef<PdfDocumentHandle | null>(null)
-  const dockRef = useRef<HTMLDivElement>(null)
   const widthRef = useRef(width)
   const applyWidth = useCallback((width: number): void => {
     const value = Math.max(300, Math.min(window.innerWidth / 2, width))
@@ -60,22 +60,13 @@ export function ChatDock({
     return () => media.removeEventListener('change', update)
   }, [])
   if (open && activeId && !activated.includes(activeId)) setActivated([...activated, activeId])
-  if (selecting && selecting !== activeId) setSelecting(null)
-  if (previousOpen !== open) {
-    setPreviousOpen(open)
-    if (open || !narrow) setSelecting(null)
-  }
   const cancelSelection = useCallback((): void => {
     selectedViewer.current?.selectChatRegion(null)
     selectedViewer.current = null
-    setSelecting(null)
   }, [])
   useEffect(() => {
-    if (open || !narrow) {
-      selectedViewer.current?.selectChatRegion(null)
-      selectedViewer.current = null
-    }
-  }, [open, narrow])
+    if (open || !narrow) cancelSelection()
+  }, [open, narrow, cancelSelection])
   useEffect(() => {
     const escape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && selectedViewer.current) cancelSelection()
@@ -83,19 +74,7 @@ export function ChatDock({
     window.addEventListener('keydown', escape)
     return () => window.removeEventListener('keydown', escape)
   }, [cancelSelection])
-  useEffect(
-    () => () => {
-      selectedViewer.current?.selectChatRegion(null)
-      selectedViewer.current = null
-    },
-    [activeId]
-  )
-  useEffect(
-    () => () => {
-      selectedViewer.current?.selectChatRegion(null)
-    },
-    []
-  )
+  useEffect(() => cancelSelection, [activeId, cancelSelection])
   const persistWidth = async (): Promise<void> => {
     await window.lepis.ai.settings({ panelWidth: widthRef.current })
   }
@@ -106,7 +85,6 @@ export function ChatDock({
     const viewer = getViewer(activeId)
     if (!viewer) return
     selectedViewer.current = viewer
-    setSelecting(activeId)
     if (narrow) onOpenChange(false)
     // React first disables annotation tools, then this transient tool takes over.
     requestAnimationFrame(() => {
@@ -118,24 +96,20 @@ export function ChatDock({
       })
     })
   }
+  useAppShortcuts(
+    {
+      'activate-lasso': () => {
+        if (tabs.find((tab) => tab.id === activeId)?.view.pages)
+          selectRegion((attachment) => onAskAI([attachment]))
+      }
+    },
+    shortcutsEnabled
+  )
   return (
-    <div ref={dockRef} className="relative flex min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1">
       <div className={`flex min-w-0 flex-1 ${open && narrow && activeId ? 'hidden' : ''}`}>
         {children}
       </div>
-      {selecting && (
-        <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-background px-3 py-2 text-xs shadow-lg">
-          Drag a rectangle on the PDF
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button aria-label="Cancel region selection" onClick={cancelSelection}>
-                <X className="size-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Cancel region selection</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
       {open && activeId && !narrow && (
         <div
           role="separator"
@@ -195,7 +169,6 @@ export function ChatDock({
                   if (narrow) onOpenChange(false)
                 }}
                 onSelectRegion={selectRegion}
-                onCancelSelection={cancelSelection}
               />
             </Suspense>
           </aside>

@@ -5,6 +5,8 @@ import {
 } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { TextItem } from 'pdfjs-dist/types/src/display/api'
 import type { ChatDocument, DocumentSource, PdfRect } from '../../../../shared/ai'
+import type { Annotation } from './annotations/model'
+import { paintAnnotations } from './annotations/pageAnnotations'
 
 export type IndexedPdf = Omit<ChatDocument, 'path' | 'name'>
 
@@ -115,57 +117,58 @@ export async function indexPdf(
 
 export async function regionText(page: PDFPageProxy, rect: PdfRect): Promise<string> {
   const content = await page.getTextContent()
-  return content.items
-    .flatMap((item) => {
-      if (!('str' in item)) return []
-      const style = content.styles[item.fontName]
-      const bounds = itemRect(item, style?.ascent, style?.descent)
-      // Partial text items stay in the image; do not send text outside the selected rectangle.
-      return bounds[0] >= rect[0] &&
-        bounds[1] >= rect[1] &&
-        bounds[2] <= rect[2] &&
-        bounds[3] <= rect[3]
-        ? [item.str + (item.hasEOL ? '\n' : ' ')]
-        : []
-    })
-    .join('')
-    .trim()
+  let text = ''
+  for (const item of content.items) {
+    if (!('str' in item)) continue
+    const style = content.styles[item.fontName]
+    const bounds = itemRect(item, style?.ascent, style?.descent)
+    // Partial text items stay in the image; do not send text outside the selected rectangle.
+    if (
+      bounds[0] >= rect[0] &&
+      bounds[1] >= rect[1] &&
+      bounds[2] <= rect[2] &&
+      bounds[3] <= rect[3]
+    )
+      text += item.str + (item.hasEOL ? '\n' : ' ')
+  }
+  return text.trim()
 }
 
-/** Render just the original crop; no annotations, editor overlays or screenshot pixels. */
+/** Render a PDF crop with current annotations, without editor controls or selection overlays. */
 export async function regionImage(
   page: PDFPageProxy,
   rect: PdfRect,
   rotation: number,
+  annotations: Iterable<Annotation>,
   signal: AbortSignal
 ): Promise<string> {
+  signal.throwIfAborted()
   const base = page.getViewport({ scale: 1, rotation })
-  const initial = [
-    ...base.convertToViewportPoint(rect[0], rect[1]),
-    ...base.convertToViewportPoint(rect[2], rect[3])
-  ]
-  const width = Math.abs(initial[2] - initial[0]),
-    height = Math.abs(initial[3] - initial[1])
+  const [x1, y1] = base.convertToViewportPoint(rect[0], rect[1])
+  const [x2, y2] = base.convertToViewportPoint(rect[2], rect[3])
+  const width = Math.abs(x2 - x1),
+    height = Math.abs(y2 - y1)
   const scale = Math.min(2, 1600 / Math.max(width, height))
-  const viewport = page.getViewport({ scale, rotation })
-  const bounds = [
-    ...viewport.convertToViewportPoint(rect[0], rect[1]),
-    ...viewport.convertToViewportPoint(rect[2], rect[3])
-  ]
+  const viewport = base.clone({
+    scale,
+    offsetX: -Math.min(x1, x2) * scale,
+    offsetY: -Math.min(y1, y2) * scale
+  })
   const canvas = window.document.createElement('canvas')
   canvas.width = Math.max(1, Math.ceil(width * scale))
   canvas.height = Math.max(1, Math.ceil(height * scale))
   const task = page.render({
     canvas,
     viewport,
-    transform: [1, 0, 0, 1, -Math.min(bounds[0], bounds[2]), -Math.min(bounds[1], bounds[3])],
-    annotationMode: AnnotationMode.DISABLE
+    annotationMode: AnnotationMode.ENABLE_STORAGE
   })
   const cancel = (): void => task.cancel()
   signal.addEventListener('abort', cancel, { once: true })
   try {
-    signal.throwIfAborted()
     await task.promise
+    signal.throwIfAborted()
+    const context = canvas.getContext('2d')!
+    paintAnnotations(context, viewport, annotations, rect)
     return canvas.toDataURL('image/png')
   } finally {
     signal.removeEventListener('abort', cancel)

@@ -12,7 +12,7 @@ import { textRect, normalizedRect } from './geometry'
 import { validateImage } from './images/imageFiles'
 import type { TextEditorSettings } from './text/types'
 import type { AnnotationOptions } from './types'
-import type { ThumbnailAnnotations } from './thumbnailAnnotations'
+import type { PageAnnotations } from './pageAnnotations'
 
 type Options = {
   eventBus: EventBus
@@ -37,7 +37,7 @@ type AnnotationController = {
   commitDraft(): void
   undo(): void
   redo(): void
-  readonly thumbnails: ThumbnailAnnotations
+  readonly pageAnnotations: PageAnnotations
   readonly hash: string
   save(): Promise<Uint8Array>
 }
@@ -358,6 +358,21 @@ export function createAnnotationController({
   container.addEventListener(
     'pointerdown',
     (event) => {
+      const target = event.target as Element
+      if (
+        canEdit() &&
+        options.annotationTool === 'highlight' &&
+        event.button === 0 &&
+        !target.closest('.lepisAnnotationLayer, .annotationLayer, .textLayer span')
+      ) {
+        const pageElement = target.closest<HTMLElement>('.page')
+        const pageIndex = Number(pageElement?.dataset.pageNumber) - 1
+        const layer = pages.get(pageIndex)
+        if (layer) {
+          layer.startHighlight(event, options.highlightColor)
+          return
+        }
+      }
       if ((event.target as Element).closest('.textLayer')) pointerSelection = true
       if (!(event.target as Element).closest('.lepisAnnotationLayer')) select(null)
     },
@@ -437,7 +452,7 @@ export function createAnnotationController({
 
   return {
     highlightSelection,
-    thumbnails: {
+    pageAnnotations: {
       // Wait for an existing editor import; thumbnails alone keep originals on the PDF rendering path.
       async prepare(pageIndex) {
         await initialized
