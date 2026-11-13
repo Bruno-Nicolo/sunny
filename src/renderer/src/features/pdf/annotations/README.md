@@ -37,6 +37,9 @@ while the PDF is being written. Pending text remains editable and retains its ca
 The native Copy command copies a selected text annotation as plain text or an image annotation as
 PNG to the system clipboard. The controller handles copy events only within its active viewer;
 editable text fields keep native character-selection copying. Copying does not change the model.
+Pasting images or plain text centers the element at the pointer on the active document's page. The insertion
+point is captured before asynchronous image decoding; page viewport conversion handles zoom and
+rotation. Editable fields retain native paste behavior.
 
 ## PDF.js patch
 

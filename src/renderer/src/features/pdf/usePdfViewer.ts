@@ -234,13 +234,13 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       navigateHorizontally: (direction) => controllerRef.current?.navigateHorizontally(direction),
       scrollVertically: (direction) => controllerRef.current?.scrollVertically(direction),
       setHighlightColor: (color) => controllerRef.current?.setHighlightColor(color),
-      async addImage(file) {
+      async addImage(file, point) {
         if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')
-        await controllerRef.current.addImage(file)
+        await controllerRef.current.addImage(file, point)
       },
-      async addText(text) {
+      async addText(text, point) {
         if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')
-        await controllerRef.current.addText(text)
+        await controllerRef.current.addText(text, point)
       },
       undo: () => controllerRef.current?.undo(),
       redo: () => controllerRef.current?.redo()

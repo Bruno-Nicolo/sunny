@@ -12,7 +12,7 @@ import { normalizedRect } from './geometry'
 import { layoutText } from './text/textLayout'
 import { validateImage } from './images/imageFiles'
 import type { TextEditorSettings } from './text/types'
-import type { AnnotationOptions } from './types'
+import type { AnnotationInsertionPoint, AnnotationOptions } from './types'
 import type { PageAnnotations } from './pageAnnotations'
 
 type Options = {
@@ -32,8 +32,8 @@ type AnnotationController = {
   initialize(canAnnotate: boolean): void
   setOptions(options: AnnotationOptions): void
   setHighlightColor(color: string): void
-  addImage(file: File): Promise<void>
-  addText(text: string): Promise<void>
+  addImage(file: File, point?: AnnotationInsertionPoint): Promise<void>
+  addText(text: string, point?: AnnotationInsertionPoint): Promise<void>
   commit(): void
   commitDraft(): void
   undo(): void
@@ -147,12 +147,35 @@ export function createAnnotationController({
     if (record.text !== text) model.change(record, layoutText(record, text), true)
   }
 
+  function insertionPoint(point?: AnnotationInsertionPoint): {
+    pageIndex: number
+    left: number
+    top: number
+  } {
+    if (point) {
+      const page = window.document
+        .elementFromPoint(point.clientX, point.clientY)
+        ?.closest<HTMLElement>('.page')
+      if (page && container.contains(page)) {
+        const bounds = page.getBoundingClientRect()
+        return {
+          pageIndex: Number(page.dataset.pageNumber) - 1,
+          left: point.clientX - bounds.left,
+          top: point.clientY - bounds.top
+        }
+      }
+    }
+    const pageIndex = viewer.currentPageNumber - 1
+    const { width, height } = viewer.getPageView(pageIndex).viewport
+    return { pageIndex, left: width / 2, top: height / 2 }
+  }
+
   function createText(pageIndex: number, left: number, top: number, text = ''): void {
     const viewport = viewer.getPageView(pageIndex).viewport
-    // Anchor the first line's caret at the insertion point, including the editor's padding.
+    // Pasted blocks use their center; empty editors anchor the first line's caret.
     const [x, y] = viewport.convertToPdfPoint(
-      left - 2 * viewport.scale,
-      top - (2 + (defaults.size * 1.35) / 2) * viewport.scale
+      text ? left : left - 2 * viewport.scale,
+      text ? top : top - (2 + (defaults.size * 1.35) / 2) * viewport.scale
     )
     const record = layoutText(
       {
@@ -166,6 +189,11 @@ export function createAnnotationController({
       },
       text
     )
+    if (text) {
+      const halfWidth = (record.rect[2] - record.rect[0]) / 2
+      const halfHeight = (record.rect[3] - record.rect[1]) / 2
+      record.rect = [x - halfWidth, y - halfHeight, x + halfWidth, y + halfHeight]
+    }
     select(null)
     selected = record.key
     model.change(undefined, record, true)
@@ -517,18 +545,19 @@ export function createAnnotationController({
         model.change(record, { ...record, color })
       }
     },
-    async addText(text: string): Promise<void> {
+    async addText(text: string, point?: AnnotationInsertionPoint): Promise<void> {
       if (!canEdit()) throw new Error('This PDF is not ready for editing.')
       if (!text.trim()) return
-      const pageIndex = viewer.currentPageNumber - 1
+      const { pageIndex, left, top } = insertionPoint(point)
       const pending = imports.get(pageIndex)
       if (pending) await pending
       if (!canEdit()) return
-      const viewport = viewer.getPageView(pageIndex).viewport
-      createText(pageIndex, viewport.width / 4, viewport.height / 4, text.replace(/\r\n?/g, '\n'))
+      createText(pageIndex, left, top, text.replace(/\r\n?/g, '\n'))
     },
-    async addImage(file: File): Promise<void> {
+    async addImage(file: File, point?: AnnotationInsertionPoint): Promise<void> {
       if (!canEdit()) throw new Error('This PDF is not ready for editing.')
+      const position = insertionPoint(point)
+      const { pageIndex } = position
       await validateImage(file)
       const bitmap = await createImageBitmap(file)
       if (!canEdit()) {
@@ -540,7 +569,6 @@ export function createAnnotationController({
       canvas.height = bitmap.height
       canvas.getContext('2d')!.drawImage(bitmap, 0, 0)
       bitmap.close()
-      const pageIndex = viewer.currentPageNumber - 1
       const pending = imports.get(pageIndex)
       if (pending) await pending
       if (!canEdit()) {
@@ -556,8 +584,8 @@ export function createAnnotationController({
       )
       const width = canvas.width * fit
       const height = canvas.height * fit
-      const left = (viewport.width - width * viewport.scale) / 2
-      const top = (viewport.height - height * viewport.scale) / 2
+      const left = position.left - (width * viewport.scale) / 2
+      const top = position.top - (height * viewport.scale) / 2
       const record: Annotation = {
         key: crypto.randomUUID(),
         kind: 'image',

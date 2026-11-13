@@ -1,5 +1,5 @@
 import type { PdfSource } from '../../../../shared/contracts'
-import type { AnnotationOptions } from './annotations/types'
+import type { AnnotationInsertionPoint, AnnotationOptions } from './annotations/types'
 import type { TextEditorSettings } from './annotations/text/types'
 import type { ChatAttachment, DocumentSource } from '../../../../shared/ai'
 import type { IndexedPdf } from './chatDocument'
@@ -49,8 +49,8 @@ export type PdfDocumentHandle = {
   navigateHorizontally(direction: -1 | 1): void
   scrollVertically(direction: -1 | 1): void
   setHighlightColor(color: string): void
-  addImage(file: File): Promise<void>
-  addText(text: string): Promise<void>
+  addImage(file: File, point?: AnnotationInsertionPoint): Promise<void>
+  addText(text: string, point?: AnnotationInsertionPoint): Promise<void>
   undo(): void
   redo(): void
 }

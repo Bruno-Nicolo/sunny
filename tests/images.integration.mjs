@@ -52,6 +52,25 @@ async function waitFor(code) {
 }
 const count = (n) => `document.querySelectorAll('.visible .stampEditor canvas').length === ${n}`
 const imageSetup = `const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 40; const ctx = canvas.getContext('2d'); ctx.fillStyle = 'red'; ctx.fillRect(0,0,80,40); const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png')); const file = new File([blob], 'test.png', {type:'image/png'}); const transfer = new DataTransfer(); transfer.items.add(file);`
+async function movePastePointer(x, y) {
+  return evaluate(`(() => {
+    const page = document.querySelector('.visible .page');
+    const rect = page.getBoundingClientRect();
+    const point = {clientX: rect.left + rect.width * ${x}, clientY: rect.top + rect.height * ${y}};
+    page.dispatchEvent(new PointerEvent('pointermove', {bubbles:true, ...point}));
+    return point;
+  })()`)
+}
+async function assertCenteredAtPointer(selector, point) {
+  const rect = await evaluate(`(() => {
+    const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+    return {x:rect.left + rect.width / 2, y:rect.top + rect.height / 2};
+  })()`)
+  assert.ok(
+    Math.hypot(rect.x - point.clientX, rect.y - point.clientY) < 2,
+    `${selector} must be centered at the pointer: ${JSON.stringify({ rect, point })}`
+  )
+}
 app
   .whenReady()
   .then(async () => {
@@ -169,12 +188,15 @@ app
       oldWidth
     )
     console.log('PASS: inserted image can be moved and resized')
+    const imagePointer = await movePastePointer(0.2, 0.35)
     await evaluate(
       `(async () => { ${imageSetup} document.querySelector('.visible .pdf-viewer-container').dispatchEvent(new ClipboardEvent('paste', {clipboardData:transfer,bubbles:true,cancelable:true})); })()`
     )
     await waitFor(count(2))
+    await assertCenteredAtPointer('.visible .stampEditor:last-of-type', imagePointer)
     assert.equal(await evaluate(`document.querySelectorAll('.invisible .stampEditor').length`), 0)
     console.log('PASS: clipboard image goes only to active tab')
+    const textPointer = await movePastePointer(0.64, 0.68)
     await evaluate(`(() => {
       const transfer = new DataTransfer();
       transfer.setData('text/plain', 'Pasted text\\r\\nSecond line');
@@ -187,6 +209,7 @@ app
       `document.querySelector('.visible .freeTextEditor .internal')?.innerText === 'Pasted text\\nSecond line'`
     )
     assert.equal(await evaluate(`document.querySelectorAll('.freeTextEditor').length`), 1)
+    await assertCenteredAtPointer('.visible .freeTextEditor', textPointer)
     assert.equal(
       await evaluate(`document.querySelector('.visible .freeTextEditor .internal b')`),
       null

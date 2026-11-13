@@ -1,6 +1,6 @@
-import { useCallback, useEffect, type DragEvent } from 'react'
+import { useCallback, useEffect, useRef, type DragEvent } from 'react'
 import type { PdfDocumentHandle } from '../types'
-import type { AnnotationTool } from './types'
+import type { AnnotationInsertionPoint, AnnotationTool } from './types'
 
 type Options = {
   enabled: boolean
@@ -19,14 +19,15 @@ export function useAnnotationInsertion({
   addImages(files: File[]): Promise<void>
   onImageDrop(event: DragEvent<HTMLElement>): void
 } {
+  const pointer = useRef<AnnotationInsertionPoint | undefined>(undefined)
   const insert = useCallback(
-    async (content: File[] | string): Promise<void> => {
+    async (content: File[] | string, point?: AnnotationInsertionPoint): Promise<void> => {
       const viewer = getActiveViewer()
       if (!enabled || !viewer) return
       onToolChange('none')
       try {
-        if (typeof content === 'string') await viewer.addText(content)
-        else for (const file of content) await viewer.addImage(file)
+        if (typeof content === 'string') await viewer.addText(content, point)
+        else for (const file of content) await viewer.addImage(file, point)
       } catch (error) {
         onError(error instanceof Error ? error.message : 'The annotation could not be added.')
       }
@@ -35,6 +36,9 @@ export function useAnnotationInsertion({
   )
 
   useEffect(() => {
+    const onPointer = (event: PointerEvent): void => {
+      pointer.current = { clientX: event.clientX, clientY: event.clientY }
+    }
     const onPaste = (event: ClipboardEvent): void => {
       const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
         file.type.startsWith('image/')
@@ -51,10 +55,14 @@ export function useAnnotationInsertion({
       )
         return
       event.preventDefault()
-      void insert(files.length ? files : text)
+      void insert(files.length ? files : text, pointer.current)
     }
+    window.addEventListener('pointermove', onPointer, true)
     window.addEventListener('paste', onPaste, true)
-    return () => window.removeEventListener('paste', onPaste, true)
+    return () => {
+      window.removeEventListener('pointermove', onPointer, true)
+      window.removeEventListener('paste', onPaste, true)
+    }
   }, [insert])
 
   const onImageDrop = (event: DragEvent<HTMLElement>): void => {
