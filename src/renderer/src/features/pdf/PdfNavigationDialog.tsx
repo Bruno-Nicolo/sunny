@@ -27,6 +27,7 @@ import type { PageAnnotations } from './annotations/pageAnnotations'
 import type { ThumbnailQueue } from './PageThumbnail'
 import { PdfPageGrid } from './PdfPageGrid'
 import { OutlineItems, type Outline } from './PdfOutline'
+import { OutlineEmptyState } from './OutlineEmptyState'
 import { retainedPage } from './pageOperations'
 import { createPageDraft, pageDraftReducer } from './pageDraft'
 import { PdfNavigationHeader } from './PdfNavigationHeader'
@@ -306,7 +307,7 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
               ) : outline === null ? (
                 <p role="status">Loading outline…</p>
               ) : !outline.length ? (
-                <p role="status">This PDF has no outline.</p>
+                <OutlineEmptyState />
               ) : (
                 <OutlineItems
                   document={document}
