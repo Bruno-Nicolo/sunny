@@ -55,7 +55,7 @@ export function paintAnnotations(
         context.drawImage(record.image.canvas, 0, 0, width, height)
       } else if (record.kind === 'text') {
         const size = record.fontSize! * viewport.scale
-        const lines = (record.text ?? '').split('\n')
+        const lines = record.textLines!
         const lineHeight = size * 1.35
         context.font = `${size}px Helvetica, Arial, sans-serif`
         context.fillStyle = record.color
@@ -63,7 +63,7 @@ export function paintAnnotations(
         const metrics = context.measureText('Mg')
         const baseline =
           (lineHeight + metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2
-        const start = (height - lines.length * lineHeight) / 2
+        const start = 2 * viewport.scale
         lines.forEach((line, index) =>
           context.fillText(line, 2 * viewport.scale, start + baseline + index * lineHeight)
         )

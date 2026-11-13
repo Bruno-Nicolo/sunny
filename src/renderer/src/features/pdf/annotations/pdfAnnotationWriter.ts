@@ -30,7 +30,9 @@ function serialize(record: Annotation): Record<string, unknown> {
         ...data,
         annotationType: AnnotationEditorType.FREETEXT,
         fontSize: record.fontSize,
-        value: record.text
+        value: record.text,
+        textLines: record.textLines,
+        textResized: !!record.textResized
       }
     case 'highlight': {
       if (record.strokes) {

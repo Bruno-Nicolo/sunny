@@ -152,7 +152,7 @@ async function typeText(value) {
     layer.dispatchEvent(new PointerEvent('pointerdown', options)); layer.dispatchEvent(new PointerEvent('pointerup', options));
   })()`)
   await waitFor(
-    `document.querySelector('.visible .freeTextEditor .internal[contenteditable="true"]') !== null`
+    `document.querySelector('.visible .freeTextEditor .internal')?.isContentEditable === true`
   )
   await evaluate(`(() => {
     const input = document.querySelector('.visible .freeTextEditor .internal');

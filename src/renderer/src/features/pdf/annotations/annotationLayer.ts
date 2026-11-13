@@ -2,6 +2,7 @@ import type { PDFPageView } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import type { Annotation, AnnotationModel, PdfRect } from './model'
 import type { AnnotationTool } from './types'
 import { annotationOrientation, normalizedRect } from './geometry'
+import { layoutText } from './text/textLayout'
 import { drawHighlight } from './highlight/freehand'
 import { highlightPath as viewportHighlightPath } from './highlight/geometry'
 
@@ -101,7 +102,7 @@ export class AnnotationLayer {
     this.editingKey = key
     this.render(this.tool)
     const input = this.editors.get(key)?.querySelector<HTMLElement>('.internal')
-    if (input) input.contentEditable = 'true'
+    if (input) this.setEditing(input, true)
     input?.focus({ preventScroll: true })
   }
 
@@ -109,8 +110,13 @@ export class AnnotationLayer {
     this.editingKey = null
     for (const editor of this.editors.values()) {
       const input = editor.querySelector<HTMLElement>('.internal')
-      if (input) input.contentEditable = 'false'
+      if (input) this.setEditing(input, false)
     }
+  }
+
+  private setEditing(input: HTMLElement, editing: boolean): void {
+    input.contentEditable = editing ? 'plaintext-only' : 'false'
+    input.parentElement!.querySelector<HTMLElement>('.resizers')!.hidden = editing
   }
 
   render(tool: AnnotationTool): void {
@@ -198,7 +204,7 @@ export class AnnotationLayer {
           input.innerText = record.text ?? ''
         input.style.fontSize = `${record.fontSize! * page.viewport.scale}px`
         input.style.color = record.color
-        input.contentEditable = String(this.editingKey === record.key && canEdit())
+        this.setEditing(input, this.editingKey === record.key && canEdit())
         this.orient(input, record)
       }
       if (highlightPath) {
@@ -328,6 +334,14 @@ export class AnnotationLayer {
       )
     } else if (record.kind === 'image') {
       editor.append(document.createElement('canvas'))
+    } else {
+      const contour = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      contour.classList.add('lepisHighlightContour')
+      contour.setAttribute('aria-hidden', 'true')
+      contour.append(document.createElementNS('http://www.w3.org/2000/svg', 'path'))
+      editor.append(contour)
+    }
+    if (record.kind !== 'highlight') {
       const resizers = document.createElement('div')
       resizers.className = 'resizers'
       for (const name of [
@@ -357,12 +371,6 @@ export class AnnotationLayer {
         resizers.append(handle)
       }
       editor.append(resizers)
-    } else {
-      const contour = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-      contour.classList.add('lepisHighlightContour')
-      contour.setAttribute('aria-hidden', 'true')
-      contour.append(document.createElementNS('http://www.w3.org/2000/svg', 'path'))
-      editor.append(contour)
     }
     editor.addEventListener(
       'focusin',
@@ -396,6 +404,7 @@ export class AnnotationLayer {
     const combined = AbortSignal.any([signal, this.lifetime.signal, drag.signal])
     const start = this.point(event.clientX, event.clientY)
     const screen = [event.screenX, event.screenY]
+    const originalBounds = this.bounds(original.rect)
     let after = original
     window.addEventListener(
       'pointermove',
@@ -415,14 +424,14 @@ export class AnnotationLayer {
           rect[1] += dy
           rect[3] += dy
         } else {
-          const bounds = this.bounds(original.rect)
+          const bounds = originalBounds.slice()
           const vx = move.clientX - event.clientX || move.screenX - screen[0]
           const vy = move.clientY - event.clientY || move.screenY - screen[1]
           const left = resize.includes('Left')
           const right = resize.includes('Right')
           const top = resize.startsWith('top')
           const bottom = resize.startsWith('bottom')
-          if ((left || right) && (top || bottom)) {
+          if (original.kind === 'image' && (left || right) && (top || bottom)) {
             const width = bounds[2] - bounds[0]
             const height = bounds[3] - bounds[1]
             const directionX = left ? -1 : 1
@@ -452,7 +461,12 @@ export class AnnotationLayer {
           rect.splice(0, 4, ...resized)
         }
         if (rect.every((value, index) => value === after.rect[index])) return
-        after = { ...original, rect }
+        const next =
+          resize && original.kind === 'text'
+            ? layoutText({ ...original, rect, textResized: true }, original.text ?? '')
+            : { ...original, rect }
+        if (next.rect.every((value, index) => value === after.rect[index])) return
+        after = next
         model.change(model.records.get(key), after, true)
       },
       { signal: combined }

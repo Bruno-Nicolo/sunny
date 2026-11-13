@@ -8,7 +8,8 @@ import { AnnotationLayer } from './annotationLayer'
 import { AnnotationModel, type Annotation } from './model'
 import { writeAnnotations } from './pdfAnnotationWriter'
 import { readPageAnnotations } from './pdfAnnotationReader'
-import { textRect, normalizedRect } from './geometry'
+import { normalizedRect } from './geometry'
+import { layoutText } from './text/textLayout'
 import { validateImage } from './images/imageFiles'
 import type { TextEditorSettings } from './text/types'
 import type { AnnotationOptions } from './types'
@@ -67,7 +68,6 @@ export function createAnnotationController({
   let pointerSelection = false
   let selectionFrame: number | null = null
   const defaults = { color: '#000000', size: 8 }
-  let textContext: CanvasRenderingContext2D | null = null
   const pages = new Map<number, AnnotationLayer>()
   const imports = new Map<number, Promise<void>>()
   const canEdit = (): boolean => ready && permitted && options.active && !signal.aborted
@@ -141,15 +141,6 @@ export function createAnnotationController({
       if (record) pages.get(record.pageIndex)?.edit(key)
     }
     refreshText()
-  }
-
-  function layoutText(record: Annotation, text: string): Annotation {
-    const context = (textContext ??= window.document.createElement('canvas').getContext('2d')!)
-    context.font = `${record.fontSize}px Helvetica, Arial, sans-serif`
-    const lines = text.split('\n')
-    const width = Math.max(16, ...lines.map((line) => context.measureText(line).width)) + 4
-    const height = Math.max(1, lines.length) * record.fontSize! * 1.35 + 4
-    return { ...record, text, rect: textRect(record, width, height) }
   }
 
   function updateText(record: Annotation, text: string): void {

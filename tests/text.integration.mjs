@@ -1,6 +1,8 @@
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { blankPdf } from './fixtures/pdf.mjs'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs'
+GlobalWorkerOptions.workerSrc = import.meta.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')
 const { app, BrowserWindow, ipcMain } = electron
 import fs from 'node:fs'
 import path from 'node:path'
@@ -77,6 +79,28 @@ async function save() {
   await waitFor(() => saveCount > previous)
   await waitFor(`document.querySelector('.document-tab-active > .bg-foreground') === null`)
 }
+async function savedText() {
+  const task = getDocument({
+    data: new Uint8Array(saved.get('second.pdf')),
+    standardFontDataUrl: path.join(root, 'node_modules/pdfjs-dist/standard_fonts/')
+  })
+  try {
+    const document = await task.promise
+    const [annotation] = await (await document.getPage(1)).getAnnotations()
+    return annotation.contentsObj.str
+  } finally {
+    await task.destroy()
+  }
+}
+async function textBox() {
+  return evaluate(`(() => {
+    const input = document.querySelector('.visible .freeTextEditor .internal');
+    return {
+      width:input.style.width, fontSize:input.style.fontSize, text:input.innerText,
+      fits:input.scrollWidth <= input.clientWidth + 1 && input.scrollHeight <= input.clientHeight + 1
+    };
+  })()`)
+}
 async function addText() {
   await waitFor(
     `document.querySelector('.visible .annotationEditorLayer.freetextEditing') !== null`
@@ -89,7 +113,7 @@ async function addText() {
     layer.dispatchEvent(new PointerEvent('pointerup', options));
   })()`)
   await waitFor(
-    `document.querySelector('.visible .freeTextEditor .internal[contenteditable="true"]') !== null`
+    `document.querySelector('.visible .freeTextEditor .internal')?.isContentEditable === true`
   )
 }
 app
@@ -172,6 +196,9 @@ app
     await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Text size"]') === null`)
     console.log('PASS: formatting opens from the toolbar and preserves the empty text box')
+    const emptyWidth = await evaluate(
+      `document.querySelector('.visible .freeTextEditor .internal').offsetWidth`
+    )
     await new Promise((resolve) => setTimeout(resolve, 100))
     await evaluate(`(() => {
       const text = document.querySelector('.visible .freeTextEditor .internal');
@@ -182,6 +209,11 @@ app
     assert.equal(
       await evaluate(`document.querySelectorAll('.invisible .freeTextEditor').length`),
       0
+    )
+    assert.ok(
+      (await evaluate(`document.querySelector('.visible .freeTextEditor .internal').offsetWidth`)) >
+        emptyWidth,
+      'An unresized text box must grow with its text'
     )
     const offset = await evaluate(`(() => {
       const layer = document.querySelector('.visible .annotationEditorLayer').getBoundingClientRect();
@@ -203,8 +235,9 @@ app
     assert.equal(saved.has('first.pdf'), false)
     const output = saved.get('second.pdf').toString('latin1')
     assert.match(output, /\/Subtype\s*\/FreeText/)
-    assert.match(output, /Testo aggiunto/)
-    assert.match(output, /Seconda riga/)
+    const contents = await savedText()
+    assert.match(contents, /Testo aggiunto/)
+    assert.match(contents, /Seconda riga/)
     assert.match(output, /\/Helv 24 Tf/)
     assert.match(output, /1 0 0 rg/)
     console.log(
@@ -312,9 +345,7 @@ app
     await evaluate(
       `document.querySelector('.visible .freeTextEditor').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))`
     )
-    await waitFor(
-      `document.querySelector('.visible .freeTextEditor .internal').contentEditable === 'true'`
-    )
+    await waitFor(`document.querySelector('.visible .freeTextEditor .internal').isContentEditable`)
     await evaluate(`(() => {
       const text = document.querySelector('.visible .freeTextEditor .internal');
       text.innerText = 'Testo modificato';
@@ -350,7 +381,7 @@ app
     }
     console.log('PASS: repeated changes update visible checkmarks while typing')
     await save()
-    assert.match(saved.get('second.pdf').toString('latin1'), /Testo modificato/)
+    assert.match(await savedText(), /Testo modificato/)
     if (
       await evaluate(
         `document.querySelector('[data-slot="popover-content"][data-state="open"] [aria-label="Text color"]') !== null`
@@ -492,7 +523,7 @@ app
     )
     await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`)
     await save()
-    assert.match(saved.get('second.pdf').toString('latin1'), /Testo da tastiera/)
+    assert.match(await savedText(), /Testo da tastiera/)
     console.log('PASS: real keyboard input after switching tabs is saved')
     await evaluate(`(() => {
       window.zoomTextInput = document.querySelector('.visible .freeTextEditor .internal');
@@ -549,6 +580,75 @@ app
       `document.querySelector('.visible .freeTextEditor').style.left === ${JSON.stringify(previousLeft)}`
     )
     console.log('PASS: moving saved text marks it dirty and can be saved')
+
+    await evaluate(`(() => {
+      const input = document.querySelector('.visible .freeTextEditor .internal');
+      input.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+      input.parentElement.focus();
+    })()`)
+    const beforeResize = await textBox()
+    const handle = await evaluate(`(() => {
+      const handle = document.querySelector('.visible .freeTextEditor .middleRight');
+      const rect = handle.getBoundingClientRect();
+      const x = Math.round(rect.left + rect.width / 2), y = Math.round(rect.top + rect.height / 2);
+      if (document.elementFromPoint(x, y) !== handle) throw new Error('Resize handle is covered');
+      return {x, y};
+    })()`)
+    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...handle, clickCount: 1 })
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: handle.x - 80, y: handle.y })
+    win.webContents.sendInputEvent({
+      type: 'mouseUp',
+      button: 'left',
+      x: handle.x - 80,
+      y: handle.y,
+      clickCount: 1
+    })
+    await waitFor(
+      `document.querySelector('.visible .freeTextEditor .internal').style.width !== ${JSON.stringify(beforeResize.width)}`
+    )
+    const resized = await textBox()
+    assert.deepEqual(
+      { ...resized, width: beforeResize.width },
+      beforeResize,
+      'Resizing must preserve text and font size without overflowing'
+    )
+    assert.ok(resized.fits)
+    await evaluate(`window.testCommands.run('undo')`)
+    await waitFor(
+      `document.querySelector('.visible .freeTextEditor .internal').style.width === ${JSON.stringify(beforeResize.width)}`
+    )
+    await evaluate(`window.testCommands.run('redo')`)
+    await waitFor(
+      `document.querySelector('.visible .freeTextEditor .internal').style.width === ${JSON.stringify(resized.width)}`
+    )
+    await save()
+    await new Promise((resolve) => {
+      win.webContents.once('did-finish-load', resolve)
+      win.reload()
+    })
+    await waitFor(`document.querySelector('.visible .freeTextEditor .internal') !== null`)
+    const reopened = await textBox()
+    assert.equal(
+      reopened.text,
+      beforeResize.text,
+      'Reopening must preserve soft wraps separately from explicit newlines'
+    )
+    await evaluate(`(() => {
+      const input = document.querySelector('.visible .freeTextEditor .internal');
+      input.dispatchEvent(new MouseEvent('dblclick', {bubbles:true}));
+      input.innerText += ' ' + 'LongWordWithoutSpaces'.repeat(8);
+      input.dispatchEvent(new InputEvent('input', {bubbles:true}));
+    })()`)
+    const edited = await textBox()
+    assert.equal(
+      edited.width,
+      reopened.width,
+      'Typing after reopening must retain the manually chosen width'
+    )
+    assert.ok(edited.fits, 'Long words must wrap without overflowing')
+    console.log(
+      'PASS: native text resizing wraps without scaling, supports undo/redo and preserves editable text after reopening'
+    )
   })
   .then(() => finish(0))
   .catch((error) => {

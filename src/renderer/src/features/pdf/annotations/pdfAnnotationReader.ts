@@ -1,6 +1,7 @@
 import { AnnotationType, OPS, type PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { hexColor } from './pdfAnnotationWriter'
 import type { Annotation, PdfRect } from './model'
+import { layoutText } from './text/textLayout'
 
 async function stampImages(
   page: PDFPageProxy,
@@ -84,13 +85,17 @@ export async function readPageAnnotations(page: PDFPageProxy): Promise<Annotatio
       data.annotationType === AnnotationType.FREETEXT &&
       data.textContent?.join('\n').trim()
     ) {
-      record = {
-        ...common,
-        kind: 'text',
-        color: hexColor(data.defaultAppearanceData?.fontColor, '#000000'),
-        fontSize: data.defaultAppearanceData?.fontSize || 16,
-        text: data.textContent.join('\n')
-      }
+      record = layoutText(
+        {
+          ...common,
+          kind: 'text',
+          textResized: data.textResized,
+          color: hexColor(data.defaultAppearanceData?.fontColor, '#000000'),
+          fontSize: data.defaultAppearanceData?.fontSize || 16
+        },
+        data.contentsObj?.str || data.textContent.join('\n')
+      )
+      record.rect = common.rect
     } else if (data.annotationType === AnnotationType.STAMP && images.has(data.id)) {
       record = {
         ...common,

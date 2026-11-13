@@ -16,6 +16,10 @@ Changing tools never changes PDF.js's rendering mode or reloads a page.
   disposes editor DOM and listeners; an evicted or cancelled page draw cannot recreate the overlay; document disposal also releases image assets and history.
 - `geometry.ts` uses PDF coordinates and saved annotation orientation. Viewport conversion handles
   zoom, intrinsic page rotation and user rotation. Resize handles act on visual edges.
+  Text blocks fit their content until manually resized. After resizing, they wrap at their current
+  width without changing font size; their height grows to fit. The PDF stores the resize state in
+  `SunnyTextResized` so this policy survives reopening. Editing hides the outline and resize handles.
+  `text/textLayout.ts` computes visual lines separately from the editable text for PDF output and thumbnails.
 - `pdfAnnotationReader.ts` imports editable text highlights, freehand Ink strokes, FreeText and image Stamps. Original object
   references and popup references stay attached to the imported records. Other annotation types and
   locked annotations remain on PDF.js's original rendering path and are preserved in the PDF.
@@ -36,7 +40,9 @@ while the PDF is being written. Pending text remains editable and retains its ca
 and includes those IDs in the existing display-render exclusion/cache path, separately for each page.
 Importing another page does not invalidate already prepared rendering data. The native HTML layer
 also skips those IDs rather than creating duplicate hidden elements. Exclusions are not PDF
-edits and do not apply to printing. Links, form widgets and annotations outside the app's imported
+edits and do not apply to printing. The FreeText writer accepts visual `textLines` for its
+appearance while preserving the original text in Contents, so reopening a block retains soft wraps.
+Links, form widgets and annotations outside the app's imported
 set keep their normal rendering behavior.
 
 The patch also contains a native Line/ClosedArrow writer used by the round-trip proof. Shape tools

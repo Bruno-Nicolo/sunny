@@ -40,14 +40,11 @@
   .lepisAnnotationLayer
   > :is(.freeTextEditor, .stampEditor):is(:hover, .selectedEditor) {
   border: 0;
-  outline: none;
+  outline: 1px solid var(--annotation-border-color);
+  outline-offset: 2px;
 
   &::before {
     content: none;
-  }
-  &:not(:has(> .internal[contenteditable='true'])) {
-    outline: 1px solid var(--annotation-border-color);
-    outline-offset: 2px;
   }
 }
 .pdf-viewer-container .lepisAnnotationLayer > .highlightEditor {
@@ -74,13 +71,14 @@
   font-family: Helvetica, Arial, sans-serif;
   line-height: 1.35;
   text-align: left;
-  align-content: center;
-  white-space: pre;
+  align-content: start;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   outline: none;
   transform-origin: center;
   user-select: text;
 }
-.pdf-viewer-container .lepisAnnotationLayer .internal[contenteditable='true'] {
+.pdf-viewer-container .lepisAnnotationLayer .internal:read-write {
   cursor: text;
 }
 .pdf-viewer-container .lepisAnnotationLayer .lepisHighlightDrawing {
@@ -110,12 +108,10 @@
 }
 .pdf-viewer-container .lepisAnnotationLayer .resizers {
   display: none;
+  pointer-events: none;
 }
-.pdf-viewer-container .lepisAnnotationLayer .selectedEditor .resizers {
+.pdf-viewer-container .lepisAnnotationLayer .selectedEditor .resizers:not([hidden]) {
   display: block;
-}
-.pdf-viewer-container .lepisAnnotationLayer .resizer {
-  z-index: 1;
 }
 .lepisAnnotationLayer .resizer:is(.topLeft, .bottomRight) {
   cursor: nwse-resize;
@@ -123,7 +119,13 @@
 .lepisAnnotationLayer .resizer:is(.topRight, .bottomLeft) {
   cursor: nesw-resize;
 }
-.pdf-viewer-container .lepisAnnotationLayer .stampEditor .resizer {
+.pdf-viewer-container .lepisAnnotationLayer .freeTextEditor:has(> .internal:read-write) {
+  outline: none;
+}
+.pdf-viewer-container .lepisAnnotationLayer .resizer {
+  z-index: 1;
+  pointer-events: auto;
+
   &:is(.topMiddle, .bottomMiddle, .middleLeft, .middleRight) {
     background: transparent;
     border: 0;

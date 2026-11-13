@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  pdfjs-dist@6.3.289: b3109aeed111a687d9e934f1a730ebfd28c0222956e5e1fe5355a28ec0a7d285
+  pdfjs-dist@6.3.289: e99ec48c01c2df89c5d3ee4b602017ff56de130fbf9c8393c8cd60a6f9acb58a
 
 importers:
 
@@ -61,7 +61,7 @@ importers:
         version: 7.34.0(undici@6.28.1)(ws@8.22.0)(zod@4.5.4)
       pdfjs-dist:
         specifier: 6.3.289
-        version: 6.3.289(patch_hash=b3109aeed111a687d9e934f1a730ebfd28c0222956e5e1fe5355a28ec0a7d285)
+        version: 6.3.289(patch_hash=e99ec48c01c2df89c5d3ee4b602017ff56de130fbf9c8393c8cd60a6f9acb58a)
       radix-ui:
         specifier: ^1.6.7
         version: 1.6.7(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -8373,7 +8373,7 @@ snapshots:
 
   path-parse@1.0.7: {}
 
-  pdfjs-dist@6.3.289(patch_hash=b3109aeed111a687d9e934f1a730ebfd28c0222956e5e1fe5355a28ec0a7d285):
+  pdfjs-dist@6.3.289(patch_hash=e99ec48c01c2df89c5d3ee4b602017ff56de130fbf9c8393c8cd60a6f9acb58a):
     optionalDependencies:
       '@napi-rs/canvas': 1.0.8
 

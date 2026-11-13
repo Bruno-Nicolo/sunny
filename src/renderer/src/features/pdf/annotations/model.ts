@@ -15,6 +15,8 @@ export type Annotation = {
   thickness?: number
   opacity?: number
   text?: string
+  textLines?: string[]
+  textResized?: boolean
   fontSize?: number
   image?: ImageAsset
 }

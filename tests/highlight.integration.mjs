@@ -315,7 +315,7 @@ app
     win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...point, clickCount: 1 })
     win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', ...point, clickCount: 1 })
     await waitFor(
-      `document.querySelector('.visible .freeTextEditor .internal[contenteditable="true"]') !== null`
+      `document.querySelector('.visible .freeTextEditor .internal')?.isContentEditable === true`
     )
     await evaluate(`(() => {
       const text = document.querySelector('.visible .freeTextEditor .internal');

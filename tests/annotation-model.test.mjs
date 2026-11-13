@@ -77,6 +77,7 @@ test('app-owned text saves incrementally, reopens and updates the original PDF o
   const reopened = await open(t, bytes)
   const [text] = await (await reopened.getPage(1)).getAnnotations()
   assert.equal(text.subtype, 'FreeText')
+  assert.equal(text.textResized, false)
   assert.equal(text.contentsObj.str, textRecord.text)
   const edited = new AnnotationModel(() => {})
   const original = { ...textRecord, key: text.id, originalId: text.id }
@@ -88,6 +89,24 @@ test('app-owned text saves incrementally, reopens and updates the original PDF o
   assert.equal(result.contentsObj.str, 'Edited')
   assert.equal(result.defaultAppearanceData.fontSize, 24)
   assert.deepEqual([...result.defaultAppearanceData.fontColor], [255, 0, 0])
+})
+
+test('soft wraps save as separate appearance lines without changing text or font size', async (t) => {
+  const document = await open(t, blankPdf)
+  const model = new AnnotationModel(() => {})
+  model.change(undefined, {
+    ...textRecord,
+    text: 'First word second word',
+    textLines: ['First word', 'second word'],
+    textResized: true,
+    rect: [50, 600, 150, 650]
+  })
+  const reopened = await open(t, await writeAnnotations(document, model))
+  const [text] = await (await reopened.getPage(1)).getAnnotations()
+  assert.equal(text.contentsObj.str, 'First word second word')
+  assert.equal(text.textResized, true)
+  assert.deepEqual(text.textContent, ['First word', 'second word'])
+  assert.equal(text.defaultAppearanceData.fontSize, 16)
 })
 
 test('display exclusion preserves original annotations in PDF output and print rendering', async (t) => {

@@ -83,7 +83,7 @@ index 993f35056cbb76d09d83c25dccd96fe1916ee372..a47ab8e170f9d4023521508b07ab1079
        }
        const isPopupAnnotation = data.annotationType === AnnotationType.POPUP;
 diff --git a/legacy/build/pdf.worker.mjs b/legacy/build/pdf.worker.mjs
-index c4b622a51f092f4765ffd9dbf2989c2662944f30..7af1bb4a3f6d9f3f67526750e56d315555a896ab 100644
+index c4b622a51f092f4765ffd9dbf2989c2662944f30..3062c3f6f6e91510021716998ac0ad2f106bec0e 100644
 --- a/legacy/build/pdf.worker.mjs
 +++ b/legacy/build/pdf.worker.mjs
 @@ -8653,16 +8653,82 @@ class NullStream extends Stream {
@@ -246,7 +246,32 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..7af1bb4a3f6d9f3f67526750e56d3155
          case AnnotationEditorType.FREETEXT:
            if (!baseFontRef) {
              const baseFont = new Dict(xref);
-@@ -62178,6 +62254,46 @@ class LineAnnotation extends MarkupAnnotation {
+@@ -61949,6 +62025,7 @@ class PopupAnnotation extends Annotation {
+ class FreeTextAnnotation extends MarkupAnnotation {
+   constructor(params) {
+     super(params);
++    this.data.textResized = params.dict.get("SunnyTextResized") !== false;
+     this.data.hasOwnCanvas = this.data.noRotate;
+     this.data.isEditable = !this.data.noHTML;
+     this.data.noHTML = false;
+@@ -62016,6 +62093,7 @@ class FreeTextAnnotation extends MarkupAnnotation {
+     }
+     freetext.setIfArray("Rect", rect);
+     const da = `/Helv ${fontSize} Tf ${getPdfColor(color, true)}`;
++    freetext.set("SunnyTextResized", !!annotation.textResized);
+     freetext.set("DA", da);
+     freetext.setIfDefined("Contents", stringToAsciiOrUTF16BE(value));
+     freetext.setIfNotExists("F", 4);
+@@ -62068,7 +62146,7 @@ class FreeTextAnnotation extends MarkupAnnotation {
+     if (rotation % 180 !== 0) {
+       [w, h] = [h, w];
+     }
+-    const lines = value.split("\n");
++    const lines = annotation.textLines ?? value.split("\n");
+     const scale = fontSize / 1000;
+     let totalWidth = -Infinity;
+     const encodedLines = [];
+@@ -62178,6 +62256,46 @@ class LineAnnotation extends MarkupAnnotation {
      }
    }
  }
@@ -293,7 +318,7 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..7af1bb4a3f6d9f3f67526750e56d3155
  class SquareAnnotation extends MarkupAnnotation {
    constructor(params) {
      super(params);
-@@ -66668,6 +66784,14 @@ class PDFDocument {
+@@ -66668,6 +66786,14 @@ class PDFDocument {
      this.#pagePromises.set(pageIndex, promise);
      return promise;
    }
@@ -308,7 +333,7 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..7af1bb4a3f6d9f3f67526750e56d3155
    async checkFirstPage(recoveryMode = false) {
      if (recoveryMode) {
        return;
-@@ -66959,7 +67083,7 @@ class PDFDocument {
+@@ -66959,7 +67085,7 @@ class PDFDocument {
    }
    get signatures() {
      const promise = this.pdfManager.ensureDoc("formInfo").then(async formInfo => {
@@ -317,7 +342,7 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..7af1bb4a3f6d9f3f67526750e56d3155
          return null;
        }
        const annotationGlobals = await this.annotationGlobals;
-@@ -70963,7 +71087,7 @@ class WorkerMessageHandler {
+@@ -70963,7 +71089,7 @@ class WorkerMessageHandler {
          pdfManager = newPdfManager;
          pdfManager.requestLoadedStream(true).then(stream => {
            handler.send("DataLoaded", {
@@ -326,7 +351,7 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..7af1bb4a3f6d9f3f67526750e56d3155
            });
          }, () => {});
        }).then(pdfManagerReady, onFailure);
-@@ -71423,6 +71547,9 @@ class WorkerMessageHandler {
+@@ -71423,6 +71549,9 @@ class WorkerMessageHandler {
      }) {
        return pdfManager.fontFallback(id, handler);
      });
