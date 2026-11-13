@@ -87,7 +87,7 @@ export function PdfNavigationHeader({
               disabled={busy}
               onClick={onToggleSelection}
             >
-              Done selecting
+              Done
             </Button>
           </div>
         ) : (

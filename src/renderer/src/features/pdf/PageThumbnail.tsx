@@ -200,20 +200,7 @@ export const PageThumbnail = memo(function PageThumbnail({
           </span>
         )}
       </div>
-      <span className="flex items-center gap-2">
-        {selecting && (
-          <span
-            aria-hidden="true"
-            className={cn(
-              'grid size-4 place-items-center rounded border',
-              selected && 'border-primary bg-primary text-primary-foreground'
-            )}
-          >
-            {selected ? '✓' : ''}
-          </span>
-        )}
-        {position + 1}
-      </span>
+      <span>{position + 1}</span>
     </button>
   )
 })
