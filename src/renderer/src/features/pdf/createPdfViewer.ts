@@ -271,7 +271,10 @@ export function createPdfViewer({
   )
   eventBus.on(
     'rotationchanging',
-    ({ pagesRotation }: { pagesRotation: number }) => emitSnapshot({ rotation: pagesRotation }),
+    ({ pagesRotation, pageNumber }: { pagesRotation: number; pageNumber: number }) => {
+      viewer.scrollPageIntoView({ pageNumber })
+      emitSnapshot({ rotation: pagesRotation })
+    },
     { signal: lifetime.signal }
   )
   eventBus.on(

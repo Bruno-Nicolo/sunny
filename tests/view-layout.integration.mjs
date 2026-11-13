@@ -6,11 +6,15 @@ import os from 'node:os'
 import path from 'node:path'
 import { createPdf } from './fixtures/pdf.mjs'
 
-const blankPdf = createPdf([
-  '<< /Type /Catalog /Pages 2 0 R >>',
-  '<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>',
-  ...Array(3).fill('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>')
-])
+function createBlankPdf(pages) {
+  return createPdf([
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => `${i + 3} 0 R`).join(' ')}] /Count ${pages} >>`,
+    ...Array(pages).fill('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>')
+  ])
+}
+const blankPdf = createBlankPdf(3)
+const readingPdf = createBlankPdf(12)
 
 const { app, BrowserWindow, ipcMain } = electron
 const root = path.resolve(import.meta.dirname, '..')
@@ -21,7 +25,10 @@ ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
   directoryPath: 'test',
-  source: { kind: 'memory', data: new Uint8Array(blankPdf).buffer },
+  source: {
+    kind: 'memory',
+    data: new Uint8Array(name === 'reading.pdf' ? readingPdf : blankPdf).buffer
+  },
   mtimeMs: 1,
   size: blankPdf.length
 }))
@@ -34,7 +41,7 @@ contextBridge.exposeInMainWorld('lepis', {
   releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
-  loadSession: async () => ({ tabs: ['other.pdf','layout.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'layout.pdf', highlightColor:'#FDE047', theme:'light' }),
+  loadSession: async () => ({ tabs: ['other.pdf','layout.pdf','reading.pdf'].map(path => ({path,page:1,scale:path === 'reading.pdf' ? '1' : 'page-fit',scrollTop:0})), activePath:'layout.pdf', highlightColor:'#FDE047', theme:'light' }),
   readPdf: path => ipcRenderer.invoke('test:read',path),
   statPdf: async () => ({mtimeMs:1,size:1}), saveSession: async () => {}, closePdf: async () => {},
   openPdfDialog: async () => [], getPathForFile: () => '', confirmWindowClose: () => {},
@@ -94,10 +101,15 @@ app
       '.visible .pdf-viewer-container'
     ]) {
       await evaluate(`document.querySelector('${selector}').focus()`)
+      const initialScrollTop = await evaluate(
+        `document.querySelector('.visible .pdf-viewer-container').scrollTop`
+      )
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Down' })
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Down' })
-      await waitFor(`document.querySelector('.visible .pdf-viewer-container').scrollTop > 0`, 1500)
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      await waitFor(
+        `document.querySelector('.visible .pdf-viewer-container').scrollTop === ${initialScrollTop + 40}`,
+        1500
+      )
       assert.equal(
         await evaluate(`document.activeElement === document.querySelector('${selector}')`),
         true,
@@ -106,7 +118,7 @@ app
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Up' })
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Up' })
       await waitFor(
-        `document.querySelector('.visible .pdf-viewer-container').scrollTop === 0`,
+        `document.querySelector('.visible .pdf-viewer-container').scrollTop === ${initialScrollTop}`,
         1500
       )
     }
@@ -285,8 +297,54 @@ app
       'Leaving presentation must keep the last slide visible and restore paired pages'
     )
 
+    await evaluate(`document.querySelector('[aria-label="reading.pdf"]').click()`)
+    await waitFor(`document.querySelector('.visible .page canvas')?.width > 0`)
+    for (const mode of ['fixed', 'paired', 'fit']) {
+      if (mode === 'paired') {
+        command('toggle-two-page-view')
+        await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
+      } else if (mode === 'fit') {
+        await evaluate(`document.querySelector('button.min-w-16').click()`)
+        await waitFor(
+          `[...document.querySelectorAll('button')].some(button => button.textContent === 'Fit page')`
+        )
+        await evaluate(
+          `[...document.querySelectorAll('button')].find(button => button.textContent === 'Fit page').click()`
+        )
+        await evaluate(
+          `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`
+        )
+      }
+      await evaluate(
+        `document.querySelector('.visible .page[data-page-number="9"]').scrollIntoView({block:'start'})`
+      )
+      await waitFor(`document.querySelector('[aria-label="Current page"]').value === '9'`)
+      for (let rotation = 0; rotation < 4; rotation++) {
+        command('rotate-clockwise')
+        await waitFor(
+          `document.querySelector('.visible .page').getBoundingClientRect().width ${rotation % 2 === 0 ? '>' : '<'} document.querySelector('.visible .page').getBoundingClientRect().height`
+        )
+        await evaluate(
+          `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
+        )
+        assert.equal(
+          await evaluate(`document.querySelector('[aria-label="Current page"]').value`),
+          '9',
+          'Rotating must preserve the current page after the layout settles'
+        )
+        assert.ok(
+          await evaluate(`(() => {
+          const page = document.querySelector('.visible .page[data-page-number="9"]').getBoundingClientRect()
+          const container = document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect()
+          return page.bottom > container.top && page.top < container.bottom
+        })()`),
+          'The page being read must remain visible after rotation'
+        )
+      }
+    }
+
     console.log(
-      'PASS: view menu, scrolling, input guards, rotation, paired pages, fit scale, tab isolation, and fullscreen presentation with layout restoration'
+      'PASS: view menu, scrolling, input guards, rotation, paired pages, fit scale, reading position after rotation, tab isolation, and fullscreen presentation with layout restoration'
     )
   })
   .then(() => finish(0))
