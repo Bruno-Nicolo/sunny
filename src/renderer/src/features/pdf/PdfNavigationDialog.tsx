@@ -10,8 +10,8 @@ import {
   useState
 } from 'react'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ import { PdfPageGrid } from './PdfPageGrid'
 import { OutlineItems, type Outline } from './PdfOutline'
 import { retainedPage } from './pageOperations'
 import { createPageDraft, pageDraftReducer } from './pageDraft'
+import { PdfNavigationHeader } from './PdfNavigationHeader'
 
 export type NavigationHandle = {
   confirmLeave(): Promise<boolean>
@@ -256,9 +257,6 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
               ?.focus()
           }}
         >
-          <DialogHeader>
-            <DialogTitle>PDF navigation</DialogTitle>
-          </DialogHeader>
           <Tabs
             value={tab}
             onValueChange={(value) => {
@@ -266,63 +264,24 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
             }}
             className="min-h-0 flex-1 gap-4"
           >
-            <TabsList className="w-full shrink-0" aria-label="PDF navigation views">
-              <TabsTrigger value="pages" disabled={busy}>
-                Pages
-              </TabsTrigger>
-              <TabsTrigger value="outline" disabled={busy}>
-                Outline
-              </TabsTrigger>
-            </TabsList>
+            <PdfNavigationHeader
+              tab={tab}
+              pageCount={order.length}
+              selectedCount={selected.size}
+              selecting={selecting}
+              busy={busy}
+              canReorder={canReorder}
+              onToggleSelection={() => dispatch({ type: 'toggle-selection' })}
+              onToggleAll={() => dispatch({ type: allSelected ? 'deselect-all' : 'select-all' })}
+              onExport={() =>
+                void run(async () => {
+                  const data = await onExtractPages(order.filter((id) => selected.has(id)))
+                  await onExportPages(data)
+                })
+              }
+              onDelete={() => setConfirmation('delete')}
+            />
             <TabsContent value="pages" className="flex min-h-0 flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy || !canReorder}
-                  onClick={() => dispatch({ type: 'toggle-selection' })}
-                >
-                  {selecting ? 'Done selecting' : 'Select pages'}
-                </Button>
-                {selecting && (
-                  <>
-                    <span role="status" className="mr-auto text-sm text-muted-foreground">
-                      {selected.size} {selectedPageLabel} selected
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() =>
-                        dispatch({ type: allSelected ? 'deselect-all' : 'select-all' })
-                      }
-                    >
-                      {allSelected ? 'Deselect all' : 'Select all'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy || !selected.size}
-                      onClick={() =>
-                        void run(async () => {
-                          const data = await onExtractPages(order.filter((id) => selected.has(id)))
-                          await onExportPages(data)
-                        })
-                      }
-                    >
-                      Export
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={busy || !selected.size || allSelected}
-                      onClick={() => setConfirmation('delete')}
-                    >
-                      Delete
-                    </Button>
-                  </>
-                )}
-              </div>
               <div className="min-h-0 flex-1 overflow-y-auto" data-page-scroll>
                 <PdfPageGrid
                   document={document}
