@@ -390,9 +390,6 @@ export function ChatPanel({
   const newChat = (): void => {
     if (busy || modelChanging) return
     resetConversation()
-    attachmentImportRef.current?.abort()
-    setDraft('')
-    setAttachments([])
     setSummarize(false)
     setError('')
     composerRef.current?.focus()
