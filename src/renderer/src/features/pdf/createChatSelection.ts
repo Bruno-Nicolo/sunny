@@ -1,9 +1,10 @@
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { PDFViewer, EventBus } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
-import type { ChatAttachment, DocumentSource, PdfRect } from '../../../../shared/ai'
+import type { ChatAttachment, ChatDocument, DocumentSource, PdfRect } from '../../../../shared/ai'
 import { normalizedRect } from './annotations/geometry'
 import type { PageAnnotations } from './annotations/pageAnnotations'
-import { indexPdf, regionText, regionImage, type IndexedPdf } from './chatDocument'
+import { prepareChatDocument, regionText, regionImage } from './chatDocument'
+import type { PdfDocumentHandle } from './types'
 
 type Options = {
   viewer: PDFViewer
@@ -26,14 +27,14 @@ export function createChatSelection({
   release,
   onError
 }: Options): {
-  index(progress: (page: number, total: number) => void, signal: AbortSignal): Promise<IndexedPdf>
+  index: PdfDocumentHandle['prepareChatDocument']
   selectRegion(callback: ((attachment: ChatAttachment) => void) | null): void
   selectedText(): ChatAttachment[]
   cite(source: DocumentSource): void
   deactivate(): void
 } {
-  let indexed: IndexedPdf | null = null
-  let pendingIndex: Promise<IndexedPdf> | null = null
+  let indexed: ChatDocument | null = null
+  let pendingIndex: Promise<ChatDocument> | null = null
   let indexSignal: AbortSignal | null = null
   let regionCallback: ((attachment: ChatAttachment) => void) | null = null
   let captureAbort: AbortController | null = null
@@ -220,15 +221,16 @@ export function createChatSelection({
     deactivate() {
       selectRegion(null)
     },
-    async index(progress, requestSignal) {
-      if (indexed) return indexed
+    async index(file, progress, requestSignal) {
+      requestSignal.throwIfAborted()
+      if (indexed?.path === file.path && indexed.name === file.name) return indexed
       if (pendingIndex && indexSignal?.aborted) await pendingIndex.catch(() => {})
       if (!pendingIndex) {
         const pdf = document()
         if (!pdf) throw new Error('Wait for the PDF to finish opening.')
         const combined = AbortSignal.any([signal, requestSignal])
         indexSignal = combined
-        pendingIndex = indexPdf(pdf, combined, progress, release)
+        pendingIndex = prepareChatDocument(pdf, file, combined, progress, release)
           .then((result) => {
             indexed = result
             return result

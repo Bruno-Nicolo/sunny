@@ -1,14 +1,20 @@
 import {
   AnnotationMode,
+  version as pdfjsVersion,
   type PDFDocumentProxy,
   type PDFPageProxy
 } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { TextItem } from 'pdfjs-dist/types/src/display/api'
-import type { ChatDocument, DocumentSource, PdfRect } from '../../../../shared/ai'
+import type {
+  ChatDocument,
+  ChatDocumentIndex,
+  DocumentSource,
+  PdfRect
+} from '../../../../shared/ai'
 import type { Annotation } from './annotations/model'
 import { paintAnnotations } from './annotations/pageAnnotations'
 
-export type IndexedPdf = Omit<ChatDocument, 'path' | 'name'>
+type IndexedPdf = Pick<ChatDocumentIndex, 'version' | 'pages' | 'sources'>
 
 export function itemRect(item: TextItem, ascent = 0.8, descent = -0.2): PdfRect {
   const [a, b, , , x, y] = item.transform
@@ -64,8 +70,29 @@ async function digest(data: Uint8Array): Promise<string> {
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-/** Index only on demand. Hash original page appearance and text independently of annotations. */
-export async function indexPdf(
+/** Open a saved index, extracting and persisting passages only for a new file identity. */
+export async function prepareChatDocument(
+  document: PDFDocumentProxy,
+  file: Pick<ChatDocument, 'path' | 'name'>,
+  signal: AbortSignal,
+  progress: (page: number, total: number) => void,
+  release: (page: PDFPageProxy) => void
+): Promise<ChatDocument> {
+  signal.throwIfAborted()
+  const indexKey = `pdf-index-1:${pdfjsVersion}:${await digest(await document.getData())}`
+  signal.throwIfAborted()
+  const cached = await window.lepis.ai.openDocument(indexKey, file)
+  signal.throwIfAborted()
+  if (cached) return cached
+  const { sources, ...index } = await indexPdf(document, signal, progress, release)
+  const result = { ...file, ...index, indexKey }
+  await window.lepis.ai.index({ ...result, sources })
+  signal.throwIfAborted()
+  return result
+}
+
+/** Hash original page appearance and text independently of annotations. */
+async function indexPdf(
   document: PDFDocumentProxy,
   signal: AbortSignal,
   progress: (page: number, total: number) => void,

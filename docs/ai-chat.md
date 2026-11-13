@@ -56,8 +56,14 @@ requests. Official OpenAI, Anthropic and Google SDKs handle their transports; Op
 documented Chat Completions interface through the OpenAI SDK.
 
 PDF.js extracts text and page coordinates locally on first chat use. Extraction and original page
-rendering proceed a page at a time, with progress and cancellation. Opening a PDF alone starts no
-AI indexing or cloud request. Markdown, math and chat UI code are loaded when chat is first opened.
+rendering proceed a page at a time, with progress and cancellation. A SHA-256 hash of the loaded
+PDF bytes, the PDF.js version and the index format identifies a persistent cache entry. Reopening
+an unchanged PDF reuses saved passages and coordinates, including after app restart, without
+extracting text or rendering every page again. Cache hits return only document metadata to the renderer; passages remain in SQLite.
+The byte hash still requires reading the PDF.
+Changed bytes or an updated indexing engine require analysis again; annotation-only changes can
+still resolve to the same content version and retain valid conversations. Opening a PDF alone
+starts no AI indexing or cloud request. Markdown, math and chat UI code are loaded when chat is first opened.
 
 SQLite FTS5 stores passages. For a question, the chosen model prepares search queries with
 synonyms and terms in the document's language; the app retrieves matches and nearby passages

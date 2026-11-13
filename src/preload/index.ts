@@ -11,6 +11,7 @@ const api: LepisApi = {
     setKey: (provider, key) => ipcRenderer.invoke('ai:set-key', provider, key),
     disconnect: (provider) => ipcRenderer.invoke('ai:disconnect', provider),
     models: (provider) => ipcRenderer.invoke('ai:models', provider),
+    openDocument: (key, file) => ipcRenderer.invoke('ai:open-document', key, file),
     index: (document) => ipcRenderer.invoke('ai:index', document),
     conversations: (path) => ipcRenderer.invoke('ai:conversations', path),
     conversation: (id) => ipcRenderer.invoke('ai:conversation', id),

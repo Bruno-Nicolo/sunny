@@ -5,6 +5,7 @@ import type {
   AiSettings,
   AiStatus,
   ChatDocument,
+  ChatDocumentIndex,
   ChatEvent,
   ChatMessage,
   ChatToolCall,
@@ -94,11 +95,26 @@ export class AiService {
     })
     if (!settings.consent) for (const job of this.jobs.values()) job.abort.abort()
   }
-  index(document: ChatDocument): void {
+  private validateDocumentFile(key: string, file: Pick<ChatDocument, 'path' | 'name'>): void {
+    if (
+      typeof key !== 'string' ||
+      !key.length ||
+      key.length > 200 ||
+      typeof file.path !== 'string' ||
+      typeof file.name !== 'string'
+    )
+      throw new Error('Invalid PDF index.')
+  }
+  openDocument(key: string, file: Pick<ChatDocument, 'path' | 'name'>): ChatDocument | null {
+    this.validateDocumentFile(key, file)
+    const document = this.store.openDocument(key, file)
+    if (document) this.currentVersions.set(document.path, document.version)
+    return document
+  }
+  index(document: ChatDocumentIndex): void {
+    this.validateDocumentFile(document.indexKey, document)
     if (
       !/^[a-f0-9]{64}$/.test(document.version) ||
-      typeof document.path !== 'string' ||
-      typeof document.name !== 'string' ||
       !Number.isInteger(document.pages) ||
       document.pages < 1 ||
       document.sources.length > 100_000

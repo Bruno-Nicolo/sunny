@@ -36,7 +36,14 @@ const sources = [
     rects: [[10, 20, 200, 40]]
   }
 ]
-const document = { version, path: '/test/biology.pdf', name: 'biology.pdf', pages: 2, sources }
+const document = {
+  indexKey: 'e'.repeat(64),
+  version,
+  path: '/test/biology.pdf',
+  name: 'biology.pdf',
+  pages: 2,
+  sources
+}
 
 test('message times use calendar-relative labels and include the year when needed', () => {
   const now = new Date(2026, 9, 23, 22, 0).getTime()
@@ -189,6 +196,23 @@ test('conversations are persisted only with the first user message, including pr
     'New chat',
     'a saved title is not treated as a placeholder'
   )
+})
+
+test('opening a cached PDF activates its path for chat without resubmitting passages', async (t) => {
+  const service = setup(t)
+  const file = { path: '/test/cached-copy.pdf', name: 'cached-copy.pdf' }
+  const metadata = { indexKey: document.indexKey, version, pages: document.pages }
+  assert.deepEqual(service.openDocument(document.indexKey, file), { ...metadata, ...file })
+  service.providers.generate = async (request) => {
+    if (request.instructions.startsWith('Write ONLY'))
+      return JSON.stringify({ scope: 'passages', queries: ['photosynthesis'] })
+    request.onText('Light becomes energy [[p1s1]].')
+    return 'Light becomes energy [[p1s1]].'
+  }
+  const chat = service.store.create(version, 'openai', file.path)
+  await service.send(request(chat), () => {})
+  assert.equal(service.store.get(chat.id).messages.at(-1).status, 'complete')
+  assert.equal(service.store.get(chat.id).documentName, file.name)
 })
 
 test('local retrieval is version-scoped, parameterized and retains citation geometry', (t) => {

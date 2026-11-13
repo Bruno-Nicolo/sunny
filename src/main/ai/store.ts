@@ -6,6 +6,7 @@ import type {
   AiProvider,
   AiSettings,
   ChatDocument,
+  ChatDocumentIndex,
   Conversation,
   ConversationSummary,
   DocumentSource
@@ -31,6 +32,7 @@ export class ChatStore {
       PRAGMA foreign_keys=ON;
       CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, json TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS documents (version TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL, pages INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS document_indices (key TEXT PRIMARY KEY, version TEXT NOT NULL REFERENCES documents(version));
       CREATE TABLE IF NOT EXISTS document_paths (path TEXT PRIMARY KEY, version TEXT NOT NULL REFERENCES documents(version), name TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sources (rowid INTEGER PRIMARY KEY, version TEXT NOT NULL REFERENCES documents(version), id TEXT NOT NULL, page INTEGER NOT NULL, text TEXT NOT NULL, rects TEXT NOT NULL, UNIQUE(version,id));
       CREATE VIRTUAL TABLE IF NOT EXISTS source_search USING fts5(text, content=sources, content_rowid=rowid, tokenize='unicode61 remove_diacritics 2');
@@ -63,40 +65,55 @@ export class ChatStore {
   setSettings(settings: AiSettings): void {
     this.db.prepare('INSERT OR REPLACE INTO settings VALUES(1,?)').run(JSON.stringify(settings))
   }
-  index(document: ChatDocument): void {
-    const existing = this.db
-      .prepare('SELECT version FROM documents WHERE version=?')
-      .get(document.version)
-    if (existing) {
-      this.db
-        .prepare('INSERT OR REPLACE INTO document_paths VALUES(?,?,?)')
-        .run(document.path, document.version, document.name)
-      return
-    }
+  index(document: ChatDocumentIndex): void {
     this.db.exec('BEGIN')
     try {
-      this.db
-        .prepare('INSERT INTO documents VALUES(?,?,?,?)')
+      const inserted = this.db
+        .prepare('INSERT INTO documents VALUES(?,?,?,?) ON CONFLICT(version) DO NOTHING')
         .run(document.version, document.name, document.path, document.pages)
-      this.db
-        .prepare('INSERT OR REPLACE INTO document_paths VALUES(?,?,?)')
-        .run(document.path, document.version, document.name)
-      const insert = this.db.prepare(
-        'INSERT INTO sources(version,id,page,text,rects) VALUES(?,?,?,?,?)'
-      )
-      for (const source of document.sources)
-        insert.run(
-          document.version,
-          source.id,
-          source.page,
-          source.text,
-          JSON.stringify(source.rects)
+      if (inserted.changes) {
+        const insert = this.db.prepare(
+          'INSERT INTO sources(version,id,page,text,rects) VALUES(?,?,?,?,?)'
         )
+        for (const source of document.sources)
+          insert.run(
+            document.version,
+            source.id,
+            source.page,
+            source.text,
+            JSON.stringify(source.rects)
+          )
+      }
+      this.setDocumentPath(document)
+      this.db
+        .prepare('INSERT OR REPLACE INTO document_indices VALUES(?,?)')
+        .run(document.indexKey, document.version)
       this.db.exec('COMMIT')
     } catch (error) {
       this.db.exec('ROLLBACK')
       throw error
     }
+  }
+  private setDocumentPath(document: ChatDocument): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO document_paths VALUES(?,?,?)')
+      .run(document.path, document.version, document.name)
+  }
+  openDocument(key: string, file: Pick<ChatDocument, 'path' | 'name'>): ChatDocument | null {
+    const row = this.db
+      .prepare(
+        'SELECT d.version,d.pages FROM document_indices i JOIN documents d ON d.version=i.version WHERE i.key=?'
+      )
+      .get(key)
+    if (!row) return null
+    const document = {
+      ...file,
+      indexKey: key,
+      version: String(row.version),
+      pages: Number(row.pages)
+    }
+    this.setDocumentPath(document)
+    return document
   }
   document(version: string): { name: string; path: string; pages: number } {
     const row = this.db

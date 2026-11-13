@@ -13,12 +13,13 @@ export type ChatAttachment =
   | (DocumentSource & { kind: 'text' | 'region'; image?: string })
   | { id: string; kind: 'file'; name: string; text: string; image?: string }
 export type ChatDocument = {
+  indexKey: string
   version: string
   path: string
   name: string
   pages: number
-  sources: DocumentSource[]
 }
+export type ChatDocumentIndex = ChatDocument & { sources: DocumentSource[] }
 export type ChatToolCall = {
   id: string
   name: 'read_document' | 'search_document'
@@ -115,7 +116,8 @@ export interface AiApi {
   setKey(provider: ApiProvider, key: string): Promise<AiStatus>
   disconnect(provider: AiProvider): Promise<AiStatus>
   models(provider: AiProvider): Promise<AiModel[]>
-  index(document: ChatDocument): Promise<void>
+  openDocument(key: string, file: Pick<ChatDocument, 'path' | 'name'>): Promise<ChatDocument | null>
+  index(document: ChatDocumentIndex): Promise<void>
   conversations(path: string): Promise<ConversationSummary[]>
   conversation(id: string): Promise<Conversation>
   forkConversation(id: string, messageId: string): Promise<Conversation>

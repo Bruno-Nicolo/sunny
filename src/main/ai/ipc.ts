@@ -4,6 +4,7 @@ import type {
   AiSettings,
   ApiProvider,
   ChatDocument,
+  ChatDocumentIndex,
   ChatSendRequest
 } from '../../shared/ai'
 import { aiProviders } from '../../shared/ai'
@@ -62,7 +63,10 @@ export function registerAiIpc(directory: string): void {
     return service.status()
   })
   handle('models', (value: AiProvider) => service.providers.models(provider(value)))
-  handle('index', (document: ChatDocument) => service.index(document))
+  handle('open-document', (key: string, file: Pick<ChatDocument, 'path' | 'name'>) =>
+    service.openDocument(key, file)
+  )
+  handle('index', (document: ChatDocumentIndex) => service.index(document))
   handle('conversations', (path: string) => service.store.list(path))
   handle('conversation', (id: string) => service.store.get(id))
   handle('fork', (id: string, messageId: string) => service.fork(id, messageId))

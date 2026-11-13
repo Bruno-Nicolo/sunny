@@ -181,7 +181,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       get revision() {
         return controllerRef.current?.revision ?? sourceRevision.current
       },
-      async prepareChatDocument(progress, signal) {
+      async prepareChatDocument(file, progress, signal) {
         signal.throwIfAborted()
         const ready = controllerReady.current
         if (!ready || ready.source !== propsRef.current.source)
@@ -194,7 +194,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         try {
           const controller = await Promise.race([ready.promise, aborted])
           signal.throwIfAborted()
-          return controller.prepareChatDocument(progress, signal)
+          return controller.prepareChatDocument(file, progress, signal)
         } finally {
           signal.removeEventListener('abort', cancel)
         }

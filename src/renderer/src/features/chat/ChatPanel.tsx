@@ -210,12 +210,13 @@ export function ChatPanel({
         setDocument(null)
         setIndexProgress('Preparing document…')
         if (!viewer) throw new Error('Wait for the PDF to finish opening.')
-        const indexed = await viewer.prepareChatDocument((page, pages) => {
-          if (alive) setIndexProgress(`Preparing PDF locally · ${page}/${pages} pages`)
-        }, abort.signal)
-        if (!alive) return
-        const value = { ...indexed, name: tab.name, path: tab.path }
-        await window.lepis.ai.index(value)
+        const value = await viewer.prepareChatDocument(
+          { name: tab.name, path: tab.path },
+          (page, pages) => {
+            if (alive) setIndexProgress(`Preparing PDF locally · ${page}/${pages} pages`)
+          },
+          abort.signal
+        )
         if (alive) {
           setDocument(value)
           setIndexProgress('')
