@@ -87,6 +87,15 @@ export function createAnnotationController({
     else for (const layer of pages.values()) layer.render(options.annotationTool)
   }
 
+  function refreshInteraction(): void {
+    container.classList.toggle(
+      'annotationToolActive',
+      canEdit() && options.annotationTool !== 'none'
+    )
+    render()
+    refreshText()
+  }
+
   function refreshText(): void {
     const record = selected ? model.records.get(selected) : undefined
     const text = record?.kind === 'text' ? record : undefined
@@ -117,7 +126,7 @@ export function createAnnotationController({
   }
 
   function commit(): void {
-    for (const record of [...model.records.values()]) {
+    for (const record of model.records.values()) {
       if (
         record.kind === 'text' &&
         !record.text?.trim() &&
@@ -476,6 +485,7 @@ export function createAnnotationController({
     'abort',
     () => {
       if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
+      container.classList.remove('annotationToolActive')
       resolveInitialized()
       model.dispose()
       pages.clear()
@@ -524,7 +534,7 @@ export function createAnnotationController({
       ready = true
       resolveInitialized()
       attachPages()
-      refreshText()
+      refreshInteraction()
     },
     setOptions(next: AnnotationOptions): void {
       const lostFocus = options.active && !next.active
@@ -534,8 +544,7 @@ export function createAnnotationController({
         commit()
         for (const layer of pages.values()) layer.stopEditing()
       }
-      render()
-      refreshText()
+      refreshInteraction()
     },
     setHighlightColor(color: string): void {
       options = { ...options, highlightColor: color }

@@ -28,6 +28,7 @@ export function paintAnnotations(
     context.save()
     if (record.kind === 'highlight') {
       context.globalAlpha = record.opacity ?? 0.9
+      context.globalCompositeOperation = 'multiply'
       const path = new Path2D(highlightPath(record, viewport))
       if (record.strokes) {
         context.strokeStyle = record.color
@@ -35,7 +36,6 @@ export function paintAnnotations(
         context.lineCap = context.lineJoin = 'round'
         context.stroke(path)
       } else {
-        context.globalCompositeOperation = 'multiply'
         context.fillStyle = record.color
         context.fill(path)
       }

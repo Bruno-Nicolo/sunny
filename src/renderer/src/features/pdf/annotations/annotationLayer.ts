@@ -107,11 +107,10 @@ export class AnnotationLayer {
   }
 
   stopEditing(): void {
+    if (!this.editingKey) return
+    const input = this.editors.get(this.editingKey)?.querySelector<HTMLElement>('.internal')
+    if (input) this.setEditing(input, false)
     this.editingKey = null
-    for (const editor of this.editors.values()) {
-      const input = editor.querySelector<HTMLElement>('.internal')
-      if (input) this.setEditing(input, false)
-    }
   }
 
   private setEditing(input: HTMLElement, editing: boolean): void {
@@ -122,23 +121,26 @@ export class AnnotationLayer {
   render(tool: AnnotationTool): void {
     this.tool = tool
     const { page, model, selected, canEdit } = this.options
-    this.element.classList.toggle('freetextEditing', tool === 'text' && canEdit())
-    this.element.classList.toggle('highlightEditing', tool === 'highlight' && canEdit())
-    this.element.classList.toggle('disabled', !canEdit())
-    this.element.style.width = `${page.viewport.width}px`
-    this.element.style.height = `${page.viewport.height}px`
+    const editable = canEdit()
+    const selection = selected()
+    this.element.classList.toggle('freetextEditing', tool === 'text' && editable)
+    this.element.classList.toggle('highlightEditing', tool === 'highlight' && editable)
+    this.element.classList.toggle('disabled', !editable)
     const viewportKey = page.viewport.transform.join(',')
     const viewportChanged = viewportKey !== this.renderedViewport
-    if (viewportChanged || tool !== 'highlight' || !canEdit()) {
+    if (viewportChanged) {
+      this.element.style.width = `${page.viewport.width}px`
+      this.element.style.height = `${page.viewport.height}px`
+    }
+    if (viewportChanged || tool !== 'highlight' || !editable) {
       this.cancelStroke?.()
       this.cancelStroke = undefined
     }
     this.renderedViewport = viewportKey
-    if (this.lastSelected !== selected()) {
+    if (this.lastSelected !== selection) {
       if (this.lastSelected) this.editors.get(this.lastSelected)?.classList.remove('selectedEditor')
-      const next = selected()
-      if (next) this.editors.get(next)?.classList.add('selectedEditor')
-      this.lastSelected = next
+      if (selection) this.editors.get(selection)?.classList.add('selectedEditor')
+      this.lastSelected = selection
     }
     if (this.element.parentNode !== page.div) page.div.append(this.element)
     const modelHash = model.hash
@@ -156,7 +158,6 @@ export class AnnotationLayer {
       }
     }
     let highlightGroup: SVGSVGElement | null = null
-    let freehandGroup = false
     const usedGroups = new Set<SVGSVGElement>()
     for (const record of model.forPage(page.id! - 1)) {
       let editor = this.editors.get(record.key)
@@ -167,8 +168,6 @@ export class AnnotationLayer {
       }
       let highlightPath = this.highlightPaths.get(record.key)
       if (record.kind === 'highlight') {
-        if (freehandGroup !== !!record.strokes) highlightGroup = null
-        freehandGroup = !!record.strokes
         if (!highlightGroup) {
           const candidate = highlightPath?.ownerSVGElement
           highlightGroup =
@@ -176,7 +175,6 @@ export class AnnotationLayer {
               ? candidate
               : document.createElementNS('http://www.w3.org/2000/svg', 'svg')
           highlightGroup.classList.add('lepisHighlightDrawing')
-          highlightGroup.style.mixBlendMode = record.strokes ? 'normal' : 'multiply'
           highlightGroup.setAttribute('aria-hidden', 'true')
           this.highlightDrawings.add(highlightGroup)
           if (highlightGroup.nextSibling !== editor)
@@ -197,14 +195,14 @@ export class AnnotationLayer {
       if (!viewportChanged && this.renderedRecords.get(record.key) === record) continue
       this.renderedRecords.set(record.key, record)
       this.position(editor, record.rect)
-      editor.classList.toggle('selectedEditor', selected() === record.key)
+      editor.classList.toggle('selectedEditor', selection === record.key)
       const input = editor.querySelector<HTMLElement>('.internal')
       if (input) {
         if (input.innerText.replaceAll('\u00a0', ' ') !== record.text)
           input.innerText = record.text ?? ''
         input.style.fontSize = `${record.fontSize! * page.viewport.scale}px`
         input.style.color = record.color
-        this.setEditing(input, this.editingKey === record.key && canEdit())
+        this.setEditing(input, this.editingKey === record.key && editable)
         this.orient(input, record)
       }
       if (highlightPath) {
@@ -214,7 +212,6 @@ export class AnnotationLayer {
         highlightPath.style.fill = record.strokes ? 'none' : record.color
         highlightPath.style.stroke = record.strokes ? record.color : 'none'
         highlightPath.style.strokeWidth = `${(record.thickness ?? 0) * page.viewport.scale}px`
-        highlightPath.style.mixBlendMode = record.strokes ? 'normal' : 'multiply'
         editor.classList.toggle('freehandHighlight', !!record.strokes)
         highlightPath.style.opacity = String(record.opacity ?? 0.9)
         const contour = editor.querySelector('svg')!

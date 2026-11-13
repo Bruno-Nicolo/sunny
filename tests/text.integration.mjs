@@ -501,6 +501,11 @@ app
       `document.querySelector('.visible .annotationEditorLayer:not(.disabled):not(.nonEditing) .freeTextEditor .internal')?.innerText.includes('Testo modificato')`
     )
     win.webContents.focus()
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    await waitFor(
+      `document.querySelector('.visible .pdf-viewer-container:not(.annotationToolActive)') !== null`
+    )
     await click(`document.querySelector('.visible .freeTextEditor')`)
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' })
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })

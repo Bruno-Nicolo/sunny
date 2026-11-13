@@ -24,6 +24,7 @@ export function drawHighlight({
   const points: number[] = []
   const rect: PdfRect = [Infinity, Infinity, -Infinity, -Infinity]
   const thickness = 12
+  const opacity = 0.9
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   svg.classList.add('lepisFreehandPreview')
   svg.setAttribute('viewBox', `0 0 ${viewport.width} ${viewport.height}`)
@@ -31,7 +32,7 @@ export function drawHighlight({
   line.classList.add('lepisFreehandStroke')
   line.setAttribute('stroke', color)
   line.setAttribute('stroke-width', String(thickness * viewport.scale))
-  line.setAttribute('opacity', '0.9')
+  line.setAttribute('opacity', String(opacity))
   svg.append(line)
   element.append(svg)
   const cancel = (): void => lifetime.abort()
@@ -79,7 +80,7 @@ export function drawHighlight({
         pageIndex,
         rotation: 0,
         color,
-        opacity: 0.9,
+        opacity,
         thickness,
         strokes: [points],
         rect

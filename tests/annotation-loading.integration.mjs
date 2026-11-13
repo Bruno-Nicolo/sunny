@@ -179,6 +179,21 @@ app
       'Activating highlighting on an annotated PDF must not mark it modified'
     )
     console.log('PASS: activating highlighting leaves an annotated PDF clean')
+    for (const selector of [
+      '.highlightEditor .lepisHighlightContour path',
+      '.annotationLayer input'
+    ]) {
+      assert.equal(
+        await evaluate(`(() => {
+          const element = document.querySelector('.visible ' + ${JSON.stringify(selector)});
+          const rect = element.getBoundingClientRect();
+          return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+            ?.closest('.highlightEditor, .annotationLayer') !== null;
+        })()`),
+        false,
+        `The highlight tool must receive pointer input over ${selector}`
+      )
+    }
     for (let i = 0; i < 3; i++) {
       await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
       await waitFor(

@@ -98,6 +98,69 @@ app
     )
     await waitFor(count(1))
     console.log('PASS: image upload creates editable image')
+    const imagePoint = await evaluate(`(() => {
+      const rect = document.querySelector('.visible .stampEditor').getBoundingClientRect();
+      return {x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2)};
+    })()`)
+    for (const tool of ['Highlight text', 'Add text']) {
+      await evaluate(`document.querySelector('[aria-label="${tool}"]').click()`)
+      await waitFor(
+        `document.querySelector('[aria-label="${tool}"]').getAttribute('aria-pressed') === 'true'`
+      )
+      win.webContents.sendInputEvent({ type: 'mouseMove', ...imagePoint })
+      await evaluate(
+        'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+      )
+      assert.equal(
+        await evaluate(`document.querySelector('.visible .stampEditor').matches(':hover')`),
+        false,
+        `${tool} must suppress image hover`
+      )
+      win.webContents.sendInputEvent({
+        type: 'mouseDown',
+        button: 'left',
+        ...imagePoint,
+        clickCount: 1
+      })
+      if (tool === 'Highlight text') {
+        for (let i = 1; i <= 5; i++) {
+          win.webContents.sendInputEvent({
+            type: 'mouseMove',
+            x: imagePoint.x + i * 3,
+            y: imagePoint.y
+          })
+          await new Promise((resolve) => setTimeout(resolve, 16))
+        }
+      }
+      win.webContents.sendInputEvent({
+        type: 'mouseUp',
+        button: 'left',
+        x: imagePoint.x + (tool === 'Highlight text' ? 15 : 0),
+        y: imagePoint.y,
+        clickCount: 1
+      })
+      await waitFor(
+        tool === 'Highlight text'
+          ? `document.querySelector('.visible .freehandHighlight') !== null`
+          : `document.querySelector('.visible .freeTextEditor .internal')?.isContentEditable === true`
+      )
+      await evaluate(`window.testCommands.run('undo')`)
+      await waitFor(
+        `!document.querySelector('.visible .highlightEditor, .visible .freeTextEditor')`
+      )
+      await evaluate(`document.querySelector('[aria-label="${tool}"]').click()`)
+      await waitFor(
+        `document.querySelector('[aria-label="${tool}"]').getAttribute('aria-pressed') === 'false'`
+      )
+      assert.equal(
+        await evaluate(
+          `document.elementFromPoint(${imagePoint.x}, ${imagePoint.y}).closest('.stampEditor') !== null`
+        ),
+        true,
+        'Deactivating the tool must restore image interaction'
+      )
+    }
+    console.log('PASS: active tools suppress image hover and can draw or insert text over images')
     for (const rotation of [90, 180, 270, 0]) {
       await evaluate(`window.testCommands.run('rotate-clockwise')`)
       await waitFor(

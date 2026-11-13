@@ -360,6 +360,15 @@ test('freehand highlights retain ink geometry through save, recolor, undo and de
   }
   model.change(undefined, record)
   const reopened = await open(t, await writeAnnotations(document, model))
+  const print = await (await reopened.getPage(1)).getOperatorList({ intent: 'print' })
+  assert.ok(
+    print.fnArray.some(
+      (operation, index) =>
+        operation === OPS.setGState &&
+        print.argsArray[index][0].some(([name, value]) => name === 'BM' && value === 'multiply')
+    ),
+    'The saved ink appearance must use Multiply when rendered for printing'
+  )
   const [ink] = await (await reopened.getPage(1)).getAnnotations()
   assert.equal(ink.subtype, 'Ink')
   assert.deepEqual(

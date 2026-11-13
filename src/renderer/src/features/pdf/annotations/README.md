@@ -14,6 +14,9 @@ Changing tools never changes PDF.js's rendering mode or reloads a page.
   or viewport changes. Tool selection changes interaction, not annotation content. Page redraws
   retain the overlay DOM, focused input and caret. Page eviction
   disposes editor DOM and listeners; an evicted or cancelled page draw cannot recreate the overlay; document disposal also releases image assets and history.
+  Selection mode enables annotation hover, selection and resize handles. Creation tools let pointer
+  input pass through existing annotations and native PDF controls; the text block currently being
+  edited remains interactive.
 - `geometry.ts` uses PDF coordinates and saved annotation orientation. Viewport conversion handles
   zoom, intrinsic page rotation and user rotation. Resize handles act on visual edges.
   Text blocks fit their content until manually resized. After resizing, they wrap at their current
@@ -185,7 +188,9 @@ See [measurements and reproduction commands](../../../../../../docs/thumbnail-pe
 
 With the highlight tool active, dragging on text selects text and dragging from a blank area
 creates a freehand stroke. Freehand strokes use the selected highlight color, a 12-point round
-stroke and 90% opacity. They save as standard editable Ink annotations. Pointer cancellation,
+stroke and 90% opacity with Multiply blending to preserve the text underneath. Page overlays,
+gesture previews and thumbnails use the same blending. They save as standard editable Ink
+annotations with a Multiply appearance stream. Pointer cancellation,
 Escape, tool changes and loss of window focus discard the gesture; a completed stroke adds one
 undo command. The page layer owns the gesture lifetime, including cancellation on viewport changes
 and page disposal. The SVG preview appends points and updates bounds incrementally. `highlight/geometry.ts`

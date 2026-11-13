@@ -83,7 +83,7 @@ index 993f35056cbb76d09d83c25dccd96fe1916ee372..a47ab8e170f9d4023521508b07ab1079
        }
        const isPopupAnnotation = data.annotationType === AnnotationType.POPUP;
 diff --git a/legacy/build/pdf.worker.mjs b/legacy/build/pdf.worker.mjs
-index c4b622a51f092f4765ffd9dbf2989c2662944f30..3062c3f6f6e91510021716998ac0ad2f106bec0e 100644
+index c4b622a51f092f4765ffd9dbf2989c2662944f30..c01091e0e9cf622ad51f1f0564de109927332866 100644
 --- a/legacy/build/pdf.worker.mjs
 +++ b/legacy/build/pdf.worker.mjs
 @@ -8653,16 +8653,82 @@ class NullStream extends Stream {
@@ -318,7 +318,38 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..3062c3f6f6e91510021716998ac0ad2f
  class SquareAnnotation extends MarkupAnnotation {
    constructor(params) {
      super(params);
-@@ -66668,6 +66786,14 @@ class PDFDocument {
+@@ -62442,13 +62560,14 @@ class InkAnnotation extends MarkupAnnotation {
+       rect,
+       paths,
+       thickness,
+-      opacity
++      opacity,
++      blendMode
+     } = annotation;
+     if (!color) {
+       return null;
+     }
+     const appearanceBuffer = [`${thickness} w 1 J 1 j`, `${getPdfColor(color, false)}`];
+-    if (opacity !== 1) {
++    if (opacity !== 1 || blendMode) {
+       appearanceBuffer.push("/R0 gs");
+     }
+     for (const outline of paths.lines) {
+@@ -62462,11 +62581,12 @@ class InkAnnotation extends MarkupAnnotation {
+     appearanceStreamDict.setIfName("Type", "XObject");
+     appearanceStreamDict.set("BBox", rect);
+     appearanceStreamDict.set("Length", appearance.length);
+-    if (opacity !== 1) {
++    if (opacity !== 1 || blendMode) {
+       const resources = new Dict(xref);
+       const extGState = new Dict(xref);
+       const r0 = new Dict(xref);
+       r0.set("CA", opacity);
++      r0.setIfName("BM", blendMode);
+       r0.setIfName("Type", "ExtGState");
+       extGState.set("R0", r0);
+       resources.set("ExtGState", extGState);
+@@ -66668,6 +66788,14 @@ class PDFDocument {
      this.#pagePromises.set(pageIndex, promise);
      return promise;
    }
@@ -333,7 +364,7 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..3062c3f6f6e91510021716998ac0ad2f
    async checkFirstPage(recoveryMode = false) {
      if (recoveryMode) {
        return;
-@@ -66959,7 +67085,7 @@ class PDFDocument {
+@@ -66959,7 +67087,7 @@ class PDFDocument {
    }
    get signatures() {
      const promise = this.pdfManager.ensureDoc("formInfo").then(async formInfo => {
@@ -342,7 +373,7 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..3062c3f6f6e91510021716998ac0ad2f
          return null;
        }
        const annotationGlobals = await this.annotationGlobals;
-@@ -70963,7 +71089,7 @@ class WorkerMessageHandler {
+@@ -70963,7 +71091,7 @@ class WorkerMessageHandler {
          pdfManager = newPdfManager;
          pdfManager.requestLoadedStream(true).then(stream => {
            handler.send("DataLoaded", {
@@ -351,7 +382,7 @@ index c4b622a51f092f4765ffd9dbf2989c2662944f30..3062c3f6f6e91510021716998ac0ad2f
            });
          }, () => {});
        }).then(pdfManagerReady, onFailure);
-@@ -71423,6 +71549,9 @@ class WorkerMessageHandler {
+@@ -71423,6 +71551,9 @@ class WorkerMessageHandler {
      }) {
        return pdfManager.fontFallback(id, handler);
      });

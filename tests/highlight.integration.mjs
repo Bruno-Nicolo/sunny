@@ -414,6 +414,51 @@ app
     console.log(
       'PASS: freehand highlights draw on blank areas, undo, redo, save, reopen and delete'
     )
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    const textBounds = await evaluate(`(() => {
+      const rect = document.querySelector('.visible .textLayer span').getBoundingClientRect();
+      return {x: Math.floor(rect.left), y: Math.floor(rect.top), width: Math.ceil(rect.width), height: Math.ceil(rect.height)};
+    })()`)
+    const darkPixels = async () => {
+      const pixels = (await win.webContents.capturePage(textBounds)).toBitmap()
+      let count = 0
+      for (let i = 0; i < pixels.length; i += 4)
+        if (pixels[i] < 60 && pixels[i + 1] < 60 && pixels[i + 2] < 60) count++
+      return count
+    }
+    const beforeStroke = await darkPixels()
+    assert.ok(beforeStroke > 20, 'The fixture must have dark text under the stroke')
+    const start = { x: textBounds.x - 12, y: Math.round(textBounds.y + textBounds.height / 2) }
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...start })
+    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...start, clickCount: 1 })
+    for (let i = 1; i <= 10; i++) {
+      win.webContents.sendInputEvent({
+        type: 'mouseMove',
+        x: start.x + Math.round(((textBounds.width + 24) * i) / 10),
+        y: start.y
+      })
+      await new Promise((resolve) => setTimeout(resolve, 16))
+    }
+    await waitFor(`document.querySelector('.lepisFreehandPreview') !== null`)
+    assert.ok(
+      (await darkPixels()) >= beforeStroke * 0.95,
+      'The live stroke must preserve dark text'
+    )
+    win.webContents.sendInputEvent({
+      type: 'mouseUp',
+      button: 'left',
+      x: start.x + textBounds.width + 24,
+      y: start.y,
+      clickCount: 1
+    })
+    await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 2`)
+    assert.ok(
+      (await darkPixels()) >= beforeStroke * 0.95,
+      'The completed stroke must preserve dark text'
+    )
+    console.log(
+      'PASS: freehand preview and completed strokes preserve dark text with Multiply blending'
+    )
     assert.deepEqual(await evaluate('window.annotationErrors'), [])
     console.log(
       'PASS: text can be created and saved after recoloring a highlight without renderer errors'

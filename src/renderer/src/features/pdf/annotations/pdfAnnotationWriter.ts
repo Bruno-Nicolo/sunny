@@ -39,6 +39,7 @@ function serialize(record: Annotation): Record<string, unknown> {
         return {
           ...data,
           annotationType: AnnotationEditorType.INK,
+          blendMode: 'Multiply',
           opacity: record.opacity ?? 0.9,
           thickness: record.thickness,
           paths: {
