@@ -67,7 +67,7 @@ export function OutlineItems({
         return (
           <Collapsible.Root key={index} asChild>
             <li>
-              <div className="flex items-start gap-1">
+              <div className="flex items-start">
                 {item.items.length > 0 ? (
                   <Collapsible.Trigger asChild>
                     <button
@@ -84,7 +84,7 @@ export function OutlineItems({
                 {destination ? (
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1 py-1.5 text-left text-sm break-words hover:bg-accent focus-visible:outline-ring"
+                    className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-3 py-1.5 text-left text-sm break-words hover:bg-accent focus-visible:outline-ring"
                     onClick={() =>
                       void onDestination(destination).catch(() =>
                         onError('The outline destination could not be opened.')
@@ -105,7 +105,7 @@ export function OutlineItems({
                     <OutlinePageNumber document={document} destination={destination} />
                   </button>
                 ) : (
-                  <span className="flex min-w-0 flex-1 items-start gap-2 px-1 py-1.5 text-sm break-words text-muted-foreground">
+                  <span className="flex min-w-0 flex-1 items-start gap-2 px-3 py-1.5 text-sm break-words text-muted-foreground">
                     <span className="shrink-0 tabular-nums">{number}</span>
                     <span className="min-w-0">{item.title}</span>
                   </span>

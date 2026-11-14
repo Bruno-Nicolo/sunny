@@ -301,7 +301,7 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
                 />
               </div>
             </TabsContent>
-            <TabsContent value="outline" className="min-h-0 overflow-y-auto px-3 pb-3">
+            <TabsContent value="outline" className="min-h-0 overflow-y-auto pb-3">
               {outline === 'error' ? (
                 <p role="status">The outline could not be loaded.</p>
               ) : outline === null ? (
