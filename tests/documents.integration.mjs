@@ -171,6 +171,8 @@ app
         })),
         activePath: 'restored.pdf',
         highlightColor: '#FDE047',
+        highlightOpacity: 0.9,
+        highlightThickness: 12,
         theme: 'light'
       })
     await waitFor(hasTab('restored.pdf'))

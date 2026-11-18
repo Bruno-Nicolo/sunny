@@ -8,11 +8,12 @@ import { AnnotationLayer } from './annotationLayer'
 import { AnnotationModel, type Annotation } from './model'
 import { writeAnnotations } from './pdfAnnotationWriter'
 import { readPageAnnotations } from './pdfAnnotationReader'
+import { updateHighlightStyle } from './highlight/style'
 import { normalizedRect } from './geometry'
 import { layoutText } from './text/textLayout'
 import { validateImage } from './images/imageFiles'
 import type { TextEditorSettings } from './text/types'
-import type { AnnotationInsertionPoint, AnnotationOptions } from './types'
+import type { AnnotationInsertionPoint, AnnotationOptions, HighlightStyle } from './types'
 import type { PageAnnotations } from './pageAnnotations'
 
 type Options = {
@@ -31,7 +32,7 @@ type AnnotationController = {
   setDocument(document: PDFDocumentProxy): void
   initialize(canAnnotate: boolean): void
   setOptions(options: AnnotationOptions): void
-  setHighlightColor(color: string): void
+  setHighlightStyle(style: Partial<HighlightStyle>, live?: boolean): void
   addImage(file: File, point?: AnnotationInsertionPoint): Promise<void>
   addText(text: string, point?: AnnotationInsertionPoint): Promise<void>
   commit(): void
@@ -359,8 +360,8 @@ export function createAnnotationController({
         kind: 'highlight',
         pageIndex,
         rotation: 0,
-        color: options.highlightColor,
-        opacity: 0.9,
+        color: options.highlightStyle.color,
+        opacity: options.highlightStyle.opacity,
         quads,
         rect: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
       })
@@ -397,7 +398,7 @@ export function createAnnotationController({
         const pageIndex = Number(pageElement?.dataset.pageNumber) - 1
         const layer = pages.get(pageIndex)
         if (layer) {
-          layer.startHighlight(event, options.highlightColor)
+          layer.startHighlight(event, options.highlightStyle)
           return
         }
       }
@@ -546,13 +547,14 @@ export function createAnnotationController({
       }
       refreshInteraction()
     },
-    setHighlightColor(color: string): void {
-      options = { ...options, highlightColor: color }
+    setHighlightStyle(style: Partial<HighlightStyle>, live = false): void {
+      options = { ...options, highlightStyle: { ...options.highlightStyle, ...style } }
+      if (!live) model.commit()
       if (!canEdit() || !selected) return
       const record = model.records.get(selected)
-      if (record?.kind === 'highlight' && record.color.toLowerCase() !== color.toLowerCase()) {
-        model.change(record, { ...record, color })
-      }
+      if (record?.kind !== 'highlight') return
+      const next = updateHighlightStyle(record, style)
+      if (next !== record) model.change(record, next, live)
     },
     async addText(text: string, point?: AnnotationInsertionPoint): Promise<void> {
       if (!canEdit()) throw new Error('This PDF is not ready for editing.')

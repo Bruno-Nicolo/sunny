@@ -187,8 +187,8 @@ performance suite. The configurable larger fixture uses `LEPIS_PERF_PAGES`,
 See [measurements and reproduction commands](../../../../../../docs/thumbnail-performance.md).
 
 With the highlight tool active, dragging on text selects text and dragging from a blank area
-creates a freehand stroke. Freehand strokes use the selected highlight color, a 12-point round
-stroke and 90% opacity with Multiply blending to preserve the text underneath. Page overlays,
+creates a freehand stroke. The tool sidebar sets the highlight color and opacity, plus the freehand stroke size
+(2–40 points). Defaults are a 12-point round stroke and 90% opacity with Multiply blending to preserve the text underneath. Page overlays,
 gesture previews and thumbnails use the same blending. They save as standard editable Ink
 annotations with a Multiply appearance stream. Pointer cancellation,
 Escape, tool changes and loss of window focus discard the gesture; a completed stroke adds one

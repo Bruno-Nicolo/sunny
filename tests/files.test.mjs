@@ -16,15 +16,17 @@ for (const name of [
   'pdf-files',
   'session',
   'drafts',
-  'suggested-pdfs'
+  'suggested-pdfs',
+  '../shared/highlight'
 ]) {
   const source = await readFile(new URL(`../src/main/${name}.ts`, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
   })
   await writeFile(
-    join(modulesPath, `${name}.mjs`),
+    join(modulesPath, `${name.split('/').at(-1)}.mjs`),
     outputText
+      .replace("from '../shared/highlight'", "from './highlight.mjs'")
       .replace("from './pdf-sources'", "from './pdf-sources.mjs'")
       .replace("from './atomic-write'", "from './atomic-write.mjs'")
       .replace("from './pdf-files'", "from './pdf-files.mjs'")
@@ -203,12 +205,21 @@ test('failed replacement cleans up the temporary file and preserves the destinat
 test('session persistence creates its directory, restores state, and handles missing or corrupt files', async (t) => {
   const { userDataPath, filePath } = await fixture(t)
   const sessionPath = join(userDataPath, 'session.json')
-  const defaultSession = { activePath: null, tabs: [], highlightColor: '#fde047', theme: 'system' }
+  const defaultSession = {
+    activePath: null,
+    tabs: [],
+    highlightColor: '#FDE047',
+    highlightOpacity: 0.9,
+    highlightThickness: 12,
+    theme: 'system'
+  }
   assert.deepEqual(await loadSession(sessionPath), defaultSession)
   const state = {
     activePath: filePath,
     tabs: [{ path: filePath, page: 3, scale: 'page-fit', scrollTop: 500 }],
     highlightColor: '#86EFAC',
+    highlightOpacity: 0.45,
+    highlightThickness: 24,
     theme: 'dark'
   }
   await saveSession(sessionPath, state)
@@ -218,6 +229,37 @@ test('session persistence creates its directory, restores state, and handles mis
   assert.deepEqual(await readdir(userDataPath), ['session.json'])
   await writeFile(sessionPath, '{broken')
   assert.deepEqual(await loadSession(sessionPath), defaultSession)
+})
+
+test('session restoration supplies valid tool preferences without losing open documents', async (t) => {
+  const { userDataPath, filePath } = await fixture(t)
+  await mkdir(userDataPath, { recursive: true })
+  const sessionPath = join(userDataPath, 'session.json')
+  const saved = {
+    activePath: filePath,
+    tabs: [{ path: filePath, page: 3, scale: 'page-fit', scrollTop: 500 }],
+    theme: 'dark'
+  }
+  for (const preferences of [
+    {},
+    { highlightColor: null, highlightOpacity: '90', highlightThickness: -4 },
+    { highlightColor: '#not-a-color', highlightOpacity: 2, highlightThickness: 100 }
+  ]) {
+    await writeFile(sessionPath, JSON.stringify({ ...saved, ...preferences }))
+    assert.deepEqual(await loadSession(sessionPath), {
+      ...saved,
+      highlightColor: '#FDE047',
+      highlightOpacity: 0.9,
+      highlightThickness: 12
+    })
+  }
+  await writeFile(sessionPath, JSON.stringify({ ...saved, highlightColor: '#86EFAC' }))
+  assert.deepEqual(await loadSession(sessionPath), {
+    ...saved,
+    highlightColor: '#86EFAC',
+    highlightOpacity: 0.9,
+    highlightThickness: 12
+  })
 })
 
 test('recovery drafts survive a new store, retain the original revision, and never change the PDF', async (t) => {

@@ -1,9 +1,13 @@
 import { useEffect } from 'react'
+import type { HighlightStyle } from '../../../../shared/highlight'
 import type { SessionState } from '../../../../shared/contracts'
 import { createTab, type DocumentsState } from '@/features/documents/documentsReducer'
 import type { Tab } from '@/features/documents/types'
 
-export type SessionPreferences = Pick<SessionState, 'highlightColor' | 'theme'>
+export type SessionPreferences = {
+  highlightStyle: HighlightStyle
+  theme: SessionState['theme']
+}
 
 export function persistDocumentSession(
   { tabs, activeId, ready }: DocumentsState,
@@ -18,23 +22,25 @@ export function persistDocumentSession(
       scale: tab.view.scale,
       scrollTop: tab.view.scrollTop
     })),
-    ...preferences
+    highlightColor: preferences.highlightStyle.color,
+    highlightOpacity: preferences.highlightStyle.opacity,
+    highlightThickness: preferences.highlightStyle.thickness,
+    theme: preferences.theme
   })
 }
 
-type Options = DocumentsState & {
-  highlightColor: string
-  theme: SessionState['theme']
-  restoreSession(tabs: Tab[], activePath: string | null): void
-  restorePreferences(session: SessionState): void
-  showMessage(message: string): void
-}
+type Options = DocumentsState &
+  SessionPreferences & {
+    restoreSession(tabs: Tab[], activePath: string | null): void
+    restorePreferences(session: SessionState): void
+    showMessage(message: string): void
+  }
 
 export function useDocumentSession({
   tabs,
   activeId,
   ready,
-  highlightColor,
+  highlightStyle,
   theme,
   restoreSession,
   restorePreferences,
@@ -71,12 +77,12 @@ export function useDocumentSession({
   useEffect(() => {
     if (!ready) return
     const timer = setTimeout(() => {
-      void persistDocumentSession({ tabs, activeId, ready }, { highlightColor, theme }).catch(
+      void persistDocumentSession({ tabs, activeId, ready }, { highlightStyle, theme }).catch(
         (error: unknown) => {
           showMessage(error instanceof Error ? error.message : 'The session could not be saved.')
         }
       )
     }, 250)
     return () => clearTimeout(timer)
-  }, [activeId, highlightColor, ready, showMessage, tabs, theme])
+  }, [activeId, highlightStyle, ready, showMessage, tabs, theme])
 }

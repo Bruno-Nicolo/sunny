@@ -259,6 +259,8 @@ app
       })),
       activePath: 'first.pdf',
       highlightColor: '#FDE047',
+      highlightOpacity: 0.9,
+      highlightThickness: 12,
       theme: 'light'
     }))
     ipcMain.handle('session:save', (_, value) => {

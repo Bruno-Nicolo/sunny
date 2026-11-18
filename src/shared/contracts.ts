@@ -32,6 +32,8 @@ export type SessionState = {
   activePath: string | null
   tabs: SessionTab[]
   highlightColor: string
+  highlightOpacity: number
+  highlightThickness: number
   theme: 'system' | 'light' | 'dark'
 }
 

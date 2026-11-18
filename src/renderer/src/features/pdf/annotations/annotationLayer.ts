@@ -1,6 +1,6 @@
 import type { PDFPageView } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import type { Annotation, AnnotationModel, PdfRect } from './model'
-import type { AnnotationTool } from './types'
+import type { AnnotationTool, HighlightStyle } from './types'
 import { annotationOrientation, normalizedRect } from './geometry'
 import { layoutText } from './text/textLayout'
 import { drawHighlight } from './highlight/freehand'
@@ -77,7 +77,7 @@ export class AnnotationLayer {
     ]
   }
 
-  startHighlight(event: PointerEvent, color: string): void {
+  startHighlight(event: PointerEvent, style: HighlightStyle): void {
     const { page, model, select } = this.options
     event.preventDefault()
     select(null)
@@ -88,7 +88,7 @@ export class AnnotationLayer {
       element: this.element,
       viewport: page.viewport,
       pageIndex: page.id! - 1,
-      color,
+      ...style,
       signal: AbortSignal.any([this.options.signal, this.lifetime.signal]),
       complete: (record) => {
         this.cancelStroke = undefined
@@ -192,7 +192,8 @@ export class AnnotationLayer {
         }
         if (highlightPath.parentNode !== highlightGroup) highlightGroup.append(highlightPath)
       } else highlightGroup = null
-      if (!viewportChanged && this.renderedRecords.get(record.key) === record) continue
+      const previous = this.renderedRecords.get(record.key)
+      if (!viewportChanged && previous === record) continue
       this.renderedRecords.set(record.key, record)
       this.position(editor, record.rect)
       editor.classList.toggle('selectedEditor', selection === record.key)
@@ -206,18 +207,24 @@ export class AnnotationLayer {
         this.orient(input, record)
       }
       if (highlightPath) {
-        const path = viewportHighlightPath(record, page.viewport)
-        highlightPath.setAttribute('d', path)
+        const contour = editor.querySelector('svg')!
+        if (
+          viewportChanged ||
+          previous?.strokes !== record.strokes ||
+          previous?.quads !== record.quads
+        ) {
+          const path = viewportHighlightPath(record, page.viewport)
+          highlightPath.setAttribute('d', path)
+          contour.firstElementChild!.setAttribute('d', path)
+        }
         highlightPath.classList.toggle('lepisFreehandStroke', !!record.strokes)
         highlightPath.style.fill = record.strokes ? 'none' : record.color
         highlightPath.style.stroke = record.strokes ? record.color : 'none'
         highlightPath.style.strokeWidth = `${(record.thickness ?? 0) * page.viewport.scale}px`
         editor.classList.toggle('freehandHighlight', !!record.strokes)
         highlightPath.style.opacity = String(record.opacity ?? 0.9)
-        const contour = editor.querySelector('svg')!
         const [x1, y1, x2, y2] = this.bounds(record.rect)
         contour.setAttribute('viewBox', `${x1} ${y1} ${x2 - x1} ${y2 - y1}`)
-        contour.firstElementChild!.setAttribute('d', path)
         if (record.strokes) {
           const hit = contour.firstElementChild as SVGPathElement
           hit.classList.add('lepisFreehandStroke')

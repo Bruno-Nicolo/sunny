@@ -11,7 +11,14 @@ type Props = {
 
 export function ColorOptions({ label, colors, value, onChange }: Props): React.JSX.Element {
   return (
-    <div role="group" aria-label={label} className="flex justify-center gap-1">
+    <div
+      role="group"
+      aria-label={label}
+      className={cn(
+        'flex justify-center gap-1',
+        colors.length > 6 && 'grid grid-cols-4 justify-items-center'
+      )}
+    >
       {colors.map((color) => {
         const selected = value.toLowerCase() === color.value.toLowerCase()
         return (

@@ -1,30 +1,23 @@
 import type { CSSProperties } from 'react'
-import {
-  Sidebar,
-  SidebarProvider,
-  SidebarHeader,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent
-} from '@/components/ui/sidebar'
+import { Sidebar, SidebarProvider, SidebarHeader, SidebarContent } from '@/components/ui/sidebar'
 import { AnnotationToolOptions } from '@/features/pdf/annotations/AnnotationToolOptions'
-import type { AnnotationTool } from '@/features/pdf/annotations/types'
+import type { AnnotationTool, HighlightStyle } from '@/features/pdf/annotations/types'
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 
 type Props = {
   canAnnotate: boolean
   annotationTool: AnnotationTool
-  highlightColor: string
+  highlightStyle: HighlightStyle
   textSettings: TextEditorSettings | null
-  onHighlightColorChange(color: string): void
+  onHighlightStyleChange(style: Partial<HighlightStyle>, live?: boolean): void
 }
 
 export function ToolOptionsSidebar({
   canAnnotate,
   annotationTool,
-  highlightColor,
+  highlightStyle,
   textSettings,
-  onHighlightColorChange
+  onHighlightStyleChange
 }: Props): React.JSX.Element | null {
   if (
     !canAnnotate ||
@@ -34,15 +27,6 @@ export function ToolOptionsSidebar({
 
   const title = annotationTool === 'text' ? 'Text' : 'Highlight'
   const label = `${title} tool settings`
-  const options = (
-    <AnnotationToolOptions
-      key={annotationTool}
-      annotationTool={annotationTool}
-      highlightColor={highlightColor}
-      textSettings={textSettings}
-      onHighlightColorChange={onHighlightColorChange}
-    />
-  )
 
   return (
     <SidebarProvider
@@ -57,13 +41,19 @@ export function ToolOptionsSidebar({
         data-text-settings={annotationTool === 'text' ? '' : undefined}
         aria-label={label}
       >
-        <SidebarHeader className="p-4 pb-3">
-          <h2 className="text-xs font-medium text-muted-foreground">{title}</h2>
-        </SidebarHeader>
-        <SidebarContent className="px-4 pb-4">
-          <SidebarGroup className="p-0">
-            <SidebarGroupContent>{options}</SidebarGroupContent>
-          </SidebarGroup>
+        {annotationTool === 'text' && (
+          <SidebarHeader className="p-4 pb-3">
+            <h2 className="text-sm font-normal">{title}</h2>
+          </SidebarHeader>
+        )}
+        <SidebarContent className={annotationTool === 'highlight' ? 'p-4' : 'px-4 pb-4'}>
+          <AnnotationToolOptions
+            key={annotationTool}
+            annotationTool={annotationTool}
+            highlightStyle={highlightStyle}
+            textSettings={textSettings}
+            onHighlightStyleChange={onHighlightStyleChange}
+          />
         </SidebarContent>
       </Sidebar>
     </SidebarProvider>

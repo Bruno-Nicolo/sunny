@@ -53,6 +53,8 @@ let session = {
   tabs: [{ path: originalPath, page: 1, scale: 'page-fit', scrollTop: 0 }],
   activePath: originalPath,
   highlightColor: '#FDE047',
+  highlightOpacity: 0.9,
+  highlightThickness: 12,
   theme: 'light'
 }
 let holdDraft = false

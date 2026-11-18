@@ -1,5 +1,6 @@
 import type { PageViewport } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { Annotation, PdfRect } from '../model'
+import type { HighlightStyle } from '../types'
 
 // Keep unfinished gestures out of document history; append preview points without rebuilding the path.
 export function drawHighlight({
@@ -8,14 +9,15 @@ export function drawHighlight({
   viewport,
   pageIndex,
   color,
+  opacity,
+  thickness,
   signal,
   complete
-}: {
+}: HighlightStyle & {
   event: PointerEvent
   element: HTMLElement
   viewport: PageViewport
   pageIndex: number
-  color: string
   signal: AbortSignal
   complete(record: Annotation): void
 }): () => void {
@@ -23,8 +25,6 @@ export function drawHighlight({
   const combined = AbortSignal.any([signal, lifetime.signal])
   const points: number[] = []
   const rect: PdfRect = [Infinity, Infinity, -Infinity, -Infinity]
-  const thickness = 12
-  const opacity = 0.9
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   svg.classList.add('lepisFreehandPreview')
   svg.setAttribute('viewBox', `0 0 ${viewport.width} ${viewport.height}`)

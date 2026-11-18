@@ -51,7 +51,7 @@ fs.writeFileSync(
 const commands=new Map()
 contextBridge.exposeInMainWorld('lepis',{
  loadDrafts:()=>ipcRenderer.invoke('draft:load'),saveDraft:async()=>{},deleteDraft:path=>ipcRenderer.invoke('draft:delete',path),
- releasePdfSource:async()=>{},setTheme:()=>{},loadSession:async()=>({tabs:[],activePath:null,highlightColor:'#FDE047',theme:'light'}),
+ releasePdfSource:async()=>{},setTheme:()=>{},loadSession:async()=>({tabs:[],activePath:null,highlightColor: '#FDE047', highlightOpacity: 0.9, highlightThickness: 12,theme:'light'}),
  readPdf:async()=>{throw new Error('Recovery must not read the original PDF')},statPdf:async()=>({mtimeMs:1,size:1}),
  savePdf:payload=>ipcRenderer.invoke('pdf:save',payload),saveSession:async()=>{},closePdf:async()=>{},
  openPdfDialog:async()=>[],getPathForFile:()=>'',confirmWindowClose:()=>ipcRenderer.send('window:confirm'),

@@ -106,7 +106,7 @@ fs.writeFileSync(
 contextBridge.exposeInMainWorld('lepis', {
  releasePdfSource: source=>ipcRenderer.invoke('test:release',source),
  loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {}, setTheme: () => {},
- loadSession: async () => ({tabs:[{path:${JSON.stringify(filePath)},page:1,scale:'page-fit',scrollTop:0}],activePath:${JSON.stringify(filePath)},highlightColor:'#FDE047',theme:'light'}),
+ loadSession: async () => ({tabs:[{path:${JSON.stringify(filePath)},page:1,scale:'page-fit',scrollTop:0}],activePath:${JSON.stringify(filePath)},highlightColor: '#FDE047', highlightOpacity: 0.9, highlightThickness: 12,theme:'light'}),
  readPdf: () => ipcRenderer.invoke('test:read'), statPdf: () => ipcRenderer.invoke('test:stat'),
  saveSession: async () => {}, closePdf: async () => {}, openPdfDialog: async () => [],
  getPathForFile: () => '', confirmWindowClose: () => {}, onOpenRequested: () => () => {}, onCommand: () => () => {}

@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('lepis', {
   releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
-  loadSession: async () => ({ tabs: [{path:'zoom.pdf',page:1,scale:'1',scrollTop:0}], activePath:'zoom.pdf', highlightColor:'#FDE047', theme:'light' }),
+  loadSession: async () => ({ tabs: [{path:'zoom.pdf',page:1,scale:'1',scrollTop:0}], activePath:'zoom.pdf', highlightColor: '#FDE047', highlightOpacity: 0.9, highlightThickness: 12, theme:'light' }),
   readPdf: () => ipcRenderer.invoke('test:read'),
   statPdf: async () => ({mtimeMs:1,size:1}), saveSession: async () => {}, closePdf: async () => {},
   openPdfDialog: async () => [], getPathForFile: () => '', confirmWindowClose: () => {},

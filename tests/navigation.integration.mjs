@@ -81,7 +81,7 @@ contextBridge.exposeInMainWorld('lepis', {
   releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
-  loadSession: async () => ({ tabs: ['many.pdf', 'multi.pdf', 'empty.pdf', 'outline.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'outline.pdf', highlightColor:'#FDE047', theme:'light' }),
+  loadSession: async () => ({ tabs: ['many.pdf', 'multi.pdf', 'empty.pdf', 'outline.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'outline.pdf', highlightColor: '#FDE047', highlightOpacity: 0.9, highlightThickness: 12, theme:'light' }),
   readPdf: path => ipcRenderer.invoke('test:read',path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),
   savePdfAs: payload => ipcRenderer.invoke('test:export', payload),

@@ -26,6 +26,7 @@ async function sourceModule(name) {
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 }
 const { AnnotationModel } = await sourceModule('model')
+const { updateHighlightStyle } = await sourceModule('highlight/style')
 const { writeAnnotations } = await sourceModule('pdfAnnotationWriter')
 async function open(t, bytes, options = {}) {
   const task = getDocument({
@@ -395,4 +396,51 @@ test('freehand highlights retain ink geometry through save, recolor, undo and de
   edited.change(edited.records.get(ink.id), undefined)
   const deleted = await open(t, await writeAnnotations(reopened, edited))
   assert.equal((await (await deleted.getPage(1)).getAnnotations()).length, 0)
+})
+
+test('highlight size changes retain stroke coordinates and adjust bounds through resize and undo', () => {
+  const model = new AnnotationModel(() => {})
+  const stroke = {
+    key: 'stroke',
+    kind: 'highlight',
+    pageIndex: 0,
+    rotation: 0,
+    color: '#FDE047',
+    opacity: 0.9,
+    thickness: 12,
+    rect: [94, 594, 186, 646],
+    strokes: [[100, 600, 130, 640, 180, 610]]
+  }
+  model.import(stroke)
+  const wide = updateHighlightStyle(stroke, { thickness: 24 })
+  assert.deepEqual(wide.rect, [88, 588, 192, 652])
+  assert.equal(wide.strokes, stroke.strokes)
+  model.change(stroke, wide)
+  const narrow = updateHighlightStyle(wide, { thickness: 2 })
+  assert.deepEqual(narrow.rect, [99, 599, 181, 641])
+  model.change(wide, narrow)
+  model.undo()
+  assert.equal(model.records.get('stroke'), wide)
+  model.undo()
+  assert.equal(model.records.get('stroke'), stroke)
+})
+
+test('highlight style edits leave geometry unchanged and ignore stroke size for text highlights', () => {
+  const highlight = {
+    key: 'highlight',
+    kind: 'highlight',
+    pageIndex: 0,
+    rotation: 0,
+    color: '#FDE047',
+    opacity: 0.9,
+    rect: [10, 20, 40, 50],
+    quads: [10, 50, 40, 50, 10, 20, 40, 20]
+  }
+  assert.equal(updateHighlightStyle(highlight, { thickness: 24 }), highlight)
+  assert.equal(updateHighlightStyle(highlight, { color: '#FDE047', opacity: 0.9 }), highlight)
+  const edited = updateHighlightStyle(highlight, { color: '#C4B5FD', opacity: 0.45 })
+  assert.equal(edited.color, '#C4B5FD')
+  assert.equal(edited.opacity, 0.45)
+  assert.equal(edited.rect, highlight.rect)
+  assert.equal(edited.quads, highlight.quads)
 })

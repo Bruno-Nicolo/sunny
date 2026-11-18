@@ -1,4 +1,4 @@
-import type { AnnotationTool } from '@/features/pdf/annotations/types'
+import type { AnnotationTool, HighlightStyle } from '@/features/pdf/annotations/types'
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import { WelcomeScreen } from './WelcomeScreen'
 import { PdfDocumentView } from '@/features/pdf/PdfDocumentView'
@@ -16,7 +16,7 @@ type Props = {
   navigationTab: PdfDocumentViewProps['navigationTab']
   onNavigationTabChange: PdfDocumentViewProps['onNavigationTabChange']
   annotationTool: AnnotationTool
-  highlightColor: string
+  highlightStyle: HighlightStyle
   onAskAI: PdfDocumentViewProps['onAskAI']
   onSavePages(id: string, data: Uint8Array, page: number, onSaved: () => void): Promise<boolean>
   onExportPages(id: string, data: Uint8Array): Promise<boolean>
@@ -40,7 +40,7 @@ export function DocumentWorkspace({
   navigationTab,
   onNavigationTabChange,
   annotationTool,
-  highlightColor,
+  highlightStyle,
   onAskAI,
   onSavePages,
   onExportPages,
@@ -75,7 +75,7 @@ export function DocumentWorkspace({
             initialRotation={tab.view.rotation}
             initialTwoPageView={tab.view.twoPageView}
             annotationTool={annotationTool}
-            highlightColor={highlightColor}
+            highlightStyle={highlightStyle}
             active={tab.id === activeId}
             navigationOpen={navigationOpen}
             onNavigationOpenChange={onNavigationOpenChange}

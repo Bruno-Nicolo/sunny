@@ -16,7 +16,7 @@ import { CloseDocumentsDialog } from '@/features/documents/components/CloseDocum
 import { RecoveryDialog } from '@/features/documents/components/RecoveryDialog'
 import { FileConflictDialog } from '@/features/documents/components/FileConflictDialog'
 import { useAnnotationInsertion } from '@/features/pdf/annotations/useAnnotationInsertion'
-import { defaultHighlightColor } from '@/features/pdf/annotations/highlight/colors'
+import { defaultHighlightStyle, type HighlightStyle } from '../../shared/highlight'
 import type { ChatAttachment } from '../../shared/ai'
 import { ChatDock } from '@/features/chat/ChatDock'
 
@@ -29,7 +29,7 @@ function App(): React.JSX.Element {
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [invertColors, setInvertColors] = useState(false)
   const [navigationTab, setNavigationTab] = useState<PdfDocumentViewProps['navigationTab']>('pages')
-  const [highlightColor, setHighlightColor] = useState<string>(defaultHighlightColor)
+  const [highlightStyle, setHighlightStyle] = useState(defaultHighlightStyle)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatSelection, setChatSelection] = useState<{
     tabId: string
@@ -54,8 +54,8 @@ function App(): React.JSX.Element {
 
   const persistSession = useCallback(
     (state: DocumentsState): Promise<void> =>
-      persistDocumentSession(state, { highlightColor, theme }),
-    [highlightColor, theme]
+      persistDocumentSession(state, { highlightStyle, theme }),
+    [highlightStyle, theme]
   )
 
   const {
@@ -109,14 +109,18 @@ function App(): React.JSX.Element {
   )
 
   const restorePreferences = useCallback((session: SessionState): void => {
-    setHighlightColor(session.highlightColor || defaultHighlightColor)
+    setHighlightStyle({
+      color: session.highlightColor,
+      opacity: session.highlightOpacity,
+      thickness: session.highlightThickness
+    })
     setTheme(session.theme || 'system')
   }, [])
   useDocumentSession({
     tabs,
     activeId,
     ready,
-    highlightColor,
+    highlightStyle,
     theme,
     restoreSession,
     restorePreferences,
@@ -245,9 +249,16 @@ function App(): React.JSX.Element {
     )
   }
 
-  const changeHighlightColor = (color: string): void => {
-    getActiveViewer()?.setHighlightColor(color)
-    setHighlightColor(color)
+  const changeHighlightStyle = (style: Partial<HighlightStyle>, live = false): void => {
+    getActiveViewer()?.setHighlightStyle(style, live)
+    setHighlightStyle((current) => {
+      const next = { ...current, ...style }
+      return next.color === current.color &&
+        next.opacity === current.opacity &&
+        next.thickness === current.thickness
+        ? current
+        : next
+    })
   }
 
   const toolbar = (
@@ -323,9 +334,9 @@ function App(): React.JSX.Element {
           <ToolOptionsSidebar
             canAnnotate={activeTab?.view.canAnnotate ?? false}
             annotationTool={annotationTool}
-            highlightColor={highlightColor}
+            highlightStyle={highlightStyle}
             textSettings={textEditor?.id === activeId ? textEditor.settings : null}
-            onHighlightColorChange={changeHighlightColor}
+            onHighlightStyleChange={changeHighlightStyle}
           />
           <div className="document-canvas">
             <DocumentWorkspace
@@ -339,7 +350,7 @@ function App(): React.JSX.Element {
               navigationTab={navigationTab}
               onNavigationTabChange={setNavigationTab}
               annotationTool={annotationTool}
-              highlightColor={highlightColor}
+              highlightStyle={highlightStyle}
               onOpen={() => void openDialog()}
               onOpenPath={(path) => openPaths([path])}
               onViewerHandle={registerDocumentViewer}

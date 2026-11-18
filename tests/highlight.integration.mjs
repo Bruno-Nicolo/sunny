@@ -7,9 +7,35 @@ import fs from 'node:fs'
 import path from 'node:path'
 import assert from 'node:assert/strict'
 import os from 'node:os'
+import { pathToFileURL } from 'node:url'
+import ts from 'typescript'
 const root = path.resolve(import.meta.dirname, '..')
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lepis-highlight-'))
 app.setPath('userData', temp)
+// Exercise session restoration through the real loader, including absent tool preferences.
+for (const name of ['shared/highlight', 'main/session', 'main/atomic-write']) {
+  const source = fs.readFileSync(path.join(root, 'src', `${name}.ts`), 'utf8')
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
+  })
+  fs.writeFileSync(
+    path.join(temp, `${path.basename(name)}.mjs`),
+    outputText
+      .replace("'../shared/highlight'", "'./highlight.mjs'")
+      .replace("'./atomic-write'", "'./atomic-write.mjs'")
+  )
+}
+const { loadSession } = await import(pathToFileURL(path.join(temp, 'session.mjs')).href)
+const sessionPath = path.join(temp, 'session.json')
+fs.writeFileSync(
+  sessionPath,
+  JSON.stringify({
+    tabs: [{ path: 'second.pdf', page: 1, scale: 'page-fit', scrollTop: 0 }],
+    activePath: 'second.pdf',
+    theme: 'light'
+  })
+)
+ipcMain.handle('test:session', () => loadSession(sessionPath))
 const pdf = Buffer.from(textPdf)
 const saved = new Map()
 ipcMain.handle('test:read', (_, name) => ({
@@ -33,7 +59,7 @@ contextBridge.exposeInMainWorld('lepis', {
   releasePdfSource: async () => {},
   loadDrafts: async () => [], saveDraft: async () => {}, deleteDraft: async () => {},
   setTheme: () => {},
-  loadSession: async () => ({ tabs: [{path:'second.pdf',page:1,scale:'page-fit',scrollTop:0}], activePath:'second.pdf', highlightColor:'#FDE047', theme:'light' }),
+  loadSession: () => ipcRenderer.invoke('test:session'),
   readPdf: path => ipcRenderer.invoke('test:read', path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),
   statPdf: async () => ({mtimeMs:1,size:1}), saveSession: async () => {},
@@ -58,6 +84,56 @@ async function waitFor(code) {
 }
 async function chooseColor(current, next) {
   await chooseHighlightColor(evaluate, waitFor, next)
+}
+
+async function setHighlightRange(label, value) {
+  await dragHighlightRange(label, [value])
+}
+
+async function dragHighlightRange(label, values) {
+  const bounds = await evaluate(`(() => {
+    const thumb = document.querySelector('[role="slider"][aria-label="${label}"]');
+    const track = thumb.closest('[data-slot="slider"]').getBoundingClientRect();
+    const handle = thumb.getBoundingClientRect();
+    return {left: track.left, width: track.width, y: handle.top + handle.height / 2,
+      x: handle.left + handle.width / 2,
+      min: Number(thumb.getAttribute('aria-valuemin')), max: Number(thumb.getAttribute('aria-valuemax'))};
+  })()`)
+  win.webContents.sendInputEvent({
+    type: 'mouseMove',
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y)
+  })
+  win.webContents.sendInputEvent({
+    type: 'mouseDown',
+    button: 'left',
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+    clickCount: 1
+  })
+  await evaluate(`new Promise(resolve => requestAnimationFrame(resolve))`)
+  for (const value of values) {
+    win.webContents.sendInputEvent({
+      type: 'mouseMove',
+      modifiers: ['leftButtonDown'],
+      x: Math.round(
+        bounds.left + (bounds.width * (value - bounds.min)) / (bounds.max - bounds.min)
+      ),
+      y: Math.round(bounds.y)
+    })
+    await waitFor(
+      `document.querySelector('[role="slider"][aria-label="${label}"]').getAttribute('aria-valuenow') === '${value}'`
+    )
+  }
+  win.webContents.sendInputEvent({
+    type: 'mouseUp',
+    button: 'left',
+    x: Math.round(
+      bounds.left + (bounds.width * (values.at(-1) - bounds.min)) / (bounds.max - bounds.min)
+    ),
+    y: Math.round(bounds.y),
+    clickCount: 1
+  })
 }
 
 async function highlightText(text, count) {
@@ -104,6 +180,25 @@ app
       `document.querySelector('[aria-label="Highlight text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
     )
     await waitFor(`document.querySelector('.visible .textLayer span') !== null`)
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    await waitFor(
+      `window.annotationErrors.length > 0 || document.querySelectorAll('[aria-label="Highlight color"] button').length === 8`
+    )
+    assert.deepEqual(
+      await evaluate('window.annotationErrors'),
+      [],
+      'Opening the highlighter with absent session preferences must not crash ColorOptions'
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="Highlight color"] [aria-label="Yellow"]').getAttribute('aria-pressed')`
+      ),
+      'true'
+    )
+    await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
+    console.log(
+      'PASS: highlighter opens with valid defaults when the saved session has no tool preferences'
+    )
     const selectWithoutTool = () =>
       evaluate(`(() => {
       const span = document.querySelector('.visible .textLayer span');
@@ -181,6 +276,18 @@ app
     )
     assert.notEqual(multilineBorder.stroke, 'transparent')
     assert.equal(multilineBorder.stroke, multilineBorder.color)
+    await setHighlightRange('Opacity', 45)
+    assert.equal(
+      await evaluate(
+        `getComputedStyle(document.querySelector('.visible .lepisHighlightDrawing path')).opacity`
+      ),
+      '0.45'
+    )
+    await evaluate(`void window.testCommands.run('undo')`)
+    await waitFor(
+      `getComputedStyle(document.querySelector('.visible .lepisHighlightDrawing path')).opacity === '0.9'`
+    )
+    console.log('PASS: opacity also updates text highlights and supports undo')
     await evaluate(`void window.testCommands.run('undo')`)
     await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === 0`)
     await evaluate(`document.querySelector('[aria-label="Highlight text"]').click()`)
@@ -188,6 +295,7 @@ app
       'PASS: multiline highlight borders follow the individual lines without a bounding rectangle'
     )
     await chooseColor('Yellow', 'Pink')
+    await setHighlightRange('Opacity', 90)
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true'`
     )
@@ -363,6 +471,13 @@ app
       }
     }
     console.log('PASS: pointer cancellation, Escape and tool changes discard unfinished strokes')
+    assert.equal(
+      await evaluate(`document.querySelectorAll('[aria-label="Highlight color"] button').length`),
+      8
+    )
+    await chooseHighlightColor(evaluate, waitFor, 'Purple')
+    await setHighlightRange('Opacity', 45)
+    await setHighlightRange('Stroke size', 24)
     win.webContents.sendInputEvent({ type: 'mouseMove', ...blank })
     win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...blank, clickCount: 1 })
     for (let i = 1; i <= 10; i++) {
@@ -385,8 +500,27 @@ app
       await evaluate(
         `getComputedStyle(document.querySelector('.visible .lepisHighlightDrawing .lepisFreehandStroke')).opacity`
       ),
-      '0.9'
+      '0.45'
     )
+    const strokeWidth = await evaluate(
+      `parseFloat(getComputedStyle(document.querySelector('.visible .lepisFreehandStroke')).strokeWidth)`
+    )
+    assert.ok(strokeWidth > 0)
+    await dragHighlightRange('Stroke size', [26, 28, 30, 32])
+    assert.ok(
+      Math.abs(
+        (await evaluate(
+          `parseFloat(getComputedStyle(document.querySelector('.visible .lepisFreehandStroke')).strokeWidth)`
+        )) /
+          strokeWidth -
+          32 / 24
+      ) < 0.001
+    )
+    await evaluate(`void window.testCommands.run('undo')`)
+    await waitFor(
+      `Math.abs(parseFloat(getComputedStyle(document.querySelector('.visible .lepisFreehandStroke')).strokeWidth) - ${strokeWidth}) < 0.001`
+    )
+    console.log('PASS: a continuous slider drag forms one undo command')
     await evaluate(`void window.testCommands.run('undo')`)
     await waitFor(`document.querySelectorAll('.visible .highlightEditor').length === ${before}`)
     await evaluate(`void window.testCommands.run('redo')`)
@@ -439,6 +573,22 @@ app
     })
     await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
     const reopened = await strokeBounds()
+    assert.equal(
+      await evaluate(
+        `getComputedStyle(document.querySelector('.visible .lepisFreehandStroke')).opacity`
+      ),
+      '0.45'
+    )
+    assert.ok(
+      Math.abs(
+        (await evaluate(
+          `parseFloat(getComputedStyle(document.querySelector('.visible .lepisFreehandStroke')).strokeWidth)`
+        )) - strokeWidth
+      ) < 0.01
+    )
+    console.log(
+      'PASS: custom highlight opacity and stroke size survive editing, undo and PDF reopening'
+    )
     assert.ok(Math.abs(reopened.x - moved.x) < 0.1, 'Saved stroke must retain its moved x position')
     assert.ok(Math.abs(reopened.y - moved.y) < 0.1, 'Saved stroke must retain its moved y position')
     console.log('PASS: freehand highlights drag and retain their position after reopening')

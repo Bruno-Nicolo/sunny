@@ -168,9 +168,9 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     controllerRef.current?.setAnnotationOptions({
       active: props.active,
       annotationTool: props.annotationTool,
-      highlightColor: props.highlightColor
+      highlightStyle: props.highlightStyle
     })
-  }, [props.active, props.annotationTool, props.highlightColor])
+  }, [props.active, props.annotationTool, props.highlightStyle])
 
   useEffect(() => {
     if (props.active) propsRef.current.onTextEditorChange(textEditor)
@@ -233,7 +233,7 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
       },
       navigateHorizontally: (direction) => controllerRef.current?.navigateHorizontally(direction),
       scrollVertically: (direction) => controllerRef.current?.scrollVertically(direction),
-      setHighlightColor: (color) => controllerRef.current?.setHighlightColor(color),
+      setHighlightStyle: (style, live) => controllerRef.current?.setHighlightStyle(style, live),
       async addImage(file, point) {
         if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')
         await controllerRef.current.addImage(file, point)
