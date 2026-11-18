@@ -1,3 +1,5 @@
+import type { TextFontFamily } from './types'
+
 export const textColors = [
   { name: 'Black', value: '#000000' },
   { name: 'Gray', value: '#6B7280' },
@@ -7,4 +9,15 @@ export const textColors = [
   { name: 'Purple', value: '#9333EA' }
 ] as const
 
-export const textSizes = [8, 10, 12, 16, 20, 24, 32, 48, 72] as const
+export const textFonts: Record<TextFontFamily, { label: string; css: string }> = {
+  serif: { label: 'Serif', css: '"Times New Roman", Times, serif' },
+  'sans-serif': { label: 'Sans serif', css: 'Helvetica, Arial, sans-serif' },
+  monospace: { label: 'Monospace', css: 'Courier, "Courier New", monospace' }
+}
+
+export const defaultTextStyle = {
+  color: '#000000',
+  fontSize: 8,
+  fontFamily: 'sans-serif',
+  textAlign: 'left'
+} as const

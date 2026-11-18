@@ -1,8 +1,8 @@
 import type { PageViewport } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import type { Annotation } from '../model'
+import type { HighlightAnnotation } from '../model'
 
 // Page overlays and canvas previews use the same viewport path, including single-point strokes.
-export function highlightPath(record: Annotation, viewport: PageViewport): string {
+export function highlightPath(record: HighlightAnnotation, viewport: PageViewport): string {
   const path: string[] = []
   if (record.strokes) {
     for (const points of record.strokes) {

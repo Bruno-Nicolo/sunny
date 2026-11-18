@@ -30,7 +30,8 @@ export function annotationOrientation(
   rotation: number,
   scale: number
 ): { angle: number; width: number; height: number; x: number; y: number } {
-  const intrinsic = record.kind === 'text' ? record.rotation : (record.image?.rotation ?? 0)
+  const intrinsic =
+    record.kind === 'text' ? record.rotation : record.kind === 'image' ? record.image.rotation : 0
   const angle = (rotation - intrinsic + 360) % 360
   const width =
     (intrinsic % 180 ? record.rect[3] - record.rect[1] : record.rect[2] - record.rect[0]) * scale

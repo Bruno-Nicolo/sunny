@@ -1,4 +1,4 @@
-import { chooseTextSize } from './fixtures/annotation-toolbar.mjs'
+import { chooseTextSize, showTextOptions } from './fixtures/annotation-toolbar.mjs'
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { blankPdf } from './fixtures/pdf.mjs'
@@ -102,6 +102,18 @@ async function textBox() {
     };
   })()`)
 }
+async function chooseFont(label) {
+  await waitFor(`document.querySelector('[role="combobox"][aria-label="Text font"]') !== null`)
+  await click(`document.querySelector('[role="combobox"][aria-label="Text font"]')`)
+  await waitFor(`document.querySelector('[role="option"]') !== null`)
+  await click(
+    `[...document.querySelectorAll('[role="option"]')].find(option => option.textContent.trim() === '${label}')`
+  )
+  await waitFor(
+    `document.querySelector('[role="combobox"][aria-label="Text font"]').textContent.trim() === '${label}' && !document.querySelector('[role="listbox"]')`
+  )
+}
+
 async function addText() {
   await waitFor(
     `document.querySelector('.visible .annotationEditorLayer.freetextEditing') !== null`
@@ -144,6 +156,37 @@ app
     await click(`document.querySelector('[aria-label="Add text"]')`)
 
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Text tool settings"] h2')`),
+      null
+    )
+    await chooseTextSize(evaluate, waitFor, 13.5)
+    await chooseTextSize(evaluate, waitFor, 24)
+    for (const [draft, key, expected] of [
+      ['', 'Enter', 24],
+      ['99', 'Escape', 24],
+      ['200', 'Enter', 144],
+      ['0', 'Enter', 6]
+    ]) {
+      await evaluate(`(() => {
+        const input = document.querySelector('input[aria-label="Text size"]');
+        input.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${draft}');
+        input.dispatchEvent(new Event('input', {bubbles:true}));
+      })()`)
+      await evaluate(
+        `document.querySelector('input[aria-label="Text size"]').dispatchEvent(new KeyboardEvent('keydown', {key:'${key}', bubbles:true, cancelable:true}))`
+      )
+      if (key === 'Escape') await showTextOptions(evaluate, waitFor)
+      await waitFor(
+        `document.querySelector('input[aria-label="Text size"]').value === '${expected}'`
+      )
+    }
+    assert.equal(
+      await evaluate(`document.querySelector('[aria-label="Decrease text size"]').disabled`),
+      true
+    )
+    console.log('PASS: text size input supports decimals, empty values, Escape and bounds')
     await chooseTextSize(evaluate, waitFor, 24)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
     await waitFor(
@@ -175,9 +218,7 @@ app
       null
     )
     await chooseTextSize(evaluate, waitFor, 24)
-    await waitFor(
-      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
-    )
+    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
     await evaluate(
       `(() => { const button = document.querySelector('[aria-label="Text color"] [aria-label="Red"]'); button.focus(); button.click(); })()`
     )
@@ -280,9 +321,7 @@ app
     await evaluate(`document.querySelector('.visible .freeTextEditor').focus()`)
     await waitFor(`document.querySelector('.visible .freeTextEditor.selectedEditor') !== null`)
 
-    await waitFor(
-      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
-    )
+    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
     await new Promise((resolve) => setTimeout(resolve, 250))
     assert.equal(
       await evaluate(`document.querySelector('.visible .freeTextEditor .editToolbar')`),
@@ -317,13 +356,9 @@ app
       'false'
     )
     await chooseTextSize(evaluate, waitFor, 32)
-    await waitFor(
-      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '32 pt'`
-    )
+    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '32'`)
     await evaluate(`window.testCommands.run('undo')`)
-    await waitFor(
-      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
-    )
+    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
     await evaluate(`window.testCommands.run('undo')`)
     await waitFor(
       `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
@@ -360,9 +395,7 @@ app
     }
     for (const size of [32, 16, 24]) {
       await chooseTextSize(evaluate, waitFor, size)
-      await waitFor(
-        `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '${size} pt'`
-      )
+      await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '${size}'`)
     }
     console.log('PASS: repeated changes update visible checkmarks while typing')
     await save()
@@ -428,9 +461,7 @@ app
       '/Helv 32 Tf 1 0 0 rg'
     )
     await evaluate(`window.testCommands.run('undo')`)
-    await waitFor(
-      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
-    )
+    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
     await save()
     console.log('PASS: size-only edits persist, while unchanged formatting adds no edits')
 
@@ -442,9 +473,7 @@ app
     assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 0)
     await addText()
 
-    await waitFor(
-      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '8 pt'`
-    )
+    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '8'`)
     assert.equal(
       await evaluate(
         `document.querySelector('[aria-label="Text color"] [aria-label="Black"]').getAttribute('aria-pressed')`
@@ -624,6 +653,73 @@ app
     assert.ok(edited.fits, 'Long words must wrap without overflowing')
     console.log(
       'PASS: native text resizing wraps without scaling, supports undo/redo and preserves editable text after reopening'
+    )
+    await evaluate(`document.querySelector('[aria-label="Add text"]').click()`)
+    await chooseFont('Monospace')
+    await waitFor(
+      `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).fontFamily.includes('Courier')`
+    )
+    await click(`document.querySelector('[aria-label="Align center"]')`)
+    await waitFor(
+      `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).textAlign === 'center'`
+    )
+    await evaluate(`window.testCommands.run('undo')`)
+    await waitFor(
+      `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).textAlign === 'left'`
+    )
+    await evaluate(`window.testCommands.run('redo')`)
+    await waitFor(
+      `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).textAlign === 'center'`
+    )
+    await evaluate(`document.querySelector('[aria-label="Align right"]').click()`)
+    await waitFor(
+      `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).textAlign === 'right'`
+    )
+    await chooseFont('Serif')
+    await waitFor(
+      `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).fontFamily.includes('Times')`
+    )
+    const originalSize = await evaluate(
+      `parseFloat(document.querySelector('.visible .freeTextEditor .internal').style.fontSize)`
+    )
+    await evaluate(`document.querySelector('[aria-label="Increase text size"]').click()`)
+    await waitFor(
+      `parseFloat(document.querySelector('.visible .freeTextEditor .internal').style.fontSize) > ${originalSize}`
+    )
+    await evaluate(`document.querySelector('[aria-label="Decrease text size"]').click()`)
+    await waitFor(
+      `parseFloat(document.querySelector('.visible .freeTextEditor .internal').style.fontSize) === ${originalSize}`
+    )
+    await save()
+    await new Promise((resolve) => {
+      win.webContents.once('did-finish-load', resolve)
+      win.reload()
+    })
+    await waitFor(`document.querySelector('.visible .freeTextEditor .internal') !== null`)
+    assert.ok(
+      await evaluate(
+        `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).fontFamily.includes('Times')`
+      )
+    )
+    assert.equal(
+      await evaluate(
+        `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).textAlign`
+      ),
+      'right'
+    )
+    await evaluate(`document.querySelector('[aria-label="Add text"]').click()`)
+    await evaluate(`document.querySelector('.visible .freeTextEditor').focus()`)
+    await waitFor(
+      `document.querySelector('[role="combobox"][aria-label="Text font"]').textContent.trim() === 'Serif'`
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelector('[aria-label="Align right"]').getAttribute('aria-pressed')`
+      ),
+      'true'
+    )
+    console.log(
+      'PASS: font families, size buttons and alignment support undo and persist after reopening'
     )
   })
   .then(() => finish(0))

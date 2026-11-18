@@ -45,6 +45,8 @@ const textRecord = {
   rect: [50, 600, 250, 650],
   rotation: 0,
   fontSize: 16,
+  fontFamily: 'sans-serif',
+  textAlign: 'left',
   color: '#000000',
   text: 'Caffè: città, perché'
 }
@@ -90,6 +92,79 @@ test('app-owned text saves incrementally, reopens and updates the original PDF o
   assert.equal(result.contentsObj.str, 'Edited')
   assert.equal(result.defaultAppearanceData.fontSize, 24)
   assert.deepEqual([...result.defaultAppearanceData.fontColor], [255, 0, 0])
+})
+
+test('text font families and alignment persist as editable PDF text with matching line positions', async (t) => {
+  for (const [fontFamily, textAlign, fontName, alignment] of [
+    ['sans-serif', 'left', 'Helv', 0],
+    ['serif', 'center', 'TiRo', 1],
+    ['monospace', 'right', 'Cour', 2]
+  ]) {
+    const document = await open(t, blankPdf)
+    const model = new AnnotationModel(() => {})
+    model.change(undefined, {
+      ...textRecord,
+      fontFamily,
+      textAlign,
+      text: 'Long sample\nHi',
+      textLines: ['Long sample', 'Hi'],
+      rect: [50, 500, 250, 600]
+    })
+    const bytes = await writeAnnotations(document, model)
+    const reopened = await open(t, bytes)
+    const page = await reopened.getPage(1)
+    const [annotation] = await page.getAnnotations()
+    assert.equal(annotation.textAlignment, alignment)
+    assert.equal(annotation.defaultAppearanceData.fontName, fontName)
+    assert.equal(annotation.hasAppearance, true)
+    const operators = await page.getOperatorList()
+    const lines = []
+    let x = 0
+    for (let i = 0; i < operators.fnArray.length; i++) {
+      const args = operators.argsArray[i]
+      if (operators.fnArray[i] === OPS.setTextMatrix) x = args[0][4]
+      if (operators.fnArray[i] === OPS.showText) {
+        const glyphs = args[0].filter((glyph) => typeof glyph === 'object')
+        lines.push({
+          x,
+          text: glyphs.map((glyph) => glyph.unicode).join(''),
+          width: glyphs.reduce((sum, glyph) => sum + (glyph.width * 16) / 1000, 0)
+        })
+      }
+    }
+    assert.deepEqual(
+      lines.map((line) => line.text),
+      ['Long sample', 'Hi']
+    )
+    for (const line of lines) {
+      const anchor =
+        line.x + (textAlign === 'center' ? line.width / 2 : textAlign === 'right' ? line.width : 0)
+      const expected = textAlign === 'center' ? 150 : textAlign === 'right' ? 248 : 52
+      assert.ok(
+        Math.abs(anchor - expected) < 0.1,
+        `${fontFamily} ${textAlign}: ${anchor} != ${expected}`
+      )
+    }
+  }
+})
+
+test('mixed text families save separate standard font resources in the same PDF', async (t) => {
+  const document = await open(t, blankPdf)
+  const model = new AnnotationModel(() => {})
+  for (const [index, fontFamily] of ['sans-serif', 'serif', 'monospace'].entries()) {
+    model.change(undefined, {
+      ...textRecord,
+      key: `font-${index}`,
+      fontFamily,
+      rect: [50, 500 - index * 80, 250, 560 - index * 80]
+    })
+  }
+  const bytes = await writeAnnotations(document, model)
+  const output = Buffer.from(bytes).toString('latin1')
+  for (const font of ['Helvetica', 'Times-Roman', 'Courier'])
+    assert.ok(output.includes(`/BaseFont /${font}`), `${font} must have its own resource`)
+  const reopened = await open(t, bytes)
+  assert.equal((await (await reopened.getPage(1)).getAnnotations()).length, 3)
 })
 
 test('soft wraps save as separate appearance lines without changing text or font size', async (t) => {

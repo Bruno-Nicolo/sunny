@@ -30,6 +30,8 @@ function serialize(record: Annotation): Record<string, unknown> {
         ...data,
         annotationType: AnnotationEditorType.FREETEXT,
         fontSize: record.fontSize,
+        fontFamily: record.fontFamily,
+        textAlignment: record.textAlign === 'center' ? 1 : record.textAlign === 'right' ? 2 : 0,
         value: record.text,
         textLines: record.textLines,
         textResized: !!record.textResized

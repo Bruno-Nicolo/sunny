@@ -1,7 +1,14 @@
-export type TextEditorSettings = {
-  element: HTMLDivElement | null
+export type TextFontFamily = 'serif' | 'sans-serif' | 'monospace'
+export type TextAlignment = 'left' | 'center' | 'right'
+
+export type TextStyle = {
   color: string
-  size: number
-  setColor(color: string): void
-  setSize(size: number): void
+  fontSize: number
+  fontFamily: TextFontFamily
+  textAlign: TextAlignment
+}
+
+export type TextEditorSettings = TextStyle & {
+  element: HTMLDivElement | null
+  setStyle(style: Partial<TextStyle>): void
 }

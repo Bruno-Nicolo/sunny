@@ -1,11 +1,11 @@
-import type { Annotation } from '../model'
+import type { HighlightAnnotation } from '../model'
 import type { HighlightStyle } from '../types'
 
 // Change appearance without copying stroke points; only a size change adjusts the bounds.
 export function updateHighlightStyle(
-  record: Annotation,
+  record: HighlightAnnotation,
   style: Partial<HighlightStyle>
-): Annotation {
+): HighlightAnnotation {
   const color = style.color ?? record.color
   const opacity = style.opacity ?? record.opacity
   const thickness = record.strokes ? (style.thickness ?? record.thickness) : record.thickness

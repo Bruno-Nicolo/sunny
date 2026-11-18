@@ -67,7 +67,3 @@
 .toolbar-zoom {
   gap: 0;
 }
-
-.tool-options-sidebar [data-slot='select-trigger'] {
-  width: 100%;
-}

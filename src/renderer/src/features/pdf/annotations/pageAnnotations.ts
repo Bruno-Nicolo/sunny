@@ -1,6 +1,7 @@
 import type { PageViewport } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { Annotation, PdfRect } from './model'
 import { annotationOrientation } from './geometry'
+import { textFonts } from './text/options'
 import { highlightPath } from './highlight/geometry'
 
 export type PageAnnotations = {
@@ -54,18 +55,25 @@ export function paintAnnotations(
       if (record.kind === 'image' && record.image) {
         context.drawImage(record.image.canvas, 0, 0, width, height)
       } else if (record.kind === 'text') {
-        const size = record.fontSize! * viewport.scale
+        const size = record.fontSize * viewport.scale
         const lines = record.textLines!
         const lineHeight = size * 1.35
-        context.font = `${size}px Helvetica, Arial, sans-serif`
+        context.font = `${size}px ${textFonts[record.fontFamily].css}`
         context.fillStyle = record.color
         context.textBaseline = 'alphabetic'
+        context.textAlign = record.textAlign
         const metrics = context.measureText('Mg')
         const baseline =
           (lineHeight + metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2
         const start = 2 * viewport.scale
+        const textX =
+          context.textAlign === 'center'
+            ? width / 2
+            : context.textAlign === 'right'
+              ? width - start
+              : start
         lines.forEach((line, index) =>
-          context.fillText(line, 2 * viewport.scale, start + baseline + index * lineHeight)
+          context.fillText(line, textX, start + baseline + index * lineHeight)
         )
       }
     }

@@ -85,13 +85,21 @@ export async function readPageAnnotations(page: PDFPageProxy): Promise<Annotatio
       data.annotationType === AnnotationType.FREETEXT &&
       data.textContent?.join('\n').trim()
     ) {
+      const fontName = data.defaultAppearanceData?.fontName ?? ''
       record = layoutText(
         {
           ...common,
           kind: 'text',
           textResized: data.textResized,
           color: hexColor(data.defaultAppearanceData?.fontColor, '#000000'),
-          fontSize: data.defaultAppearanceData?.fontSize || 16
+          fontSize: data.defaultAppearanceData?.fontSize || 16,
+          fontFamily: /Cour/i.test(fontName)
+            ? 'monospace'
+            : /TiRo|Times/i.test(fontName)
+              ? 'serif'
+              : 'sans-serif',
+          textAlign:
+            data.textAlignment === 1 ? 'center' : data.textAlignment === 2 ? 'right' : 'left'
         },
         data.contentsObj?.str || data.textContent.join('\n')
       )
@@ -106,7 +114,8 @@ export async function readPageAnnotations(page: PDFPageProxy): Promise<Annotatio
     }
     if (record) records.push(record)
   }
-  const used = new Set(records.map((record) => record.image?.canvas))
+  const used = new Set<HTMLCanvasElement>()
+  for (const record of records) if (record.kind === 'image') used.add(record.image.canvas)
   for (const image of images.values()) if (!used.has(image)) image.width = image.height = 0
   return records
 }

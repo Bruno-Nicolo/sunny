@@ -5,14 +5,15 @@ import {
   type PDFViewer
 } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import { AnnotationLayer } from './annotationLayer'
-import { AnnotationModel, type Annotation } from './model'
+import { AnnotationModel, type Annotation, type TextAnnotation } from './model'
 import { writeAnnotations } from './pdfAnnotationWriter'
 import { readPageAnnotations } from './pdfAnnotationReader'
 import { updateHighlightStyle } from './highlight/style'
 import { normalizedRect } from './geometry'
 import { layoutText } from './text/textLayout'
 import { validateImage } from './images/imageFiles'
-import type { TextEditorSettings } from './text/types'
+import { defaultTextStyle } from './text/options'
+import type { TextEditorSettings, TextStyle } from './text/types'
 import type { AnnotationInsertionPoint, AnnotationOptions, HighlightStyle } from './types'
 import type { PageAnnotations } from './pageAnnotations'
 
@@ -44,6 +45,15 @@ type AnnotationController = {
   save(): Promise<Uint8Array>
 }
 
+function hasTextStyleChanges(current: TextStyle, changes: Partial<TextStyle>): boolean {
+  return (
+    (changes.color !== undefined && current.color.toLowerCase() !== changes.color.toLowerCase()) ||
+    (changes.fontSize !== undefined && current.fontSize !== changes.fontSize) ||
+    (changes.fontFamily !== undefined && current.fontFamily !== changes.fontFamily) ||
+    (changes.textAlign !== undefined && current.textAlign !== changes.textAlign)
+  )
+}
+
 // The app owns annotation state and interaction; PDF.js owns pages and incremental PDF output.
 export function createAnnotationController({
   eventBus,
@@ -68,7 +78,8 @@ export function createAnnotationController({
   let historyAction = false
   let pointerSelection = false
   let selectionFrame: number | null = null
-  const defaults = { color: '#000000', size: 8 }
+  let defaults: TextStyle = { ...defaultTextStyle }
+  let textSettings: TextEditorSettings | null = null
   const pages = new Map<number, AnnotationLayer>()
   const imports = new Map<number, Promise<void>>()
   const canEdit = (): boolean => ready && permitted && options.active && !signal.aborted
@@ -97,33 +108,36 @@ export function createAnnotationController({
     refreshText()
   }
 
+  function setTextStyle(changes: Partial<TextStyle>): void {
+    if (!canEdit()) return
+    const current = selected ? model.records.get(selected) : undefined
+    const text = current?.kind === 'text' ? current : undefined
+    if (!hasTextStyleChanges(text ?? defaults, changes)) return
+    if (!text) {
+      defaults = { ...defaults, ...changes }
+      refreshText()
+      return
+    }
+    const next = { ...text, ...changes }
+    const reflow = next.fontSize !== text.fontSize || next.fontFamily !== text.fontFamily
+    model.change(text, reflow ? layoutText(next, next.text ?? '') : next)
+  }
+
   function refreshText(): void {
     const record = selected ? model.records.get(selected) : undefined
     const text = record?.kind === 'text' ? record : undefined
-    const set = (field: 'color' | 'fontSize', value: string | number): void => {
-      if (!canEdit()) return
-      const current = selected ? model.records.get(selected) : undefined
-      if (current?.kind === 'text') {
-        if (
-          current[field] === value ||
-          (field === 'color' && current.color.toLowerCase() === String(value).toLowerCase())
-        )
-          return
-        const next = { ...current, [field]: value }
-        model.change(current, field === 'fontSize' ? layoutText(next, next.text ?? '') : next)
-      } else {
-        if (field === 'color') defaults.color = value as string
-        else defaults.size = value as number
-        refreshText()
-      }
+    const style = text ?? defaults
+    const element = text ? (pages.get(text.pageIndex)?.editors.get(text.key) ?? null) : null
+    if (textSettings?.element === element && !hasTextStyleChanges(textSettings, style)) return
+    textSettings = {
+      element,
+      color: style.color,
+      fontSize: style.fontSize,
+      fontFamily: style.fontFamily,
+      textAlign: style.textAlign,
+      setStyle: setTextStyle
     }
-    onTextEditorChange({
-      element: text ? (pages.get(text.pageIndex)?.editors.get(text.key) ?? null) : null,
-      color: text?.color ?? defaults.color,
-      size: text?.fontSize ?? defaults.size,
-      setColor: (color) => set('color', color),
-      setSize: (size) => set('fontSize', size)
-    })
+    onTextEditorChange(textSettings)
   }
 
   function commit(): void {
@@ -153,7 +167,7 @@ export function createAnnotationController({
     refreshText()
   }
 
-  function updateText(record: Annotation, text: string): void {
+  function updateText(record: TextAnnotation, text: string): void {
     if (record.text !== text) model.change(record, layoutText(record, text), true)
   }
 
@@ -185,7 +199,7 @@ export function createAnnotationController({
     // Pasted blocks use their center; empty editors anchor the first line's caret.
     const [x, y] = viewport.convertToPdfPoint(
       text ? left : left - 2 * viewport.scale,
-      text ? top : top - (2 + (defaults.size * 1.35) / 2) * viewport.scale
+      text ? top : top - (2 + (defaults.fontSize * 1.35) / 2) * viewport.scale
     )
     const record = layoutText(
       {
@@ -194,8 +208,7 @@ export function createAnnotationController({
         pageIndex,
         rect: [x, y, x, y],
         rotation: viewport.rotation,
-        color: defaults.color,
-        fontSize: defaults.size
+        ...defaults
       },
       text
     )
@@ -218,7 +231,7 @@ export function createAnnotationController({
     const records = await readPageAnnotations(await document.getPage(pageIndex + 1))
     if (signal.aborted) {
       for (const record of records)
-        if (record.image) record.image.canvas.width = record.image.canvas.height = 0
+        if (record.kind === 'image') record.image.canvas.width = record.image.canvas.height = 0
       return
     }
     for (const record of records) {

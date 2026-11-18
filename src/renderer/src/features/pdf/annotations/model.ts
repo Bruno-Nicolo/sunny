@@ -1,7 +1,9 @@
+import type { TextStyle } from './text/types'
+
 export type PdfRect = [number, number, number, number]
 export type ImageAsset = { id: string; canvas: HTMLCanvasElement; rotation: number }
 
-export type Annotation = {
+type AnnotationBase = {
   key: string
   originalId?: string
   popupRef?: string
@@ -9,17 +11,30 @@ export type Annotation = {
   rect: PdfRect
   rotation: number
   color: string
-  kind: 'highlight' | 'text' | 'image'
+}
+
+export type TextAnnotation = AnnotationBase &
+  TextStyle & {
+    kind: 'text'
+    text?: string
+    textLines?: string[]
+    textResized?: boolean
+  }
+
+export type HighlightAnnotation = AnnotationBase & {
+  kind: 'highlight'
   quads?: number[]
   strokes?: number[][]
   thickness?: number
   opacity?: number
-  text?: string
-  textLines?: string[]
-  textResized?: boolean
-  fontSize?: number
-  image?: ImageAsset
 }
+
+export type ImageAnnotation = AnnotationBase & {
+  kind: 'image'
+  image: ImageAsset
+}
+
+export type Annotation = TextAnnotation | HighlightAnnotation | ImageAnnotation
 
 type Change = { before?: Annotation; after?: Annotation }
 
@@ -114,11 +129,11 @@ export class AnnotationModel {
   dispose(): void {
     const assets = new Set<ImageAsset>()
     for (const record of [...this.records.values(), ...this.originals.values()]) {
-      if (record.image) assets.add(record.image)
+      if (record.kind === 'image') assets.add(record.image)
     }
     for (const { before, after } of this.history) {
-      if (before?.image) assets.add(before.image)
-      if (after?.image) assets.add(after.image)
+      if (before?.kind === 'image') assets.add(before.image)
+      if (after?.kind === 'image') assets.add(after.image)
     }
     for (const asset of assets) asset.canvas.width = asset.canvas.height = 0
     this.records.clear()

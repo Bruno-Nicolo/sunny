@@ -76,9 +76,7 @@
   height: 100%;
   padding: calc(2px * var(--scale-factor));
   margin: 0;
-  font-family: Helvetica, Arial, sans-serif;
   line-height: 1.35;
-  text-align: left;
   align-content: start;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

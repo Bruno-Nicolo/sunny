@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Sidebar, SidebarProvider, SidebarHeader, SidebarContent } from '@/components/ui/sidebar'
+import { Sidebar, SidebarProvider, SidebarContent } from '@/components/ui/sidebar'
 import { AnnotationToolOptions } from '@/features/pdf/annotations/AnnotationToolOptions'
 import type { AnnotationTool, HighlightStyle } from '@/features/pdf/annotations/types'
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
@@ -41,12 +41,7 @@ export function ToolOptionsSidebar({
         data-text-settings={annotationTool === 'text' ? '' : undefined}
         aria-label={label}
       >
-        {annotationTool === 'text' && (
-          <SidebarHeader className="p-4 pb-3">
-            <h2 className="text-sm font-normal">{title}</h2>
-          </SidebarHeader>
-        )}
-        <SidebarContent className={annotationTool === 'highlight' ? 'p-4' : 'px-4 pb-4'}>
+        <SidebarContent className="p-4">
           <AnnotationToolOptions
             key={annotationTool}
             annotationTool={annotationTool}

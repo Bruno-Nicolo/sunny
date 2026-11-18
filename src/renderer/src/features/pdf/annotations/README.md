@@ -195,3 +195,15 @@ Escape, tool changes and loss of window focus discard the gesture; a completed s
 undo command. The page layer owns the gesture lifetime, including cancellation on viewport changes
 and page disposal. The SVG preview appends points and updates bounds incrementally. `highlight/geometry.ts`
 builds the shared path for page overlays, thumbnail previews and region captures.
+
+The text options panel configures font size, color, a standard font family (Helvetica for sans
+serif, Times-Roman for serif, or Courier for monospace), and left/center/right alignment. The same
+family drives editable text, line wrapping and canvas previews. PDF output uses matching standard
+Type 1 fonts and the FreeText Q alignment entry. Each font family has a separate PDF resource;
+per-line positions in the appearance stream preserve alignment in other viewers. Imported text
+restores these choices, and formatting changes participate in undo/redo.
+
+Text annotations require a complete style in the model; PDF import supplies font family and
+alignment from the standard DA and Q entries. The text panel receives updates when its style or
+selected editor changes. Typing alone reuses the current settings. Font dictionaries are shared
+within each incremental save and reused for font metrics and appearance resources.

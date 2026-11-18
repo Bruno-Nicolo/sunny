@@ -1,4 +1,5 @@
-import type { Annotation } from '../model'
+import { textFonts } from './options'
+import type { TextAnnotation } from '../model'
 import { annotationOrientation, textRect } from '../geometry'
 
 let context: CanvasRenderingContext2D | null = null
@@ -37,12 +38,12 @@ function wrapLines(
 }
 
 // Cache visual lines for PDF output and thumbnails; keep soft wraps out of editable text.
-export function layoutText(record: Annotation, text: string): Annotation {
+export function layoutText(record: TextAnnotation, text: string): TextAnnotation {
   const canvas = (context ??= document.createElement('canvas').getContext('2d')!)
-  canvas.font = `${record.fontSize}px Helvetica, Arial, sans-serif`
+  canvas.font = `${record.fontSize}px ${textFonts[record.fontFamily].css}`
   const size = annotationOrientation(record, record.rotation, 1)
   const paragraphs = text.split('\n')
-  let width = Math.max(record.fontSize! * 2 + 4, size.width)
+  let width = Math.max(record.fontSize * 2 + 4, size.width)
   if (!record.textResized) {
     width = 20
     for (const line of paragraphs) width = Math.max(width, canvas.measureText(line).width + 4)
@@ -50,7 +51,7 @@ export function layoutText(record: Annotation, text: string): Annotation {
   const lines = record.textResized ? wrapLines(paragraphs, width - 4, canvas) : paragraphs
   const height = Math.max(
     record.textResized ? size.height : 0,
-    lines.length * record.fontSize! * 1.35 + 4
+    lines.length * record.fontSize * 1.35 + 4
   )
   return { ...record, text, textLines: lines, rect: textRect(record, width, height) }
 }

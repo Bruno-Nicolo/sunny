@@ -3,26 +3,19 @@ export async function showTextOptions(evaluate, waitFor) {
     const tool = document.querySelector('[aria-label="Add text"]')
     if (tool.getAttribute('aria-pressed') !== 'true') tool.click()
   })()`)
-  await waitFor(`document.querySelector('[role="combobox"][aria-label="Text size"]') !== null`)
+  await waitFor(`document.querySelector('input[aria-label="Text size"]') !== null`)
 }
 
 export async function chooseTextSize(evaluate, waitFor, size) {
   await showTextOptions(evaluate, waitFor)
   await evaluate(`(() => {
-    const trigger = document.querySelector('[role="combobox"][aria-label="Text size"]')
-    trigger.focus()
-    trigger.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowDown', bubbles:true, cancelable:true}))
+    const input = document.querySelector('input[aria-label="Text size"]')
+    input.focus()
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${size}')
+    input.dispatchEvent(new Event('input', {bubbles:true}))
+    input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true, cancelable:true}))
   })()`)
-  await waitFor(`document.querySelector('[role="option"]') !== null`)
-  await evaluate(`(() => {
-    const option = [...document.querySelectorAll('[role="option"]')].find(el => el.textContent.trim() === '${size} pt')
-    if (!option) throw new Error('Missing text size: ${size}')
-    option.focus()
-    option.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true, cancelable:true}))
-  })()`)
-  await waitFor(
-    `document.querySelector('[role="combobox"][aria-label="Text size"]').textContent.trim() === '${size} pt' && !document.querySelector('[role="listbox"]')`
-  )
+  await waitFor(`document.querySelector('input[aria-label="Text size"]').value === '${size}'`)
 }
 
 export async function chooseHighlightColor(evaluate, waitFor, color) {

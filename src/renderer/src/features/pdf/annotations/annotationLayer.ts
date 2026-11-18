@@ -1,8 +1,9 @@
 import type { PDFPageView } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
-import type { Annotation, AnnotationModel, PdfRect } from './model'
+import type { Annotation, AnnotationModel, PdfRect, TextAnnotation } from './model'
 import type { AnnotationTool, HighlightStyle } from './types'
 import { annotationOrientation, normalizedRect } from './geometry'
 import { layoutText } from './text/textLayout'
+import { textFonts } from './text/options'
 import { drawHighlight } from './highlight/freehand'
 import { highlightPath as viewportHighlightPath } from './highlight/geometry'
 
@@ -13,7 +14,7 @@ type Options = {
   canEdit(): boolean
   selected(): string | null
   select(key: string | null, editing?: boolean): void
-  updateText(record: Annotation, text: string): void
+  updateText(record: TextAnnotation, text: string): void
   createText(left: number, top: number): void
 }
 
@@ -198,20 +199,23 @@ export class AnnotationLayer {
       this.position(editor, record.rect)
       editor.classList.toggle('selectedEditor', selection === record.key)
       const input = editor.querySelector<HTMLElement>('.internal')
-      if (input) {
+      if (input && record.kind === 'text') {
         if (input.innerText.replaceAll('\u00a0', ' ') !== record.text)
           input.innerText = record.text ?? ''
-        input.style.fontSize = `${record.fontSize! * page.viewport.scale}px`
+        input.style.fontSize = `${record.fontSize * page.viewport.scale}px`
         input.style.color = record.color
+        input.style.fontFamily = textFonts[record.fontFamily].css
+        input.style.textAlign = record.textAlign
         this.setEditing(input, this.editingKey === record.key && editable)
         this.orient(input, record)
       }
-      if (highlightPath) {
+      if (highlightPath && record.kind === 'highlight') {
+        const previousHighlight = previous?.kind === 'highlight' ? previous : undefined
         const contour = editor.querySelector('svg')!
         if (
           viewportChanged ||
-          previous?.strokes !== record.strokes ||
-          previous?.quads !== record.quads
+          previousHighlight?.strokes !== record.strokes ||
+          previousHighlight?.quads !== record.quads
         ) {
           const path = viewportHighlightPath(record, page.viewport)
           highlightPath.setAttribute('d', path)
@@ -233,7 +237,7 @@ export class AnnotationLayer {
       }
       const canvas = editor.querySelector<HTMLCanvasElement>('canvas')
       if (canvas) this.orient(canvas, record)
-      if (canvas && record.image && canvas.dataset.asset !== record.image.id) {
+      if (canvas && record.kind === 'image' && canvas.dataset.asset !== record.image.id) {
         canvas.width = record.image.canvas.width
         canvas.height = record.image.canvas.height
         canvas.getContext('2d')!.drawImage(record.image.canvas, 0, 0)
@@ -315,7 +319,8 @@ export class AnnotationLayer {
         'input',
         () => {
           const current = model.records.get(record.key)
-          if (canEdit() && current) updateText(current, input.innerText.replaceAll('\u00a0', ' '))
+          if (canEdit() && current?.kind === 'text')
+            updateText(current, input.innerText.replaceAll('\u00a0', ' '))
         },
         { signal }
       )
@@ -470,7 +475,7 @@ export class AnnotationLayer {
             ? layoutText({ ...original, rect, textResized: true }, original.text ?? '')
             : { ...original, rect }
         if (next.rect.every((value, index) => value === after.rect[index])) return
-        if (original.strokes) {
+        if (original.kind === 'highlight' && original.strokes && next.kind === 'highlight') {
           const dx = rect[0] - original.rect[0]
           const dy = rect[1] - original.rect[1]
           next.strokes = original.strokes.map((points) =>
