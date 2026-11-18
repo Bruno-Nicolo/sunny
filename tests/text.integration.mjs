@@ -1,3 +1,4 @@
+import { chooseTextSize } from './fixtures/annotation-toolbar.mjs'
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { blankPdf } from './fixtures/pdf.mjs'
@@ -50,7 +51,7 @@ const evaluate = (code) => win.webContents.executeJavaScript(code)
 async function click(code) {
   win.webContents.focus()
   await waitFor(`document.hasFocus()`)
-  // Popover entry animations must settle before computing native mouse coordinates.
+  // Layout changes must settle before computing native mouse coordinates.
   await new Promise((resolve) => setTimeout(resolve, 200))
   const { x, y } = await evaluate(`(() => {
     const target = (${code});
@@ -140,14 +141,10 @@ app
     await waitFor(
       `document.querySelector('[aria-label="Add text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
     )
-    await waitFor(
-      `document.querySelector('header [aria-label="Text settings"]')?.disabled === false`
-    )
-    await click(`document.querySelector('header [aria-label="Text settings"]')`)
+    await click(`document.querySelector('[aria-label="Add text"]')`)
+
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
-    await click(
-      `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '24 pt')`
-    )
+    await chooseTextSize(evaluate, waitFor, 24)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
     await waitFor(
       `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
@@ -157,8 +154,7 @@ app
       await evaluate(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground')`),
       null
     )
-    await click(`document.querySelector('header [aria-label="Text settings"]')`)
-    await waitFor(`document.querySelector('[aria-label="Text size"]') === null`)
+
     await addText()
     await waitFor(
       `getComputedStyle(document.querySelector('.visible .freeTextEditor .internal')).color === 'rgb(255, 0, 0)'`
@@ -170,20 +166,17 @@ app
       null
     )
     console.log(
-      'PASS: toolbar defaults configure new text without dirtying the PDF or adding local controls'
+      'PASS: sidebar defaults configure new text without dirtying the PDF or adding local controls'
     )
-    await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
-    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
+
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
     assert.equal(
       await evaluate(`document.querySelector('[data-text-settings] input[type="color"]')`),
       null
     )
-    await evaluate(
-      `(() => { const button = Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '24 pt'); button.focus(); button.click(); })()`
-    )
+    await chooseTextSize(evaluate, waitFor, 24)
     await waitFor(
-      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '24 pt'`
+      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
     )
     await evaluate(
       `(() => { const button = document.querySelector('[aria-label="Text color"] [aria-label="Red"]'); button.focus(); button.click(); })()`
@@ -193,9 +186,8 @@ app
     )
     await new Promise((resolve) => setTimeout(resolve, 100))
     assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 1)
-    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
-    await waitFor(`document.querySelector('[aria-label="Text size"]') === null`)
-    console.log('PASS: formatting opens from the toolbar and preserves the empty text box')
+
+    console.log('PASS: sidebar formatting preserves the empty text box')
     const emptyWidth = await evaluate(
       `document.querySelector('.visible .freeTextEditor .internal').offsetWidth`
     )
@@ -287,10 +279,9 @@ app
     await waitFor(`document.hasFocus()`)
     await evaluate(`document.querySelector('.visible .freeTextEditor').focus()`)
     await waitFor(`document.querySelector('.visible .freeTextEditor.selectedEditor') !== null`)
-    await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
-    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
+
     await waitFor(
-      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '24 pt'`
+      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
     )
     await new Promise((resolve) => setTimeout(resolve, 250))
     assert.equal(
@@ -325,23 +316,20 @@ app
       ),
       'false'
     )
-    await click(
-      `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '32 pt')`
-    )
+    await chooseTextSize(evaluate, waitFor, 32)
     await waitFor(
-      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '32 pt'`
+      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '32 pt'`
     )
     await evaluate(`window.testCommands.run('undo')`)
     await waitFor(
-      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '24 pt'`
+      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
     )
     await evaluate(`window.testCommands.run('undo')`)
     await waitFor(
       `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
     )
-    console.log('PASS: real mouse clicks and undo keep the open formatting menu in sync')
-    await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
-    console.log('PASS: toolbar menu reflects the saved text formatting after reopening')
+    console.log('PASS: real mouse clicks and undo keep the formatting sidebar in sync')
+    console.log('PASS: sidebar reflects the saved text formatting after reopening')
     await evaluate(
       `document.querySelector('.visible .freeTextEditor').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))`
     )
@@ -351,7 +339,6 @@ app
       text.innerText = 'Testo modificato';
       text.dispatchEvent(new InputEvent('input', {bubbles:true}));
     })()`)
-    await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(`document.querySelector('[aria-label="Text color"]') !== null`)
     for (const color of ['Blue', 'Green', 'Red']) {
       await click(`document.querySelector('[aria-label="Text color"] [aria-label="${color}"]')`)
@@ -372,28 +359,18 @@ app
       )
     }
     for (const size of [32, 16, 24]) {
-      await click(
-        `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '${size} pt')`
-      )
+      await chooseTextSize(evaluate, waitFor, size)
       await waitFor(
-        `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '${size} pt'`
+        `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '${size} pt'`
       )
     }
     console.log('PASS: repeated changes update visible checkmarks while typing')
     await save()
     assert.match(await savedText(), /Testo modificato/)
-    if (
-      await evaluate(
-        `document.querySelector('[data-slot="popover-content"][data-state="open"] [aria-label="Text color"]') !== null`
-      )
-    )
-      await evaluate(`document.querySelector('header [aria-label="Text settings"]').click()`)
-    await waitFor(`document.querySelector('[aria-label="Text color"]') === null`)
     console.log(
       'PASS: saved text retains accented characters and can be edited and saved after reopening'
     )
     await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') === null`)
-    await click(`document.querySelector('header [aria-label="Text settings"]')`)
     await waitFor(`document.querySelector('[aria-label="Text color"]') !== null`)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Blue"]')`)
     await waitFor(
@@ -427,9 +404,7 @@ app
       'PASS: formatting and undo after saving remain dirty and persist on subsequent saves'
     )
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
-    await click(
-      `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '24 pt')`
-    )
+    await chooseTextSize(evaluate, waitFor, 24)
     assert.equal(
       await evaluate(
         `document.querySelector('[aria-label="second.pdf"] > .bg-foreground') === null`
@@ -440,9 +415,7 @@ app
     // Separate this size-only undo step from PDF.js's earlier grouped size commands.
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Gray"]')`)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
-    await click(
-      `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent.trim() === '32 pt')`
-    )
+    await chooseTextSize(evaluate, waitFor, 32)
     await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`)
     await save()
     assert.equal(
@@ -456,7 +429,7 @@ app
     )
     await evaluate(`window.testCommands.run('undo')`)
     await waitFor(
-      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '24 pt'`
+      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '24 pt'`
     )
     await save()
     console.log('PASS: size-only edits persist, while unchanged formatting adds no edits')
@@ -465,13 +438,12 @@ app
     await waitFor(
       `document.querySelector('[aria-label="first.pdf"]').getAttribute('aria-pressed') === 'true'`
     )
-    await waitFor(`document.querySelector('[aria-label="Text color"]') === null`)
+
     assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 0)
     await addText()
-    await waitFor(`document.querySelector('header [aria-label="Text settings"]') !== null`)
-    await click(`document.querySelector('header [aria-label="Text settings"]')`)
+
     await waitFor(
-      `document.querySelector('[aria-label="Text size"] button[aria-pressed="true"]')?.textContent.trim() === '8 pt'`
+      `document.querySelector('[role="combobox"][aria-label="Text size"]')?.textContent.trim() === '8 pt'`
     )
     assert.equal(
       await evaluate(
@@ -479,8 +451,7 @@ app
       ),
       'true'
     )
-    await click(`document.querySelector('header [aria-label="Text settings"]')`)
-    await waitFor(`document.querySelector('[aria-label="Text color"]') === null`)
+
     await evaluate(`document.querySelector('.visible .freeTextEditor .internal').focus()`)
     await waitFor(
       `document.activeElement === document.querySelector('.visible .freeTextEditor .internal')`

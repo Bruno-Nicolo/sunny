@@ -240,7 +240,8 @@ export function createPdfViewer({
       viewer.currentScaleValue = initialView.scale || 'page-fit'
       scrollFrame = requestAnimationFrame(() => {
         scrollFrame = null
-        if (initialView.scrollTop > 0) container.scrollTop = initialView.scrollTop
+        if (initialView.scrollTop > 0 || viewer.currentPageNumber === 1)
+          container.scrollTop = initialView.scrollTop
         else viewer.scrollPageIntoView({ pageNumber: viewer.currentPageNumber })
       })
       emitSnapshot({

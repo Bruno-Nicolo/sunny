@@ -193,6 +193,10 @@ async function measureThumbnailEdits() {
     const bounds=panel.getBoundingClientRect();
     return [...panel.querySelectorAll('[aria-label^="Go to page"]')].filter(button=>{const r=button.getBoundingClientRect();return r.bottom>bounds.top-200 && r.top<bounds.bottom+200}).every(button=>button.querySelector('canvas').width>0);
   })()`)
+  await evaluate(
+    `(() => {const tool=document.querySelector('[aria-label="Highlight text"]');if(tool.getAttribute('aria-pressed')!=='true')tool.click()})()`
+  )
+  await waitFor(`document.querySelector('[aria-label="Highlight color"]')!==null`)
   await new Promise((resolve) => setTimeout(resolve, 250))
   await evaluate(`(() => {
     window.thumbnailPaints=0;window.thumbnailEditTimes=[];window.pdfContentPaints=0;window.thumbnailEditStart=null;window.thumbnailBase=null;
@@ -205,16 +209,12 @@ async function measureThumbnailEdits() {
     document.querySelector('.visible .page[data-page-number="1"] .highlightEditor').dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
   })()`)
   const colors = ['Green', 'Pink', 'Yellow']
-  let current = 'Yellow'
   for (let i = 0; i < 30; i++) {
-    await evaluate(`document.querySelector('[aria-label="Highlight color: ${current}"]').click()`)
     const next = colors[i % colors.length]
-    await waitFor(`document.querySelector('[aria-label="${next}"]') !== null`)
     await evaluate(
-      `window.thumbnailEditStart=performance.now();document.querySelector('[aria-label="${next}"]').click()`
+      `window.thumbnailEditStart=performance.now();document.querySelector('[aria-label="Highlight color"] [aria-label="${next}"]').click()`
     )
     await waitFor(`window.thumbnailEditTimes.length === ${i + 1}`)
-    current = next
   }
   const result = await evaluate(
     `({times:window.thumbnailEditTimes,paints:window.thumbnailPaints,pdfContentPaints:window.pdfContentPaints})`

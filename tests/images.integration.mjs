@@ -91,13 +91,13 @@ app
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
     await enableTestFocus(win)
     await waitFor(
-      `document.querySelector('[aria-label="Add image"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
+      `document.querySelector('[aria-label="Add text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
     )
     await evaluate(
-      `(async () => { ${imageSetup} const input = document.querySelector('[aria-label="Choose images"]'); input.files = transfer.files; input.dispatchEvent(new Event('change', {bubbles:true})); })()`
+      `(async () => { ${imageSetup} window.dispatchEvent(new ClipboardEvent('paste', {clipboardData:transfer,bubbles:true,cancelable:true})); })()`
     )
     await waitFor(count(1))
-    console.log('PASS: image upload creates editable image')
+    console.log('PASS: image paste creates editable image')
     const imagePoint = await evaluate(`(() => {
       const rect = document.querySelector('.visible .stampEditor').getBoundingClientRect();
       return {x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2)};
@@ -364,7 +364,7 @@ app
     await waitFor(count(3))
     console.log('PASS: pasting in an input does not add an image')
     await evaluate(
-      `const transfer = new DataTransfer(); transfer.items.add(new File(['invalid'], 'broken.png', {type:'image/png'})); const input = document.querySelector('[aria-label="Choose images"]'); input.files = transfer.files; input.dispatchEvent(new Event('change', {bubbles:true}))`
+      `const transfer = new DataTransfer(); transfer.items.add(new File(['invalid'], 'broken.png', {type:'image/png'})); window.dispatchEvent(new ClipboardEvent('paste', {clipboardData:transfer,bubbles:true,cancelable:true}));`
     )
     await waitFor(`document.body.textContent.includes('The image could not be opened.')`)
     assert.equal(await evaluate(count(3)), true)
@@ -411,9 +411,12 @@ app
     )
     console.log('PASS: repeated image saves use fresh bitmaps and preserve undo/redo')
 
-    await win.reload()
+    await new Promise((resolve) => {
+      win.webContents.once('did-finish-load', resolve)
+      win.reload()
+    })
     await waitFor(
-      `document.querySelector('[aria-label="Add image"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
+      `document.querySelector('[aria-label="Add text"]')?.disabled === false && !document.body.textContent.includes('Opening document')`
     )
     await waitFor(count(3))
     assert.equal(
@@ -426,7 +429,7 @@ app
     )
 
     await evaluate(
-      `(async () => { ${imageSetup} const input = document.querySelector('[aria-label="Choose images"]'); input.files = transfer.files; input.dispatchEvent(new Event('change', {bubbles:true})); })()`
+      `(async () => { ${imageSetup} window.dispatchEvent(new ClipboardEvent('paste', {clipboardData:transfer,bubbles:true,cancelable:true})); })()`
     )
     await waitFor(count(4))
     console.log('PASS: saved images remain editable after reopening')
@@ -453,7 +456,10 @@ app
         };
       })()`)
     })
-    await win.reload()
+    await new Promise((resolve) => {
+      win.webContents.once('did-finish-load', resolve)
+      win.reload()
+    })
     await waitFor(count(1))
     assert.equal(
       await evaluate(`(() => {

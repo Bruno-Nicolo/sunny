@@ -9,6 +9,7 @@ import type { DocumentsState } from '@/features/documents/documentsReducer'
 import { useDocuments } from '@/features/documents/useDocuments'
 import { persistDocumentSession, useDocumentSession } from '@/features/session/useDocumentSession'
 import { TabBar } from '@/features/documents/components/TabBar'
+import { ToolOptionsSidebar } from '@/features/documents/components/ToolOptionsSidebar'
 import { DocumentToolbar } from '@/features/documents/components/DocumentToolbar'
 import { DocumentWorkspace } from '@/features/documents/components/DocumentWorkspace'
 import { CloseDocumentsDialog } from '@/features/documents/components/CloseDocumentsDialog'
@@ -122,7 +123,7 @@ function App(): React.JSX.Element {
     showMessage
   })
 
-  const { addImages, onImageDrop } = useAnnotationInsertion({
+  const { onImageDrop } = useAnnotationInsertion({
     enabled: !!activeTab?.view.canAnnotate && !closeRequest && !conflictId && !navigationOpen,
     getActiveViewer,
     onToolChange: setAnnotationTool,
@@ -244,6 +245,30 @@ function App(): React.JSX.Element {
     )
   }
 
+  const changeHighlightColor = (color: string): void => {
+    getActiveViewer()?.setHighlightColor(color)
+    setHighlightColor(color)
+  }
+
+  const toolbar = (
+    <DocumentToolbar
+      activeTab={activeTab}
+      navigationOpen={navigationOpen}
+      onToggleNavigation={() => setNavigationOpen((open) => !open)}
+      invertColors={invertColors}
+      annotationTool={annotationTool}
+      onAnnotationToolChange={setAnnotationTool}
+      onPageChange={(page) => getActiveViewer()?.setPage(page)}
+      onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
+      onZoomIn={() => getActiveViewer()?.zoomIn()}
+      onZoomOut={() => getActiveViewer()?.zoomOut()}
+      onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
+      onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
+      onToggleInvertColors={shortcutHandlers['toggle-invert-colors']}
+      onStartPresentation={() => void getActiveViewer()?.startPresentation()}
+    />
+  )
+
   return (
     <main
       className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
@@ -277,29 +302,6 @@ function App(): React.JSX.Element {
             onOpen={() => void openDialog()}
             onCycleTheme={cycleTheme}
           />
-          <DocumentToolbar
-            activeTab={activeTab}
-            navigationOpen={navigationOpen}
-            onToggleNavigation={() => setNavigationOpen((open) => !open)}
-            invertColors={invertColors}
-            annotationTool={annotationTool}
-            highlightColor={highlightColor}
-            textSettings={textEditor?.id === activeId ? textEditor.settings : null}
-            onAnnotationToolChange={setAnnotationTool}
-            onHighlightColorChange={(color) => {
-              getActiveViewer()?.setHighlightColor(color)
-              setHighlightColor(color)
-            }}
-            onAddImages={(files) => void addImages(files)}
-            onPageChange={(page) => getActiveViewer()?.setPage(page)}
-            onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
-            onZoomIn={() => getActiveViewer()?.zoomIn()}
-            onZoomOut={() => getActiveViewer()?.zoomOut()}
-            onRotateClockwise={() => getActiveViewer()?.rotateClockwise()}
-            onToggleTwoPageView={() => getActiveViewer()?.toggleTwoPageView()}
-            onToggleInvertColors={shortcutHandlers['toggle-invert-colors']}
-            onStartPresentation={() => void getActiveViewer()?.startPresentation()}
-          />
         </header>
       ) : (
         <div aria-hidden="true" className="titlebar-drag absolute inset-x-0 top-0 z-10 h-12" />
@@ -317,29 +319,41 @@ function App(): React.JSX.Element {
         getViewer={getChatViewer}
         onSelectionTool={() => setAnnotationTool('none')}
       >
-        <DocumentWorkspace
-          onAskAI={askAI}
-          tabs={tabs}
-          invertColors={invertColors}
-          activeId={activeId}
-          ready={ready}
-          navigationOpen={navigationOpen}
-          onNavigationOpenChange={setNavigationOpen}
-          navigationTab={navigationTab}
-          onNavigationTabChange={setNavigationTab}
-          annotationTool={annotationTool}
-          highlightColor={highlightColor}
-          onOpen={() => void openDialog()}
-          onOpenPath={(path) => openPaths([path])}
-          onViewerHandle={registerDocumentViewer}
-          onSavePages={(id, data, page, onSaved) => saveTab(id, { data, page, onSaved })}
-          onExportPages={exportPages}
-          onPageDraftChange={(id, pageDraft) => updateTab(id, { pageDraft })}
-          onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
-          onSnapshot={(id, view) => updateTab(id, { view })}
-          onError={(id, error) => updateTab(id, { error })}
-          onTextEditorChange={onTextEditorChange}
-        />
+        <div className="document-stage">
+          <ToolOptionsSidebar
+            canAnnotate={activeTab?.view.canAnnotate ?? false}
+            annotationTool={annotationTool}
+            highlightColor={highlightColor}
+            textSettings={textEditor?.id === activeId ? textEditor.settings : null}
+            onHighlightColorChange={changeHighlightColor}
+          />
+          <div className="document-canvas">
+            <DocumentWorkspace
+              onAskAI={askAI}
+              tabs={tabs}
+              invertColors={invertColors}
+              activeId={activeId}
+              ready={ready}
+              navigationOpen={navigationOpen}
+              onNavigationOpenChange={setNavigationOpen}
+              navigationTab={navigationTab}
+              onNavigationTabChange={setNavigationTab}
+              annotationTool={annotationTool}
+              highlightColor={highlightColor}
+              onOpen={() => void openDialog()}
+              onOpenPath={(path) => openPaths([path])}
+              onViewerHandle={registerDocumentViewer}
+              onSavePages={(id, data, page, onSaved) => saveTab(id, { data, page, onSaved })}
+              onExportPages={exportPages}
+              onPageDraftChange={(id, pageDraft) => updateTab(id, { pageDraft })}
+              onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
+              onSnapshot={(id, view) => updateTab(id, { view })}
+              onError={(id, error) => updateTab(id, { error })}
+              onTextEditorChange={onTextEditorChange}
+            />
+            {toolbar}
+          </div>
+        </div>
       </ChatDock>
 
       {message && (

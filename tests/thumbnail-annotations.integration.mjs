@@ -1,3 +1,4 @@
+import { showTextOptions, chooseTextSize } from './fixtures/annotation-toolbar.mjs'
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { createPdf } from './fixtures/pdf.mjs'
@@ -205,13 +206,11 @@ app
     await evaluate(
       `(() => {const input=document.querySelector('.visible .freeTextEditor .internal');input.innerText='Edited text\\nAnother line';input.dispatchEvent(new Event('input',{bubbles:true}))})()`
     )
-    await evaluate(`document.querySelector('[aria-label="Text settings"]').click()`)
+    await showTextOptions(evaluate, waitFor)
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
-    await evaluate(
-      `Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button=>button.textContent==='24 pt').click()`
-    )
+    await chooseTextSize(evaluate, waitFor, 24)
     await evaluate(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]').click()`)
-    await evaluate(`document.querySelector('[aria-label="Text settings"]').click()`)
+    await showTextOptions(evaluate, waitFor)
     await openNavigation()
     await waitFor(async () => (await redTextPixels()) > 10)
     await closeNavigation()
@@ -241,7 +240,7 @@ app
     console.log('PASS: image previews preserve both colors after deletion and undo')
 
     await evaluate(
-      `(() => {document.querySelector('.visible .highlightEditor').focus();document.querySelector('[aria-label="Highlight color: Yellow"]').click()})()`
+      `(() => {document.querySelector('.visible .highlightEditor').focus();document.querySelector('[aria-label="Highlight text"]').click()})()`
     )
     await waitFor(`document.querySelector('[aria-label="Green"]') !== null`)
     await evaluate(`document.querySelector('[aria-label="Green"]').click()`)

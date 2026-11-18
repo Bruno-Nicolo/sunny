@@ -9,14 +9,13 @@ type Options = {
   onError(message: string): void
 }
 
-// Route file input, clipboard and drop insertion to the active document only.
+// Route clipboard and drop insertion to the active document only.
 export function useAnnotationInsertion({
   enabled,
   getActiveViewer,
   onToolChange,
   onError
 }: Options): {
-  addImages(files: File[]): Promise<void>
   onImageDrop(event: DragEvent<HTMLElement>): void
 } {
   const pointer = useRef<AnnotationInsertionPoint | undefined>(undefined)
@@ -75,5 +74,5 @@ export function useAnnotationInsertion({
     void insert(files)
   }
 
-  return { addImages: insert, onImageDrop }
+  return { onImageDrop }
 }

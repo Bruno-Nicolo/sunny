@@ -1,45 +1,45 @@
-import { TextControls } from './text/TextControls'
-import type { TextEditorSettings } from './text/types'
-import { HighlightControls } from './highlight/HighlightControls'
-import { ImageInputButton } from './images/ImageInputButton'
-import type { AnnotationOptions, AnnotationTool } from './types'
+import { Highlighter, Type } from 'lucide-react'
+import { ToolbarButton } from '@/components/ToolbarButton'
+import type { AnnotationTool } from './types'
 
-type Props = Pick<AnnotationOptions, 'annotationTool' | 'highlightColor'> & {
+type Props = {
+  annotationTool: AnnotationTool
   canAnnotate: boolean
   signed: boolean
-  textSettings: TextEditorSettings | null
   onAnnotationToolChange(tool: AnnotationTool): void
-  onHighlightColorChange(color: string): void
-  onAddImages(files: File[]): void
 }
 
 export function AnnotationToolbar({
   annotationTool,
-  highlightColor,
   canAnnotate,
   signed,
-  textSettings,
-  onAnnotationToolChange,
-  onHighlightColorChange,
-  onAddImages
+  onAnnotationToolChange
 }: Props): React.JSX.Element {
   return (
     <>
-      <HighlightControls
-        annotationTool={annotationTool}
-        color={highlightColor}
+      <ToolbarButton
+        label="Highlight text"
+        tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text or draw on blank areas (H)'}
+        aria-keyshortcuts="h"
+        pressed={annotationTool === 'highlight'}
         disabled={!canAnnotate}
-        signed={signed}
-        onToolChange={onAnnotationToolChange}
-        onColorChange={onHighlightColorChange}
-      />
-      <TextControls
-        annotationTool={annotationTool}
-        settings={textSettings}
+        onClick={() =>
+          onAnnotationToolChange(annotationTool === 'highlight' ? 'none' : 'highlight')
+        }
+      >
+        <Highlighter />
+      </ToolbarButton>
+      <ToolbarButton
+        label="Add text"
+        tooltip="Add text (T)"
+        aria-keyshortcuts="t"
+        data-text-settings
+        pressed={annotationTool === 'text'}
         disabled={!canAnnotate}
-        onToolChange={onAnnotationToolChange}
-      />
-      <ImageInputButton disabled={!canAnnotate} onAddImages={onAddImages} />
+        onClick={() => onAnnotationToolChange(annotationTool === 'text' ? 'none' : 'text')}
+      >
+        <Type />
+      </ToolbarButton>
     </>
   )
 }

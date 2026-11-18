@@ -134,7 +134,7 @@ async function run() {
     await win.loadURL(server.resolvedUrls.local[0])
     await enableTestFocus(win)
     await waitFor(
-      "document.querySelector('[aria-label=\"Add image\"]')?.disabled === false && document.querySelectorAll('header .document-tab').length === 2 && !document.body.textContent.includes('Opening document')"
+      "document.querySelector('[aria-label=\"Highlight text\"]')?.disabled === false && document.querySelectorAll('header .document-tab').length === 2 && !document.body.textContent.includes('Opening document')"
     )
     assert.equal(
       await evaluate("document.querySelectorAll('.invisible .page').length"),

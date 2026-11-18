@@ -1,3 +1,4 @@
+import { chooseHighlightColor } from './fixtures/annotation-toolbar.mjs'
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { createPdf } from './fixtures/pdf.mjs'
@@ -74,12 +75,7 @@ async function waitFor(code) {
   }
 }
 async function chooseColor(current, next) {
-  await evaluate(`document.querySelector('[aria-label="Highlight color: ${current}"]').click()`)
-  await waitFor(`document.querySelector('[aria-label="${next}"]') !== null`)
-  await evaluate(`document.querySelector('[aria-label="${next}"]').click()`)
-  await waitFor(
-    `document.querySelector('[aria-label="Highlight color: ${next}"]') !== null && !document.querySelector('[aria-label="${next}"]')`
-  )
+  await chooseHighlightColor(evaluate, waitFor, next)
 }
 
 async function highlightText(text, count) {

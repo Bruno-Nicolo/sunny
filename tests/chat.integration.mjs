@@ -1,3 +1,4 @@
+import { showTextOptions } from './fixtures/annotation-toolbar.mjs'
 import electron from 'electron'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -821,10 +822,10 @@ app
       document.querySelector('.visible .pdf-viewer-container').dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
     })()`)
     await waitFor(`document.querySelector('.visible .freeTextEditor')`)
-    await click('Text settings')
+    await showTextOptions(evaluate, waitFor)
     await waitFor(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
     await evaluate(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]').click()`)
-    await click('Text settings')
+    await showTextOptions(evaluate, waitFor)
     await evaluate(`(async () => {
       const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 40;
       const context = canvas.getContext('2d'); context.fillStyle = 'blue'; context.fillRect(0, 0, 80, 40);

@@ -133,8 +133,7 @@ const addImage = () =>
   const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 40;
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
   const transfer = new DataTransfer(); transfer.items.add(new File([blob], 'test.png', {type:'image/png'}));
-  const input = document.querySelector('[aria-label="Choose images"]');
-  input.files = transfer.files; input.dispatchEvent(new Event('change', {bubbles:true}));
+  window.dispatchEvent(new ClipboardEvent('paste', {clipboardData:transfer,bubbles:true,cancelable:true}));
 })()`)
 
 app
@@ -263,7 +262,7 @@ app
     await waitFor("document.body.textContent.includes('Missing document')")
     console.log('PASS: one failed dropped document does not discard successful openings')
 
-    await waitFor('document.querySelector(\'[aria-label="Add image"]\')?.disabled === false')
+    await waitFor('document.querySelector(\'[aria-label="Add text"]\')?.disabled === false')
     await addImage()
     await waitFor(
       'document.querySelector(\'header .document-tab[aria-label="available.pdf"] .bg-foreground\') !== null'
@@ -334,7 +333,7 @@ app
     assert.equal(await evaluate(hasTab('restored.pdf')), true)
     console.log('PASS: canceled copy keeps edits, successful copy resolves the pending close')
 
-    await waitFor('document.querySelector(\'[aria-label="Add image"]\')?.disabled === false')
+    await waitFor('document.querySelector(\'[aria-label="Add text"]\')?.disabled === false')
     await addImage()
     await waitFor(
       `document.querySelector('header .document-tab[aria-label="new.pdf"] .bg-foreground') !== null`
@@ -371,7 +370,7 @@ app
       'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
     )
     const zoom = await evaluate(
-      "Array.from(document.querySelectorAll('header button')).find(button => button.textContent.endsWith('%'))?.textContent"
+      'document.querySelector(\'[aria-label="Zoom level"]\')?.textContent'
     )
     mtimes.set('two-pages.pdf', 10)
     await evaluate("window.dispatchEvent(new Event('focus'))")
@@ -384,9 +383,7 @@ app
       '2'
     )
     assert.equal(
-      await evaluate(
-        "Array.from(document.querySelectorAll('header button')).find(button => button.textContent.endsWith('%'))?.textContent"
-      ),
+      await evaluate('document.querySelector(\'[aria-label="Zoom level"]\')?.textContent'),
       zoom
     )
     console.log(
@@ -411,7 +408,7 @@ app
     await waitFor("document.body.textContent.includes('The password was incorrect. Try again.')")
     await enterPassword('lepis-test')
     await waitFor(
-      "document.querySelectorAll('[role=dialog][data-state=open]').length === 0 && document.querySelector('[aria-label=\"Add image\"]')?.disabled === false && !document.body.textContent.includes('Opening document')"
+      "document.querySelectorAll('[role=dialog][data-state=open]').length === 0 && document.querySelector('[aria-label=\"Add text\"]')?.disabled === false && !document.body.textContent.includes('Opening document')"
     )
     await evaluate("window.testCommands.run('close-tab')")
     await waitFor(`!(${hasTab('password.pdf')})`)
@@ -505,7 +502,7 @@ app
       'PASS: clean window closure persists a newly opened tab before the debounce expires'
     )
 
-    await waitFor('document.querySelector(\'[aria-label="Add image"]\')?.disabled === false')
+    await waitFor('document.querySelector(\'[aria-label="Add text"]\')?.disabled === false')
     await new Promise((resolve) => setTimeout(resolve, 300))
     sessionSaveResolvers.length = 0
     sessionHeld = true

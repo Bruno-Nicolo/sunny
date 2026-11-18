@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 type Props = {
+  align?: 'start' | 'center' | 'end'
   disabled: boolean
   twoPageView: boolean
   invertColors: boolean
@@ -19,6 +20,7 @@ type Props = {
 }
 
 export function PdfViewDropdown({
+  align = 'center',
   disabled,
   twoPageView,
   invertColors,
@@ -34,7 +36,7 @@ export function PdfViewDropdown({
           <Settings2 />
         </ToolbarButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center">
+      <DropdownMenuContent align={align}>
         <DropdownMenuItem onSelect={onRotateClockwise}>
           <RotateCw />
           Rotate clockwise

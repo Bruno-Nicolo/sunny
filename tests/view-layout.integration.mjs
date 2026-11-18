@@ -65,6 +65,10 @@ async function waitFor(code, timeout = 15000) {
 }
 const command = (id) => win.webContents.send(`menu:${id}`)
 async function openViewMenu() {
+  if (!(await evaluate(`document.querySelector('[aria-label="PDF view"]') !== null`))) {
+    await evaluate(`document.querySelector('[aria-label="Zoom level"]').click()`)
+    await waitFor(`document.querySelector('[aria-label="PDF view"]') !== null`)
+  }
   await evaluate(`(() => {
     const button = document.querySelector('[aria-label="PDF view"]')
     button.focus()
@@ -143,7 +147,7 @@ app
     assert.equal(await orientation(), 'portrait')
     assert.equal(
       await evaluate(
-        `document.querySelector('[aria-label="PDF view"]') !== null && document.querySelector('[role="menu"]') === null`
+        `document.querySelector('[aria-label="Zoom level"]') !== null && document.querySelector('[role="menu"]') === null`
       ),
       true,
       'View commands must be grouped in a dedicated toolbar menu'
@@ -252,7 +256,9 @@ app
     await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
     command('zoom-in')
     await new Promise((resolve) => setTimeout(resolve, 100))
-    const readingZoom = await evaluate(`document.querySelector('button.min-w-16').textContent`)
+    const readingZoom = await evaluate(
+      `document.querySelector('[aria-label="Zoom level"]').textContent`
+    )
     assert.equal(
       await evaluate(`document.querySelector('[aria-label="Presentation mode"]')`),
       null,
@@ -286,7 +292,7 @@ app
     await waitFor(`document.fullscreenElement === null`)
     await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
     await waitFor(
-      `document.querySelector('button.min-w-16').textContent === ${JSON.stringify(readingZoom)}`
+      `document.querySelector('[aria-label="Zoom level"]').textContent === ${JSON.stringify(readingZoom)}`
     )
     assert.ok(
       await evaluate(`(() => {
@@ -304,7 +310,10 @@ app
         command('toggle-two-page-view')
         await waitFor(`document.querySelector('.visible .spread')?.children.length === 2`)
       } else if (mode === 'fit') {
-        await evaluate(`document.querySelector('button.min-w-16').click()`)
+        await evaluate(`(() => {
+          if (![...document.querySelectorAll('button')].some(button => button.textContent === 'Fit page'))
+            document.querySelector('[aria-label="Zoom level"]').click()
+        })()`)
         await waitFor(
           `[...document.querySelectorAll('button')].some(button => button.textContent === 'Fit page')`
         )

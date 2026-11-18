@@ -1,3 +1,4 @@
+import { chooseHighlightColor } from './fixtures/annotation-toolbar.mjs'
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { textPdf } from './fixtures/pdf.mjs'
@@ -56,12 +57,7 @@ async function waitFor(code) {
   }
 }
 async function chooseColor(current, next) {
-  await evaluate(`document.querySelector('[aria-label="Highlight color: ${current}"]').click()`)
-  await waitFor(`document.querySelector('[aria-label="${next}"]') !== null`)
-  await evaluate(`document.querySelector('[aria-label="${next}"]').click()`)
-  await waitFor(
-    `document.querySelector('[aria-label="Highlight color: ${next}"]') !== null && !document.querySelector('[aria-label="${next}"]')`
-  )
+  await chooseHighlightColor(evaluate, waitFor, next)
 }
 
 async function highlightText(text, count) {
@@ -193,10 +189,8 @@ app
     )
     await chooseColor('Yellow', 'Pink')
     await waitFor(
-      `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[aria-label="Highlight color: Pink"]') !== null && !document.querySelector('[aria-label="Pink"]')`
+      `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'true'`
     )
-    await evaluate(`document.querySelector('[aria-label="Highlight color: Pink"]').click()`)
-    await waitFor(`document.querySelector('[aria-label="Yellow"]') !== null`)
     pressKey('Escape')
     await waitFor(`!document.querySelector('[aria-label="Yellow"]')`)
     assert.equal(
@@ -245,7 +239,7 @@ app
     await waitFor(
       `document.querySelector('[aria-label="Highlight text"]').getAttribute('aria-pressed') === 'false'`
     )
-    console.log('PASS: split highlight control selects colors, toggles, and handles Escape')
+    console.log('PASS: highlight sidebar selects colors, toggles, and handles Escape')
     await chooseColor('Pink', 'Yellow')
     await waitFor(
       `document.querySelector('.visible .annotationEditorLayer.highlightEditing') !== null`
@@ -253,7 +247,6 @@ app
     await waitFor(`document.querySelector('.visible .textLayer span') !== null`)
     await highlightText('First highlight', 1)
     await waitFor(`document.querySelector('.visible .highlightEditor.selectedEditor') !== null`)
-    await evaluate(`document.querySelector('[aria-label="Highlight color: Yellow"]').click()`)
     await waitFor(`document.querySelector('[aria-label="Green"]') !== null`)
     assert.equal(
       await evaluate(`document.querySelector('.visible .highlightEditor.selectedEditor') !== null`),
@@ -265,7 +258,9 @@ app
       [],
       'Creating and recoloring a highlight must not throw or interrupt annotation editing'
     )
-    await waitFor(`document.querySelector('[aria-label="Highlight color: Green"]') !== null`)
+    await waitFor(
+      `document.querySelector('[aria-label="Highlight color"] [aria-label="Green"]').getAttribute('aria-pressed') === 'true'`
+    )
     assert.equal(
       await evaluate(`document.querySelector('.visible .highlightEditor .editToolbar')`),
       null,
@@ -402,24 +397,46 @@ app
       const { x, y } = document.querySelector('.visible .lepisHighlightDrawing .lepisFreehandStroke').getBBox();
       return { x, y };
     })()`)
+    await evaluate(
+      `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
+    )
     const original = await strokeBounds()
-    win.webContents.sendInputEvent({ type: 'mouseMove', ...blank })
-    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...blank, clickCount: 1 })
-    win.webContents.sendInputEvent({ type: 'mouseMove', x: blank.x + 40, y: blank.y + 32 })
+    const dragPoint = await evaluate(`(() => {
+      const stroke=document.querySelector('.visible .lepisHighlightDrawing .lepisFreehandStroke')
+      const point=stroke.getPointAtLength(stroke.getTotalLength()/2)
+      const matrix=stroke.getScreenCTM()
+      const screen=new DOMPoint(point.x,point.y).matrixTransform(matrix)
+      return {x:Math.round(screen.x),y:Math.round(screen.y),dx:40/matrix.a,dy:32/matrix.d}
+    })()`)
+    const dragStart = { x: dragPoint.x, y: dragPoint.y }
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...dragStart })
+    win.webContents.sendInputEvent({
+      type: 'mouseDown',
+      button: 'left',
+      ...dragStart,
+      clickCount: 1
+    })
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: dragStart.x + 40, y: dragStart.y + 32 })
     win.webContents.sendInputEvent({
       type: 'mouseUp',
       button: 'left',
-      x: blank.x + 40,
-      y: blank.y + 32,
+      x: dragStart.x + 40,
+      y: dragStart.y + 32,
       clickCount: 1
     })
-    await waitFor(async () => Math.abs((await strokeBounds()).x - original.x - 40) < 0.1)
+    await waitFor(async () => Math.abs((await strokeBounds()).x - original.x - dragPoint.dx) < 0.1)
     const moved = await strokeBounds()
-    assert.ok(Math.abs(moved.y - original.y - 32) < 0.1, 'Dragging must translate the stroke')
+    assert.ok(
+      Math.abs(moved.y - original.y - dragPoint.dy) < 0.1,
+      'Dragging must translate the stroke'
+    )
     await evaluate(`void window.testCommands.run('save')`)
     await waitFor(() => saved.get('second.pdf')?.toString('latin1').includes('/InkList'))
     assert.deepEqual(await evaluate('window.annotationErrors'), [])
-    await win.reload()
+    await new Promise((resolve) => {
+      win.webContents.once('did-finish-load', resolve)
+      win.reload()
+    })
     await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 1`)
     const reopened = await strokeBounds()
     assert.ok(Math.abs(reopened.x - moved.x) < 0.1, 'Saved stroke must retain its moved x position')

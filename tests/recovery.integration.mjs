@@ -145,6 +145,9 @@ async function typeText(value) {
   await waitFor(
     `document.querySelector('.visible .annotationEditorLayer.freetextEditing') !== null`
   )
+  await evaluate(
+    `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
+  )
   await evaluate(`(() => {
     const layer = document.querySelector('.visible .annotationEditorLayer');
     const rect = layer.getBoundingClientRect();
@@ -152,10 +155,10 @@ async function typeText(value) {
     layer.dispatchEvent(new PointerEvent('pointerdown', options)); layer.dispatchEvent(new PointerEvent('pointerup', options));
   })()`)
   await waitFor(
-    `document.querySelector('.visible .freeTextEditor .internal')?.isContentEditable === true`
+    `document.querySelector('.visible .freeTextEditor.selectedEditor .internal')?.isContentEditable === true`
   )
   await evaluate(`(() => {
-    const input = document.querySelector('.visible .freeTextEditor .internal');
+    const input = document.querySelector('.visible .freeTextEditor.selectedEditor .internal');
     input.focus(); input.innerText = ${JSON.stringify(value)};
     const selection = window.getSelection(); selection.setBaseAndExtent(input.firstChild, 4, input.firstChild, 4);
     input.dispatchEvent(new InputEvent('input', {bubbles:true, inputType:'insertText'}));
@@ -277,8 +280,7 @@ app.whenReady().then(async () => {
       canvas.getContext('2d').fillRect(0, 0, 80, 40);
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       const transfer = new DataTransfer(); transfer.items.add(new File([blob], 'test.png', {type:'image/png'}));
-      const input = document.querySelector('[aria-label="Choose images"]');
-      input.files = transfer.files; input.dispatchEvent(new Event('change', {bubbles:true}));
+      window.dispatchEvent(new ClipboardEvent('paste', {clipboardData:transfer,bubbles:true,cancelable:true}));
     })()`)
     await waitFor(`document.querySelectorAll('.visible .stampEditor').length === 1`)
     await waitUntil(() => draftContains('/Stamp'))

@@ -1,13 +1,12 @@
-import { LayoutGrid, Minus, Plus } from 'lucide-react'
+import { LayoutGrid, Minus, MousePointer2, Plus, Shapes, Signature, StickyNote } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { AnnotationToolbar } from '@/features/pdf/annotations/AnnotationToolbar'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
-import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 import type { Tab } from '../types'
-import { PdfViewDropdown } from './PdfViewDropdown'
+import './toolbar.css'
 
 type Props = {
   activeTab: Pick<Tab, 'id' | 'view'> | null
@@ -15,11 +14,7 @@ type Props = {
   onToggleNavigation(): void
   invertColors: boolean
   annotationTool: AnnotationTool
-  highlightColor: string
-  textSettings: TextEditorSettings | null
   onAnnotationToolChange(tool: AnnotationTool): void
-  onHighlightColorChange(color: string): void
-  onAddImages(files: File[]): void
   onPageChange(page: number): void
   onScaleChange(scale: string): void
   onZoomIn(): void
@@ -30,17 +25,15 @@ type Props = {
   onStartPresentation(): void
 }
 
+import { PdfViewDropdown } from './PdfViewDropdown'
+
 export function DocumentToolbar({
   activeTab,
   navigationOpen,
   onToggleNavigation,
   invertColors,
   annotationTool,
-  highlightColor,
-  textSettings,
   onAnnotationToolChange,
-  onHighlightColorChange,
-  onAddImages,
   onPageChange,
   onScaleChange,
   onZoomIn,
@@ -49,46 +42,96 @@ export function DocumentToolbar({
   onToggleTwoPageView,
   onToggleInvertColors,
   onStartPresentation
-}: Props): React.JSX.Element {
+}: Props): React.JSX.Element | null {
+  if (!activeTab) return null
+
   return (
-    <div className="titlebar-no-drag flex h-11 items-center justify-center gap-1 bg-background px-3">
-      {activeTab && (
-        <>
+    <div className="document-toolbar titlebar-no-drag">
+      <div className="toolbar-surface" role="group" aria-label="Document controls">
+        <ToolbarButton
+          label="Toggle PDF navigation"
+          tooltip="Open navigation"
+          pressed={navigationOpen}
+          aria-expanded={navigationOpen}
+          aria-haspopup="dialog"
+          onClick={onToggleNavigation}
+        >
+          <LayoutGrid />
+        </ToolbarButton>
+        <div className="toolbar-navigation" role="group" aria-label="Page navigation">
+          <input
+            aria-label="Current page"
+            inputMode="numeric"
+            className="h-8 w-12 rounded-md border bg-transparent px-1 text-center text-sm"
+            value={activeTab.view.page}
+            onChange={(event) => {
+              const page = Number(event.target.value)
+              if (Number.isInteger(page) && page >= 1 && page <= activeTab.view.pages)
+                onPageChange(page)
+            }}
+          />
+          <span className="text-xs text-muted-foreground">/ {activeTab.view.pages || '—'}</span>
+        </div>
+        <Separator orientation="vertical" className="data-[orientation=vertical]:h-5" />
+        <div className="toolbar-tools" role="toolbar" aria-label="Annotation tools">
           <ToolbarButton
-            label="Toggle PDF navigation"
-            tooltip="Open navigation"
-            aria-expanded={navigationOpen}
-            aria-haspopup="dialog"
-            onClick={onToggleNavigation}
+            label="Selection tool"
+            tooltip="Select text (Esc)"
+            pressed={annotationTool === 'none'}
+            onClick={() => onAnnotationToolChange('none')}
           >
-            <LayoutGrid />
+            <MousePointer2 />
           </ToolbarButton>
-          <div className="flex items-center gap-1">
-            <input
-              aria-label="Current page"
-              className="h-8 w-12 rounded-md border bg-transparent px-1 text-center text-sm"
-              value={activeTab.view.page}
-              onChange={(event) => {
-                const page = Number(event.target.value)
-                if (Number.isInteger(page) && page >= 1 && page <= activeTab.view.pages) {
-                  onPageChange(page)
-                }
-              }}
-            />
-            <span className="text-xs text-muted-foreground">/ {activeTab.view.pages || '—'}</span>
-          </div>
-          <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon-sm" onClick={onZoomOut}>
+          <AnnotationToolbar
+            key={activeTab.id}
+            annotationTool={annotationTool}
+            canAnnotate={activeTab.view.canAnnotate}
+            signed={activeTab.view.signed}
+            onAnnotationToolChange={onAnnotationToolChange}
+          />
+          <ToolbarButton
+            label="Add shapes"
+            tooltip="Add shapes (placeholder)"
+            aria-disabled="true"
+            className="cursor-default text-muted-foreground"
+          >
+            <Shapes />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Add text note"
+            tooltip="Add text note (placeholder)"
+            aria-disabled="true"
+            className="cursor-default text-muted-foreground"
+          >
+            <StickyNote />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Add signature"
+            tooltip="Add signature (placeholder)"
+            aria-disabled="true"
+            className="cursor-default text-muted-foreground"
+          >
+            <Signature />
+          </ToolbarButton>
+        </div>
+        <Separator orientation="vertical" className="data-[orientation=vertical]:h-5" />
+        <div className="toolbar-view" role="group" aria-label="Zoom and view">
+          <div className="toolbar-zoom" role="group" aria-label="Zoom controls">
+            <ToolbarButton label="Zoom out" onClick={onZoomOut}>
               <Minus />
-            </Button>
+            </ToolbarButton>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="min-w-16">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="min-w-16 tabular-nums"
+                  aria-label="Zoom level"
+                >
                   {activeTab.view.zoomPercent}%
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="center" className="w-44 p-1">
+              <PopoverContent align="start" className="w-44 p-1">
                 <Button
                   variant="ghost"
                   className="w-full justify-start"
@@ -105,11 +148,12 @@ export function DocumentToolbar({
                 </Button>
               </PopoverContent>
             </Popover>
-            <Button variant="ghost" size="icon-sm" onClick={onZoomIn}>
+            <ToolbarButton label="Zoom in" onClick={onZoomIn}>
               <Plus />
-            </Button>
+            </ToolbarButton>
           </div>
           <PdfViewDropdown
+            align="start"
             disabled={!activeTab.view.pages}
             twoPageView={activeTab.view.twoPageView}
             invertColors={invertColors}
@@ -118,20 +162,8 @@ export function DocumentToolbar({
             onToggleInvertColors={onToggleInvertColors}
             onStartPresentation={onStartPresentation}
           />
-          <Separator orientation="vertical" className="mx-3.5 data-[orientation=vertical]:h-5" />
-        </>
-      )}
-      <AnnotationToolbar
-        key={activeTab?.id}
-        annotationTool={annotationTool}
-        highlightColor={highlightColor}
-        textSettings={textSettings}
-        canAnnotate={activeTab?.view.canAnnotate ?? false}
-        signed={activeTab?.view.signed ?? false}
-        onAnnotationToolChange={onAnnotationToolChange}
-        onHighlightColorChange={onHighlightColorChange}
-        onAddImages={onAddImages}
-      />
+        </div>
+      </div>
     </div>
   )
 }
