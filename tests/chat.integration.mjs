@@ -662,6 +662,29 @@ app
     await click('Show tool call: search_document')
     fs.writeFileSync('/tmp/lepis-chat-tools.png', (await win.webContents.capturePage()).toPNG())
     await click('Response activity')
+    const chatMessages = `document.querySelector('[aria-label="AI answer"]').closest('.overflow-auto')`
+    await evaluate(`(() => {
+      const messages = ${chatMessages};
+      messages.style.maxHeight = '120px';
+      messages.scrollTop = messages.scrollHeight;
+    })()`)
+    const atChatBottom = `(() => {
+      const messages = ${chatMessages};
+      return messages.scrollHeight - messages.clientHeight - messages.scrollTop < 1;
+    })()`
+    const scrollButton = `document.querySelector('[aria-label="Scroll to bottom"]')`
+    await waitFor(`${atChatBottom} && !${scrollButton}`)
+    await evaluate(`${chatMessages}.scrollTop = 0`)
+    await waitFor(`Boolean(${scrollButton})`)
+    assert.ok(
+      await evaluate(
+        `${scrollButton}.getBoundingClientRect().bottom < document.querySelector('[aria-label="Message AI"]').getBoundingClientRect().top`
+      ),
+      'the scroll button sits above the composer'
+    )
+    await click('Scroll to bottom')
+    await waitFor(`${atChatBottom} && !${scrollButton}`)
+    await evaluate(`${chatMessages}.style.removeProperty('max-height')`)
     assert.equal(
       await evaluate(
         `document.querySelectorAll('[aria-label="Response work"] > [data-slot="trace-collapsible"] > [data-slot="trace-collapsible-trigger"]').length`

@@ -8,6 +8,7 @@ import {
   type CSSProperties
 } from 'react'
 import {
+  ArrowDown,
   ArrowUp,
   ChevronLeft,
   Crop,
@@ -974,7 +975,27 @@ export function ChatPanel({
             </div>
           )}
           {!historyOpen && (
-            <div className="shrink-0 space-y-2 p-3">
+            <div className="relative shrink-0 space-y-2 p-3">
+              {!scrollPinned && Boolean(conversation?.messages.length) && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 rounded-full dark:bg-background dark:hover:bg-accent"
+                      aria-label="Scroll to bottom"
+                      onClick={() => {
+                        setScrollPinned(true)
+                        composerRef.current?.focus({ preventScroll: true })
+                      }}
+                    >
+                      <ArrowDown />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Scroll to bottom</TooltipContent>
+                </Tooltip>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
