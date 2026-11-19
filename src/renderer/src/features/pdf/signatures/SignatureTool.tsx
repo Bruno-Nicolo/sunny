@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { MoreHorizontal, Pencil, Plus, Signature, Trash2 } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -19,7 +29,7 @@ type Props = {
   signed: boolean
   getViewer(): PdfDocumentHandle | undefined
   onActiveChange(active: boolean): void
-  onCreationOpenChange(open: boolean): void
+  onModalOpenChange(open: boolean): void
   children(parts: {
     control: React.JSX.Element
     panel: React.JSX.Element | null
@@ -35,7 +45,7 @@ export function SignatureTool({
   signed,
   getViewer,
   onActiveChange,
-  onCreationOpenChange,
+  onModalOpenChange,
   children,
   onError
 }: Props): React.JSX.Element {
@@ -72,9 +82,12 @@ export function SignatureTool({
     }
   }, [active, documentId])
   const creationOpen = active && !loading && (creating || items.length === 0)
+  const deleting =
+    active && action?.type === 'delete' ? items.find((item) => item.id === action.id) : undefined
+  const modalOpen = creationOpen || !!deleting
   useEffect(() => {
-    onCreationOpenChange(creationOpen)
-  }, [creationOpen, onCreationOpenChange])
+    onModalOpenChange(modalOpen)
+  }, [modalOpen, onModalOpenChange])
 
   function changeActive(next: boolean): void {
     onActiveChange(next)
@@ -248,7 +261,10 @@ export function SignatureTool({
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
-                        onSelect={() => setAction({ type: 'delete', id: item.id })}
+                        onSelect={() => {
+                          setError(null)
+                          setAction({ type: 'delete', id: item.id })
+                        }}
                       >
                         <Trash2 />
                         Delete
@@ -257,37 +273,11 @@ export function SignatureTool({
                   </DropdownMenu>
                 </div>
               )}
-              {action?.type === 'delete' && action.id === item.id && (
-                <div className="grid gap-2 text-sm">
-                  <p>
-                    Delete “{item.name}” from this device? Existing documents, backups and recovery
-                    copies keep their signatures.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={busy}
-                      onClick={() => void removeSignature(item.id)}
-                    >
-                      Delete saved signature
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => setAction(null)}
-                    >
-                      Keep signature
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
       )}
-      {error && !creationOpen && (
+      {error && !modalOpen && (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
@@ -297,6 +287,42 @@ export function SignatureTool({
   return (
     <>
       {children({ control, panel, placing })}
+      {deleting && (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !busy) setAction(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete signature?</AlertDialogTitle>
+              <AlertDialogDescription className="break-words">
+                Delete “{deleting.name}” from this device? Existing documents, backups and recovery
+                copies keep their signatures.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={busy}>Keep</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={busy}
+                onClick={(event) => {
+                  event.preventDefault()
+                  void removeSignature(deleting.id)
+                }}
+              >
+                {busy ? 'Deleting…' : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
       {creationOpen && (
         <SignatureCreationDialog
           busy={busy}

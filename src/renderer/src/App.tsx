@@ -29,7 +29,7 @@ function App(): React.JSX.Element {
     settings: TextEditorSettings | null
   } | null>(null)
   const [navigationOpen, setNavigationOpen] = useState(false)
-  const [signatureCreationOpen, setSignatureCreationOpen] = useState(false)
+  const [signatureModalOpen, setSignatureModalOpen] = useState(false)
   const [invertColors, setInvertColors] = useState(false)
   const [navigationTab, setNavigationTab] = useState<PdfDocumentViewProps['navigationTab']>('pages')
   const [highlightStyle, setHighlightStyle] = useState(defaultHighlightStyle)
@@ -254,7 +254,7 @@ function App(): React.JSX.Element {
     closeRequest === null &&
     conflictId === null &&
     !navigationOpen &&
-    !signatureCreationOpen
+    !signatureModalOpen
   useAppShortcuts(shortcutHandlers, shortcutsEnabled)
 
   const askAI = (attachments: ChatAttachment[]): void => {
@@ -314,7 +314,11 @@ function App(): React.JSX.Element {
       className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
       onDragOver={(event) => event.preventDefault()}
       onDropCapture={(event) => {
-        if (event.target instanceof Element && event.target.closest('[data-chat-composer]')) return
+        if (
+          event.target instanceof Element &&
+          event.target.closest('[data-chat-composer], [data-signature-image-drop-zone]')
+        )
+          return
         onImageDrop(event)
       }}
       onDrop={(event) => {
@@ -369,7 +373,7 @@ function App(): React.JSX.Element {
           signed={activeTab?.view.signed ?? false}
           getViewer={getActiveViewer}
           onActiveChange={(active) => changeAnnotationTool(active ? 'signature' : 'none')}
-          onCreationOpenChange={setSignatureCreationOpen}
+          onModalOpenChange={setSignatureModalOpen}
           onError={showMessage}
         >
           {({ control, panel, placing }) => (

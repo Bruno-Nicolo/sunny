@@ -305,18 +305,36 @@ app
 
     await openLibrary()
     await button('Add signature', '[data-signature-options] button')
-    await button('Import image')
+    const drawingHeight = `document.querySelector('[aria-label="Draw your signature"]')?.offsetHeight`
+    await waitFor(`${drawingHeight} > 0`)
+    const expectedDropZoneHeight = await evaluate(drawingHeight)
+    await button('Import image', '[role="tablist"][aria-label="Signature source"] [role="tab"]')
     await waitFor(`document.querySelector('[aria-label="Signature image"]') !== null`)
+    assert.equal(
+      await evaluate(`document.querySelector('[data-signature-image-drop-zone]').offsetHeight`),
+      expectedDropZoneHeight
+    )
     await evaluate(`(async () => {
     const canvas=document.createElement('canvas');canvas.width=400;canvas.height=160;
     const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,400,160);
     ctx.strokeStyle='black';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(60,110);ctx.lineTo(100,40);ctx.lineTo(140,100);ctx.lineTo(230,50);ctx.stroke();
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
     const transfer=new DataTransfer();transfer.items.add(new File([blob],'signature.png',{type:'image/png'}));
-    const input=document.querySelector('[aria-label="Signature image"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+    const input=document.querySelector('[aria-label="Signature image"]');
+    input.addEventListener('click', (event) => {
+      event.preventDefault();
+      input.files=transfer.files;
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    }, {once:true});
+    document.querySelector('[data-signature-image-drop-zone]').dispatchEvent(new DragEvent('drop', {
+      dataTransfer:transfer,bubbles:true,cancelable:true
+    }));
   })()`)
-    await waitFor(
-      `!!document.querySelector('img[alt="Signature preview"]') && !document.body.textContent.includes('Preparing signature')`
+    const readyPreview = `document.querySelector('[aria-label="Signature preview"][aria-busy="false"] img')`
+    await waitFor(`!!${readyPreview}`)
+    assert.equal(
+      await evaluate(`document.querySelector('[data-signature-image-drop-zone]') === null`),
+      true
     )
     const transparent = await evaluate(`(async () => {
     const image=document.querySelector('img[alt="Signature preview"]');await image.decode();
@@ -327,14 +345,62 @@ app
     assert.equal(transparent.alpha, 0)
     assert.ok(transparent.ink > 100)
     assert.ok(transparent.width < 300)
-    await input('[aria-label="Crop left"]', 10)
+    const cropStart = await evaluate(`(() => {
+      const handle = document.querySelector('[aria-label="Resize crop from top left"]').getBoundingClientRect();
+      const image = document.querySelector('[aria-label="Original signature image"]').getBoundingClientRect();
+      const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2;
+      return { x: Math.round(x), y: Math.round(y), endX: Math.round(x + image.width * 0.32), endY: Math.round(y + image.height * 0.12) };
+    })()`)
+    const start = { x: cropStart.x, y: cropStart.y }
+    const end = { x: cropStart.endX, y: cropStart.endY }
+    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...start })
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...end })
+    const cropStyle = `document.querySelector('[data-signature-crop]').style`
+    await waitFor(`parseFloat(${cropStyle}.left) > 25 && parseFloat(${cropStyle}.top) > 8`)
+    await evaluate(`(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      const create = [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Create');
+      const states = [];
+      const observer = new MutationObserver(() => {
+        if (dialog.querySelector('[aria-label="Signature preview"][aria-busy="true"]')) {
+          states.push({ preview: !!dialog.querySelector('img[alt="Signature preview"]'), disabled: create.disabled });
+        }
+      });
+      observer.observe(dialog, { childList: true, subtree: true, attributes: true });
+      window.finishCropObservation = () => {
+        observer.disconnect();
+        delete window.finishCropObservation;
+        return { states, ready: !create.disabled };
+      };
+    })()`)
+    win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...end })
     await waitFor(
-      `!!document.querySelector('img[alt="Signature preview"]') && !document.body.textContent.includes('Preparing signature')`
+      `document.querySelector('img[alt="Signature preview"]')?.naturalWidth > 0 && document.querySelector('img[alt="Signature preview"]').naturalWidth < ${transparent.width}`
     )
-    await evaluate(`document.querySelector('[role="dialog"] input[type="checkbox"]').click()`)
+    const { states: cropUpdates, ready } = await evaluate('window.finishCropObservation()')
+    assert.ok(cropUpdates.length > 0, 'The crop was observed while the preview was processing')
+    assert.ok(
+      cropUpdates.every(({ preview }) => preview),
+      'The previous preview stays visible'
+    )
+    assert.ok(
+      cropUpdates.every(({ disabled }) => disabled),
+      'Create waits for the updated crop'
+    )
+    assert.equal(ready, true, 'Create is available after the preview updates')
+    await button('Replace image', '[role="dialog"] button')
     await waitFor(
-      `!!document.querySelector('img[alt="Signature preview"]') && !document.body.textContent.includes('Preparing signature')`
+      `document.querySelector('[data-signature-crop]')?.style.left === '0%' && !!${readyPreview}`
     )
+    assert.equal(
+      await evaluate(`document.querySelector('[data-signature-image-drop-zone]') === null`),
+      true
+    )
+    const backgroundCheckbox = `document.querySelector('[role="dialog"] [role="checkbox"][data-slot="checkbox"]')`
+    assert.equal(await evaluate(`${backgroundCheckbox}.getAttribute('aria-checked')`), 'true')
+    await evaluate(`${backgroundCheckbox}.closest('label').click()`)
+    await waitFor(`${backgroundCheckbox}.getAttribute('aria-checked') === 'false'`)
+    await waitFor(`!!${readyPreview}`)
     await button('Create')
     await place(3)
     assert.deepEqual(
@@ -342,18 +408,22 @@ app
       ['Signature 1', 'signature 2']
     )
     console.log(
-      'PASS: image import extracts transparent ink, trims margins, supports crop and background removal and requires saving before placement'
+      'PASS: drag and drop and the image picker import signatures with crop and background removal before saving and placement'
     )
 
     await openLibrary()
     await signatureAction('Delete')
-    await button('Keep signature')
+    await waitFor(
+      `document.querySelector('[role="alertdialog"]')?.textContent.includes('Signature 1')`
+    )
+    await button('Keep', '[role="alertdialog"] button')
+    await waitFor(`!document.querySelector('[role="alertdialog"]')`)
     assert.equal((await store.list()).length, 2)
     await signatureAction('Delete')
-    await button('Delete saved signature')
+    await button('Delete', '[role="alertdialog"] button')
     await waitFor(`document.querySelectorAll('[aria-label^="Use signature " ]').length === 1`)
     await signatureAction('Delete')
-    await button('Delete saved signature')
+    await button('Delete', '[role="alertdialog"] button')
     await waitFor(`document.querySelector('[aria-label="Draw your signature"]') !== null`)
     assert.equal((await store.list()).length, 0)
     await button('Cancel')
