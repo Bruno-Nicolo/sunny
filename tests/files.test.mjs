@@ -211,6 +211,7 @@ test('session persistence creates its directory, restores state, and handles mis
     highlightColor: '#FDE047',
     highlightOpacity: 0.9,
     highlightThickness: 12,
+    highlightFreehandOnly: false,
     theme: 'system'
   }
   assert.deepEqual(await loadSession(sessionPath), defaultSession)
@@ -220,6 +221,7 @@ test('session persistence creates its directory, restores state, and handles mis
     highlightColor: '#86EFAC',
     highlightOpacity: 0.45,
     highlightThickness: 24,
+    highlightFreehandOnly: true,
     theme: 'dark'
   }
   await saveSession(sessionPath, state)
@@ -250,7 +252,8 @@ test('session restoration supplies valid tool preferences without losing open do
       ...saved,
       highlightColor: '#FDE047',
       highlightOpacity: 0.9,
-      highlightThickness: 12
+      highlightThickness: 12,
+      highlightFreehandOnly: false
     })
   }
   await writeFile(sessionPath, JSON.stringify({ ...saved, highlightColor: '#86EFAC' }))
@@ -258,7 +261,8 @@ test('session restoration supplies valid tool preferences without losing open do
     ...saved,
     highlightColor: '#86EFAC',
     highlightOpacity: 0.9,
-    highlightThickness: 12
+    highlightThickness: 12,
+    highlightFreehandOnly: false
   })
 })
 

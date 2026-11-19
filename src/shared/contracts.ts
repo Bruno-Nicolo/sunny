@@ -35,6 +35,7 @@ export type SessionState = {
   highlightColor: string
   highlightOpacity: number
   highlightThickness: number
+  highlightFreehandOnly: boolean
   theme: 'system' | 'light' | 'dark'
 }
 

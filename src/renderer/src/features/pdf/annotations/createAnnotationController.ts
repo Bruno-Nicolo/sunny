@@ -87,6 +87,8 @@ export function createAnnotationController({
   const pages = new Map<number, AnnotationLayer>()
   const imports = new Map<number, Promise<void>>()
   const canEdit = (): boolean => ready && permitted && options.active && !signal.aborted
+  const isFreehandOnly = (): boolean =>
+    options.annotationTool === 'highlight' && options.highlightFreehandOnly
   const thumbnailListeners = new Map<number, Set<(baseChanged: boolean) => void>>()
   const model = new AnnotationModel((changed, key, pageIndex) => {
     if (signal.aborted) return
@@ -331,7 +333,7 @@ export function createAnnotationController({
   }
 
   function highlightSelection(): void {
-    if (!canEdit() || pointerSelection) return
+    if (!canEdit() || isFreehandOnly() || pointerSelection) return
     const selection = window.getSelection()
     if (!selection?.rangeCount || selection.isCollapsed) return
     if (!(
@@ -409,7 +411,8 @@ export function createAnnotationController({
         canEdit() &&
         options.annotationTool === 'highlight' &&
         event.button === 0 &&
-        !target.closest('.lepisAnnotationLayer, .annotationLayer, .textLayer span')
+        !target.closest('.lepisAnnotationLayer, .annotationLayer') &&
+        (isFreehandOnly() || !target.closest('.textLayer span'))
       ) {
         const pageElement = target.closest<HTMLElement>('.page')
         const pageIndex = Number(pageElement?.dataset.pageNumber) - 1

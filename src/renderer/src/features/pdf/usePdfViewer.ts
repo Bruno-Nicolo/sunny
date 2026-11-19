@@ -168,9 +168,10 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
     controllerRef.current?.setAnnotationOptions({
       active: props.active,
       annotationTool: props.annotationTool,
-      highlightStyle: props.highlightStyle
+      highlightStyle: props.highlightStyle,
+      highlightFreehandOnly: props.highlightFreehandOnly
     })
-  }, [props.active, props.annotationTool, props.highlightStyle])
+  }, [props.active, props.annotationTool, props.highlightStyle, props.highlightFreehandOnly])
 
   useEffect(() => {
     if (props.active) propsRef.current.onTextEditorChange(textEditor)

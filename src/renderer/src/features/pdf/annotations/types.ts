@@ -10,4 +10,5 @@ export type AnnotationOptions = {
   active: boolean
   annotationTool: AnnotationTool
   highlightStyle: HighlightStyle
+  highlightFreehandOnly: boolean
 }

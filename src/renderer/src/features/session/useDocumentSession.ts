@@ -6,6 +6,7 @@ import type { Tab } from '@/features/documents/types'
 
 export type SessionPreferences = {
   highlightStyle: HighlightStyle
+  highlightFreehandOnly: boolean
   theme: SessionState['theme']
 }
 
@@ -25,6 +26,7 @@ export function persistDocumentSession(
     highlightColor: preferences.highlightStyle.color,
     highlightOpacity: preferences.highlightStyle.opacity,
     highlightThickness: preferences.highlightStyle.thickness,
+    highlightFreehandOnly: preferences.highlightFreehandOnly,
     theme: preferences.theme
   })
 }
@@ -41,6 +43,7 @@ export function useDocumentSession({
   activeId,
   ready,
   highlightStyle,
+  highlightFreehandOnly,
   theme,
   restoreSession,
   restorePreferences,
@@ -77,12 +80,13 @@ export function useDocumentSession({
   useEffect(() => {
     if (!ready) return
     const timer = setTimeout(() => {
-      void persistDocumentSession({ tabs, activeId, ready }, { highlightStyle, theme }).catch(
-        (error: unknown) => {
-          showMessage(error instanceof Error ? error.message : 'The session could not be saved.')
-        }
-      )
+      void persistDocumentSession(
+        { tabs, activeId, ready },
+        { highlightStyle, highlightFreehandOnly, theme }
+      ).catch((error: unknown) => {
+        showMessage(error instanceof Error ? error.message : 'The session could not be saved.')
+      })
     }, 250)
     return () => clearTimeout(timer)
-  }, [activeId, highlightStyle, ready, showMessage, tabs, theme])
+  }, [activeId, highlightStyle, highlightFreehandOnly, ready, showMessage, tabs, theme])
 }

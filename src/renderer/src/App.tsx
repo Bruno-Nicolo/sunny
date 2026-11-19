@@ -33,6 +33,7 @@ function App(): React.JSX.Element {
   const [invertColors, setInvertColors] = useState(false)
   const [navigationTab, setNavigationTab] = useState<PdfDocumentViewProps['navigationTab']>('pages')
   const [highlightStyle, setHighlightStyle] = useState(defaultHighlightStyle)
+  const [highlightFreehandOnly, setHighlightFreehandOnly] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatSelection, setChatSelection] = useState<{
     tabId: string
@@ -57,8 +58,8 @@ function App(): React.JSX.Element {
 
   const persistSession = useCallback(
     (state: DocumentsState): Promise<void> =>
-      persistDocumentSession(state, { highlightStyle, theme }),
-    [highlightStyle, theme]
+      persistDocumentSession(state, { highlightStyle, highlightFreehandOnly, theme }),
+    [highlightStyle, highlightFreehandOnly, theme]
   )
 
   const {
@@ -117,6 +118,7 @@ function App(): React.JSX.Element {
       opacity: session.highlightOpacity,
       thickness: session.highlightThickness
     })
+    setHighlightFreehandOnly(session.highlightFreehandOnly === true)
     setTheme(session.theme || 'system')
   }, [])
   useDocumentSession({
@@ -124,6 +126,7 @@ function App(): React.JSX.Element {
     activeId,
     ready,
     highlightStyle,
+    highlightFreehandOnly,
     theme,
     restoreSession,
     restorePreferences,
@@ -383,6 +386,8 @@ function App(): React.JSX.Element {
                 annotationTool={annotationTool}
                 signatureOptions={panel}
                 highlightStyle={highlightStyle}
+                highlightFreehandOnly={highlightFreehandOnly}
+                onHighlightFreehandOnlyChange={setHighlightFreehandOnly}
                 textSettings={textEditor?.id === activeId ? textEditor.settings : null}
                 onHighlightStyleChange={changeHighlightStyle}
               />
@@ -399,6 +404,7 @@ function App(): React.JSX.Element {
                   onNavigationTabChange={setNavigationTab}
                   annotationTool={annotationTool}
                   highlightStyle={highlightStyle}
+                  highlightFreehandOnly={highlightFreehandOnly}
                   onOpen={() => void openDialog()}
                   onOpenPath={(path) => openPaths([path])}
                   onViewerHandle={registerDocumentViewer}

@@ -11,6 +11,7 @@ export async function loadSession(filePath: string): Promise<SessionState> {
     highlightColor: defaultHighlightStyle.color,
     highlightOpacity: defaultHighlightStyle.opacity,
     highlightThickness: defaultHighlightStyle.thickness,
+    highlightFreehandOnly: false,
     theme: 'system'
   }
   try {
@@ -33,7 +34,8 @@ export async function loadSession(filePath: string): Promise<SessionState> {
         session.highlightThickness >= 2 &&
         session.highlightThickness <= 40
           ? session.highlightThickness
-          : defaults.highlightThickness
+          : defaults.highlightThickness,
+      highlightFreehandOnly: session.highlightFreehandOnly === true
     }
   } catch {
     return defaults

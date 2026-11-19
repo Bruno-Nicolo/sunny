@@ -9,6 +9,8 @@ type Props = {
   canAnnotate: boolean
   annotationTool: AnnotationTool
   highlightStyle: HighlightStyle
+  highlightFreehandOnly: boolean
+  onHighlightFreehandOnlyChange(checked: boolean): void
   textSettings: TextEditorSettings | null
   onHighlightStyleChange(style: Partial<HighlightStyle>, live?: boolean): void
 }
@@ -18,6 +20,8 @@ export function ToolOptionsSidebar({
   signatureOptions,
   annotationTool,
   highlightStyle,
+  highlightFreehandOnly,
+  onHighlightFreehandOnlyChange,
   textSettings,
   onHighlightStyleChange
 }: Props): React.JSX.Element | null {
@@ -52,6 +56,8 @@ export function ToolOptionsSidebar({
               key={annotationTool}
               annotationTool={annotationTool}
               highlightStyle={highlightStyle}
+              highlightFreehandOnly={highlightFreehandOnly}
+              onHighlightFreehandOnlyChange={onHighlightFreehandOnlyChange}
               textSettings={textSettings}
               onHighlightStyleChange={onHighlightStyleChange}
             />

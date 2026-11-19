@@ -1,5 +1,6 @@
 import { ToolOptionHeading } from '@/components/ToolOptionHeading'
-import { Field, FieldGroup } from '@/components/ui/field'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { ToolOptionSlider } from '@/components/ToolOptionSlider'
 import { ColorOptions } from './ColorOptions'
 import { highlightColors } from './highlight/colors'
@@ -10,6 +11,8 @@ import type { AnnotationTool, HighlightStyle } from './types'
 type Props = {
   annotationTool: AnnotationTool
   highlightStyle: HighlightStyle
+  highlightFreehandOnly: boolean
+  onHighlightFreehandOnlyChange(checked: boolean): void
   textSettings: TextEditorSettings | null
   onHighlightStyleChange(style: Partial<HighlightStyle>, live?: boolean): void
 }
@@ -17,6 +20,8 @@ type Props = {
 export function AnnotationToolOptions({
   annotationTool,
   highlightStyle,
+  highlightFreehandOnly,
+  onHighlightFreehandOnlyChange,
   textSettings,
   onHighlightStyleChange
 }: Props): React.JSX.Element | null {
@@ -31,7 +36,8 @@ export function AnnotationToolOptions({
       aria-label={text ? 'Text options' : 'Highlight options'}
       onPointerDown={(event) => {
         event.stopPropagation()
-        if ((event.target as HTMLElement).closest('button')) event.preventDefault()
+        if ((event.target as Element).closest('button:not([role="checkbox"])'))
+          event.preventDefault()
       }}
       onKeyDown={(event) => event.stopPropagation()}
     >
@@ -81,6 +87,14 @@ export function AnnotationToolOptions({
               />
             </svg>
           </div>
+          <Field className="flex-row items-center gap-2">
+            <Checkbox
+              id="highlight-freehand-only"
+              checked={highlightFreehandOnly}
+              onCheckedChange={(checked) => onHighlightFreehandOnlyChange(checked === true)}
+            />
+            <FieldLabel htmlFor="highlight-freehand-only">Freehand only</FieldLabel>
+          </Field>
         </>
       )}
     </FieldGroup>

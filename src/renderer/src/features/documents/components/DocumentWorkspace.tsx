@@ -17,6 +17,7 @@ type Props = {
   onNavigationTabChange: PdfDocumentViewProps['onNavigationTabChange']
   annotationTool: AnnotationTool
   highlightStyle: HighlightStyle
+  highlightFreehandOnly: boolean
   onAskAI: PdfDocumentViewProps['onAskAI']
   onSavePages(id: string, data: Uint8Array, page: number, onSaved: () => void): Promise<boolean>
   onExportPages(id: string, data: Uint8Array): Promise<boolean>
@@ -41,6 +42,7 @@ export function DocumentWorkspace({
   onNavigationTabChange,
   annotationTool,
   highlightStyle,
+  highlightFreehandOnly,
   onAskAI,
   onSavePages,
   onExportPages,
@@ -76,6 +78,7 @@ export function DocumentWorkspace({
             initialTwoPageView={tab.view.twoPageView}
             annotationTool={annotationTool}
             highlightStyle={highlightStyle}
+            highlightFreehandOnly={highlightFreehandOnly}
             active={tab.id === activeId}
             navigationOpen={navigationOpen}
             onNavigationOpenChange={onNavigationOpenChange}

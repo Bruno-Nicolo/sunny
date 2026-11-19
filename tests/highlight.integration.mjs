@@ -619,7 +619,14 @@ app
     }
     const beforeStroke = await darkPixels()
     assert.ok(beforeStroke > 20, 'The fixture must have dark text under the stroke')
-    const start = { x: textBounds.x - 12, y: Math.round(textBounds.y + textBounds.height / 2) }
+    await evaluate(`document.querySelector('#highlight-freehand-only').click()`)
+    const start = { x: textBounds.x + 4, y: Math.round(textBounds.y + textBounds.height / 2) }
+    assert.ok(
+      await evaluate(
+        `Boolean(document.elementFromPoint(${start.x}, ${start.y})?.closest('.textLayer span'))`
+      ),
+      'The freehand-only drag must start directly on PDF text'
+    )
     win.webContents.sendInputEvent({ type: 'mouseMove', ...start })
     win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', ...start, clickCount: 1 })
     for (let i = 1; i <= 10; i++) {
@@ -643,12 +650,13 @@ app
       clickCount: 1
     })
     await waitFor(`document.querySelectorAll('.visible .freehandHighlight').length === 2`)
+    assert.equal(await evaluate('window.getSelection().isCollapsed'), true)
     assert.ok(
       (await darkPixels()) >= beforeStroke * 0.95,
       'The completed stroke must preserve dark text'
     )
     console.log(
-      'PASS: freehand preview and completed strokes preserve dark text with Multiply blending'
+      'PASS: freehand-only strokes start directly on PDF text and preserve it with Multiply blending'
     )
     assert.deepEqual(await evaluate('window.annotationErrors'), [])
     console.log(
