@@ -83,6 +83,7 @@ function App(): React.JSX.Element {
     openPaths,
     saveTab,
     exportPages,
+    printTab,
     closeTab,
     cancelClose,
     saveAndResolveClose,
@@ -190,12 +191,12 @@ function App(): React.JSX.Element {
       save: () => {
         if (activeId) void saveTab(activeId)
       },
-      print: () =>
-        withViewer((viewer) => {
-          void viewer.print().catch((error: unknown) => {
-            showMessage(error instanceof Error ? error.message : 'The PDF could not be printed.')
-          })
-        }),
+      'export-flattened': () => {
+        if (activeId) void printTab(activeId, 'flatten')
+      },
+      print: () => {
+        if (activeId) void printTab(activeId, 'print')
+      },
       'close-tab': () => {
         if (activeId) void closeTab(activeId)
       },
@@ -244,9 +245,9 @@ function App(): React.JSX.Element {
     closeTab,
     getActiveViewer,
     openDialog,
+    printTab,
     saveTab,
     selectTab,
-    showMessage,
     tabs
   ])
 

@@ -1,7 +1,8 @@
 import { join } from 'path'
 import { createSignatureStore } from './signatures'
-import { app, clipboard, ipcMain, Menu, nativeTheme } from 'electron'
+import { app, clipboard, ipcMain, Menu, nativeTheme, type WebContents } from 'electron'
 import type {
+  PdfCopyDestination,
   PdfSource,
   SavePdfAsRequest,
   SavePdfRequest,
@@ -9,8 +10,8 @@ import type {
   SessionState
 } from '../shared/contracts'
 import { releasePdfSource } from './pdf-sources'
-import { deleteBackup, readPdf, savePdf, statPdf } from './pdf-files'
-import { openPdfDialog, savePdfAs } from './pdf-dialogs'
+import { deleteBackup, readPdf, savePdf, statPdf, writePdfCopy } from './pdf-files'
+import { choosePdfCopyPath, openPdfDialog } from './pdf-dialogs'
 import { createDraftStore } from './drafts'
 import { loadSession, saveSession } from './session'
 import { confirmWindowClose, getMainWindow } from './window'
@@ -38,9 +39,32 @@ export function registerIpc(): void {
   ipcMain.handle('pdf:release-source', (_event, source: PdfSource) => releasePdfSource(source))
   ipcMain.handle('pdf:stat', (_event, filePath: string) => statPdf(filePath))
   ipcMain.handle('pdf:save', (_event, payload: SavePdfRequest) => savePdf(payload, userDataPath))
-  ipcMain.handle('pdf:save-as', (_event, payload: SavePdfAsRequest) =>
-    savePdfAs(getMainWindow(), payload)
-  )
+  ipcMain.handle('pdf:save-as', async (_event, payload: SavePdfAsRequest) => {
+    const path = await choosePdfCopyPath(getMainWindow(), payload)
+    if (path) await writePdfCopy(path, payload.data)
+    return path
+  })
+  const flattenedPaths = new WeakMap<WebContents, string>()
+  ipcMain.handle('pdf:choose-flattened-copy', async (event, destination: PdfCopyDestination) => {
+    const window = getMainWindow()
+    if (!window || event.sender !== window.webContents) return false
+    const path = await choosePdfCopyPath(window, destination)
+    if (!path) return false
+    flattenedPaths.set(event.sender, path)
+    return true
+  })
+  ipcMain.handle('pdf:finish-flattened-copy', async ({ sender }, rendered: boolean) => {
+    const path = flattenedPaths.get(sender)
+    flattenedPaths.delete(sender)
+    if (!rendered) return
+    if (!path) throw new Error('Choose a destination for the flattened PDF first.')
+    const data = await sender.printToPDF({
+      preferCSSPageSize: true,
+      printBackground: true,
+      generateTaggedPDF: false
+    })
+    await writePdfCopy(path, data)
+  })
   ipcMain.on('pdf:tab-context-menu', (event, filePath: string) => {
     const window = getMainWindow()
     if (!window || event.sender !== window.webContents) return

@@ -15,6 +15,7 @@ type Shortcut = {
 export const shortcuts = [
   { id: 'open', label: 'Open…', accelerator: 'CmdOrCtrl+O' },
   { id: 'save', label: 'Save', accelerator: 'CmdOrCtrl+S' },
+  { id: 'export-flattened', label: 'Export Flattened PDF…' },
   { id: 'print', label: 'Print…', accelerator: 'CmdOrCtrl+P' },
   { id: 'close-tab', label: 'Close Tab', accelerator: 'CmdOrCtrl+W' },
   { id: 'undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z' },

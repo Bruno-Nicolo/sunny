@@ -364,6 +364,12 @@ export function createPdfViewer({
       onError(error instanceof Error ? error.message : 'The PDF could not be opened.')
     })
 
+  const saveDocument = async (): Promise<Uint8Array> => {
+    if (destroyed || !document || loading) throw new Error('The PDF is not ready.')
+    annotations.commit()
+    return annotations.save()
+  }
+
   return {
     async extractPages(order) {
       if (destroyed || loading || !document) throw new Error('The PDF is not ready.')
@@ -380,12 +386,11 @@ export function createPdfViewer({
       }
       return document.extractPages([pageInfo])
     },
-    async print() {
-      if (destroyed || loading || !document) return
-      await printPdf(async () => {
-        annotations.commit()
-        return annotations.save()
-      }, password)
+    async print(destination) {
+      if (destroyed || loading || !document) return false
+      if (destination && !viewer.printingAllowed)
+        throw new Error('This PDF does not allow printing or flattened export.')
+      return printPdf(saveDocument, password, destination)
     },
     async startPresentation() {
       if (destroyed || loading) return
@@ -441,11 +446,7 @@ export function createPdfViewer({
       if (hash === previousHash) return null
       return { hash, data: await annotations.save() }
     },
-    async saveDocument() {
-      if (destroyed || !document) throw new Error('The PDF is not ready.')
-      annotations.commit()
-      return annotations.save()
-    },
+    saveDocument,
     setPage(page) {
       if (!destroyed) viewer.currentPageNumber = page
     },

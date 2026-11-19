@@ -71,6 +71,7 @@ export function createAnnotationController({
   let placement: AbortController | null = null
   let options = initialOptions
   let document: PDFDocumentProxy | null = null
+  let pendingSave: Promise<void> = Promise.resolve()
   let formRevision = 0
   let resolveInitialized!: () => void
   const initialized = new Promise<void>((resolve) => {
@@ -678,8 +679,16 @@ export function createAnnotationController({
       return `${model.hash}:${formRevision}`
     },
     async save(): Promise<Uint8Array> {
-      if (!document || signal.aborted) throw new Error('The PDF is not ready.')
-      return writeAnnotations(document, model)
+      // The writer uses the document's shared annotation storage for each snapshot.
+      const save = pendingSave.then(() => {
+        if (!document || signal.aborted) throw new Error('The PDF is not ready.')
+        return writeAnnotations(document, model)
+      })
+      pendingSave = save.then(
+        () => {},
+        () => {}
+      )
+      return save
     }
   }
 }

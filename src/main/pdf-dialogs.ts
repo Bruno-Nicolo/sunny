@@ -1,8 +1,8 @@
 import { dialog, type BrowserWindow } from 'electron'
 import { resolve } from 'path'
 import { realpath } from 'fs/promises'
-import type { OpenedPdf, SavePdfAsRequest } from '../shared/contracts'
-import { readPdf, writePdfCopy } from './pdf-files'
+import type { OpenedPdf, PdfCopyDestination } from '../shared/contracts'
+import { readPdf } from './pdf-files'
 
 export async function openPdfDialog(window: BrowserWindow | null): Promise<OpenedPdf[]> {
   if (!window) return []
@@ -15,9 +15,9 @@ export async function openPdfDialog(window: BrowserWindow | null): Promise<Opene
   return Promise.all(result.filePaths.map(readPdf))
 }
 
-export async function savePdfAs(
+export async function choosePdfCopyPath(
   window: BrowserWindow | null,
-  { data, suggestedName, excludedPaths }: SavePdfAsRequest
+  { suggestedName, excludedPaths }: PdfCopyDestination
 ): Promise<string | null> {
   if (!window) return null
   const result = await dialog.showSaveDialog(window, {
@@ -36,6 +36,5 @@ export async function savePdfAs(
     throw new Error(
       'Choose a different file name. An open PDF cannot be overwritten by an export or copy.'
     )
-  await writePdfCopy(filePath, data)
   return filePath
 }

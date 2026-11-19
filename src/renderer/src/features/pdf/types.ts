@@ -1,4 +1,4 @@
-import type { PdfSource } from '../../../../shared/contracts'
+import type { PdfCopyDestination, PdfSource } from '../../../../shared/contracts'
 import type {
   AnnotationInsertionPoint,
   AnnotationOptions,
@@ -42,7 +42,7 @@ export type PdfDocumentHandle = {
   openSearch(): void
   snapshotDocument(previousHash?: string): Promise<PdfSnapshot | null>
   saveDocument(): Promise<Uint8Array>
-  print(): Promise<void>
+  print(destination?: PdfCopyDestination): Promise<boolean>
   setPage(page: number): void
   setScale(scale: string): void
   zoomIn(): void

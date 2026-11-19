@@ -20,6 +20,7 @@ excerpts and needed conversation history to the service chosen by the user, afte
 - Draw or import a visible signature, preview it, and click a page to place it. Save named signatures on this device for reuse, rename them, or delete them from the library.
 - Undo and redo annotations with the standard macOS shortcuts.
 - Save changes to the original PDF with Command-S.
+- Choose **File → Export Flattened PDF…** to save a separate copy with unsaved annotations embedded in the page images. Text selection, search, links and interactive form fields are unavailable in the copy.
 - Detect external file changes and protect signed or restricted PDFs from edits.
 - Ask questions in a resizable right-hand AI panel, with clickable citations that reveal passages in the PDF.
 - Attach selected text or rectangular regions, including figures and formulas, without modifying the PDF.

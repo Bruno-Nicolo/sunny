@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
-import type { OpenedPdf, PdfDraft } from '../../../../shared/contracts'
+import type { OpenedPdf, PdfCopyDestination, PdfDraft } from '../../../../shared/contracts'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
 import { createDraftAutosave } from './draftAutosave'
 import {
@@ -30,6 +30,7 @@ type DocumentsController = DocumentsState & {
   openDialog(): Promise<void>
   openPaths(paths: string[]): Promise<void>
   exportPages(id: string, data: Uint8Array): Promise<boolean>
+  printTab(id: string, mode: 'print' | 'flatten'): Promise<void>
   saveTab(id: string, pages?: PageSave): Promise<boolean>
   closeTab(id: string, discard?: boolean): Promise<boolean>
   cancelClose(): void
@@ -38,6 +39,13 @@ type DocumentsController = DocumentsState & {
   cancelConflict(): void
   saveConflictCopy(): Promise<void>
   reloadConflict(): Promise<void>
+}
+
+function copyDestination(name: string, suffix: string, tabs: Tab[]): PdfCopyDestination {
+  return {
+    suggestedName: `${name.replace(/\.pdf$/i, '')} - ${suffix}.pdf`,
+    excludedPaths: tabs.map((tab) => tab.path)
+  }
 }
 
 export function useDocuments(
@@ -244,11 +252,34 @@ export function useDocuments(
     if (!tab) return false
     const saved = await window.lepis.savePdfAs({
       data,
-      suggestedName: tab.name.replace(/\.pdf$/i, ' - pages.pdf'),
-      excludedPaths: stateRef.current.tabs.map((tab) => tab.path)
+      ...copyDestination(tab.name, 'pages', stateRef.current.tabs)
     })
     return saved !== null
   }, [])
+
+  const printTab = useCallback(
+    async (id: string, mode: 'print' | 'flatten'): Promise<void> => {
+      const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
+      const viewer = viewers.current.get(id)
+      if (!tab || !viewer) return
+      const destination =
+        mode === 'flatten'
+          ? copyDestination(tab.name, 'flattened', stateRef.current.tabs)
+          : undefined
+      try {
+        if ((await viewer.print(destination)) && destination) showMessage('Flattened PDF exported.')
+      } catch (error) {
+        showMessage(
+          error instanceof Error
+            ? error.message
+            : destination
+              ? 'The flattened PDF could not be exported.'
+              : 'The PDF could not be printed.'
+        )
+      }
+    },
+    [showMessage]
+  )
 
   const closeTab = useCallback(
     async (id: string, discard = false): Promise<boolean> => {
@@ -354,8 +385,7 @@ export function useDocuments(
         const data = pending?.data ?? (await viewer.saveDocument())
         const path = await window.lepis.savePdfAs({
           data,
-          suggestedName: tab.name.replace(/\.pdf$/i, ' - Sunny.pdf'),
-          excludedPaths: stateRef.current.tabs.map((tab) => tab.path)
+          ...copyDestination(tab.name, 'Sunny', stateRef.current.tabs)
         })
         if (!path) return
         const saved = await window.lepis.readPdf(path)
@@ -463,6 +493,7 @@ export function useDocuments(
     openPaths,
     saveTab,
     exportPages,
+    printTab,
     closeTab,
     saveAndResolveClose,
     discardAndResolveClose,
