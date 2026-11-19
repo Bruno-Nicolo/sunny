@@ -3,6 +3,12 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { ChatEvent, ChatgptLoginState } from '../shared/ai'
 
 const api: LepisApi = {
+  signatures: {
+    list: () => ipcRenderer.invoke('signatures:list'),
+    save: (name, dataUrl) => ipcRenderer.invoke('signatures:save', name, dataUrl),
+    rename: (id, name) => ipcRenderer.invoke('signatures:rename', id, name),
+    remove: (id) => ipcRenderer.invoke('signatures:remove', id)
+  },
   ai: {
     status: () => ipcRenderer.invoke('ai:status'),
     settings: (settings) => ipcRenderer.invoke('ai:settings', settings),

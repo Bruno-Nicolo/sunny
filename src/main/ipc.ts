@@ -1,4 +1,5 @@
 import { join } from 'path'
+import { createSignatureStore } from './signatures'
 import { app, clipboard, ipcMain, Menu, nativeTheme } from 'electron'
 import type {
   PdfSource,
@@ -19,6 +20,15 @@ import { listDownloadPdfs } from './suggested-pdfs'
 export function registerIpc(): void {
   const userDataPath = app.getPath('userData')
   registerAiIpc(userDataPath)
+  const signatures = createSignatureStore(userDataPath)
+  ipcMain.handle('signatures:list', () => signatures.list())
+  ipcMain.handle('signatures:save', (_event, name: string, dataUrl: string) =>
+    signatures.save(name, dataUrl)
+  )
+  ipcMain.handle('signatures:rename', (_event, id: string, name: string) =>
+    signatures.rename(id, name)
+  )
+  ipcMain.handle('signatures:remove', (_event, id: string) => signatures.remove(id))
   const sessionPath = join(userDataPath, 'session.json')
   const drafts = createDraftStore(userDataPath)
   ipcMain.handle('draft:save', (_event, draft: SavePdfDraftRequest) => drafts.save(draft))

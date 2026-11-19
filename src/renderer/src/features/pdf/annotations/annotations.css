@@ -181,3 +181,28 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.image-placement-active {
+  cursor: crosshair;
+}
+.signature-placement-preview {
+  position: fixed;
+  z-index: 45;
+  pointer-events: none;
+  opacity: 0.75;
+  object-fit: fill;
+}
+.signature-placement-hint {
+  position: fixed;
+  left: 50%;
+  top: 4rem;
+  transform: translateX(-50%);
+  z-index: 45;
+  pointer-events: none;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}

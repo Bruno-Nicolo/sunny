@@ -17,6 +17,7 @@
     "test:text": "pnpm build && electron tests/text.integration.mjs",
     "test:highlight": "pnpm build && electron tests/highlight.integration.mjs",
     "test:annotations": "pnpm build && electron tests/annotation-loading.integration.mjs",
+    "test:signatures": "pnpm build && electron tests/signatures.integration.mjs",
     "test:images": "pnpm build && electron tests/images.integration.mjs",
     "test:memory": "pnpm build && electron tests/tabs-memory.integration.mjs",
     "test:documents": "pnpm build && electron tests/documents.integration.mjs",

@@ -16,7 +16,8 @@ excerpts and needed conversation history to the service chosen by the user, afte
 - Add editable text boxes by choosing Add text and clicking on a page; open Text settings next to the selected box to choose a preset color and size.
 - Type multiple lines, move text boxes, and edit saved text by selecting it and pressing Enter.
 - Add images from the toolbar, paste them with Command-V, or drop image files into the active PDF.
-- Move and resize inserted images; delete them with Backspace and save them with Command-S.
+- Move and proportionally resize inserted images; delete them with Backspace and save them with Command-S.
+- Draw or import a visible signature, preview it, and click a page to place it. Save named signatures on this device for reuse, rename them, or delete them from the library.
 - Undo and redo annotations with the standard macOS shortcuts.
 - Save changes to the original PDF with Command-S.
 - Detect external file changes and protect signed or restricted PDFs from edits.
@@ -45,6 +46,7 @@ pnpm lint
 pnpm test
 pnpm build
 pnpm test:images
+pnpm test:signatures
 pnpm test:text
 pnpm test:documents
 pnpm test:recovery
@@ -82,7 +84,8 @@ The application icon comes from `resources/branding/sunny-solid.png`. After upda
 - `src/renderer/src/features/pdf/createPdfViewer.ts`: PDF.js document loading, navigation, permissions, saving, and resource cleanup. Annotation commands are delegated to the annotation controller.
 - `src/renderer/src/features/pdf/usePdfViewer.ts`: React lifecycle integration and the document command handle.
 - `src/renderer/src/features/pdf/PdfDocumentView.tsx` and `PasswordDialog.tsx`: viewer containers, loading indicator, and password form.
-- `src/renderer/src/features/pdf/types.ts` and `signatures.ts`: viewer contracts and conservative signature marker detection.
+- `src/renderer/src/features/pdf/types.ts`: viewer contracts. PDF.js inspects existing digital signature fields before editing is enabled.
+- `src/renderer/src/features/pdf/signatures`: visible signature acquisition and library UI. `src/main/signatures.ts` stores the local library separately from documents.
 - `src/renderer/src/features/pdf/annotations`: shared PDF.js editor events and annotation lifecycle, with separate `highlight`, `images`, and `text` modules. Each module owns its editor behavior and interface; image input, paste, and drop handling live in `images`. See [the annotation architecture](src/renderer/src/features/pdf/annotations/README.md) for the extension points.
 
 Sunny uses the official `pdfjs-dist` package directly. The renderer has no Node.js access and runs
@@ -93,6 +96,7 @@ viewer isolation, shortcuts, document state transitions, and filesystem behavior
 backups, save conflicts, copy saves, failed atomic writes, and session persistence.
 `pnpm test:text` checks multiline text insertion, formatting, consecutive saves, saving with the
 formatting menu open, undo/redo, empty text boxes, tab isolation, and editing text after reopening.
+`pnpm test:signatures` checks drawing, image extraction, required local saving, renaming, deletion, placement cancellation and alignment, and PDF reopening in Electron.
 `pnpm test:images` checks image editing in Electron. `pnpm test:documents` checks concurrent startup
 and close operations, partial open failures, and save/close/conflict workflows.
 It also checks page and zoom retention on reload, password retries, active-tab password prompts,

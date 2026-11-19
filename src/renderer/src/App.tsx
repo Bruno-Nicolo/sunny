@@ -19,14 +19,17 @@ import { useAnnotationInsertion } from '@/features/pdf/annotations/useAnnotation
 import { defaultHighlightStyle, type HighlightStyle } from '../../shared/highlight'
 import type { ChatAttachment } from '../../shared/ai'
 import { ChatDock } from '@/features/chat/ChatDock'
+import { SignatureTool } from '@/features/pdf/signatures/SignatureTool'
 
 function App(): React.JSX.Element {
-  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('none')
+  const [selectedTool, setSelectedTool] = useState<AnnotationTool | 'signature'>('none')
+  const annotationTool = selectedTool === 'signature' ? 'none' : selectedTool
   const [textEditor, setTextEditor] = useState<{
     id: string
     settings: TextEditorSettings | null
   } | null>(null)
   const [navigationOpen, setNavigationOpen] = useState(false)
+  const [signatureCreationOpen, setSignatureCreationOpen] = useState(false)
   const [invertColors, setInvertColors] = useState(false)
   const [navigationTab, setNavigationTab] = useState<PdfDocumentViewProps['navigationTab']>('pages')
   const [highlightStyle, setHighlightStyle] = useState(defaultHighlightStyle)
@@ -127,10 +130,25 @@ function App(): React.JSX.Element {
     showMessage
   })
 
+  const signatureActive = selectedTool === 'signature' && !!activeTab?.view.canAnnotate
+
+  const changeAnnotationTool = useCallback(
+    (tool: AnnotationTool | 'signature'): void => {
+      getActiveViewer()?.cancelImagePlacement()
+      setSelectedTool(tool)
+    },
+    [getActiveViewer]
+  )
+
   const { onImageDrop } = useAnnotationInsertion({
-    enabled: !!activeTab?.view.canAnnotate && !closeRequest && !conflictId && !navigationOpen,
+    enabled:
+      !!activeTab?.view.canAnnotate &&
+      !closeRequest &&
+      !conflictId &&
+      !navigationOpen &&
+      !signatureActive,
     getActiveViewer,
-    onToolChange: setAnnotationTool,
+    onToolChange: changeAnnotationTool,
     onError: showMessage
   })
 
@@ -191,12 +209,12 @@ function App(): React.JSX.Element {
         if (activeTab?.view.pages) setInvertColors((inverted) => !inverted)
       },
       'activate-highlight': () => {
-        if (activeTab?.view.canAnnotate) setAnnotationTool('highlight')
+        if (activeTab?.view.canAnnotate) changeAnnotationTool('highlight')
       },
       'activate-text': () => {
-        if (activeTab?.view.canAnnotate) setAnnotationTool('text')
+        if (activeTab?.view.canAnnotate) changeAnnotationTool('text')
       },
-      'deactivate-tool': () => setAnnotationTool('none'),
+      'deactivate-tool': () => changeAnnotationTool('none'),
       'toggle-two-page-view': () => withViewer((viewer) => viewer.toggleTwoPageView()),
       'next-tab': () => cycleTab(1),
       'previous-tab': () => cycleTab(-1),
@@ -219,6 +237,7 @@ function App(): React.JSX.Element {
   }, [
     activeId,
     activeTab,
+    changeAnnotationTool,
     closeTab,
     getActiveViewer,
     openDialog,
@@ -234,7 +253,8 @@ function App(): React.JSX.Element {
     recoveryDrafts.length === 0 &&
     closeRequest === null &&
     conflictId === null &&
-    !navigationOpen
+    !navigationOpen &&
+    !signatureCreationOpen
   useAppShortcuts(shortcutHandlers, shortcutsEnabled)
 
   const askAI = (attachments: ChatAttachment[]): void => {
@@ -261,14 +281,23 @@ function App(): React.JSX.Element {
     })
   }
 
-  const toolbar = (
+  const renderToolbar = (
+    signatureControl: React.ReactNode,
+    placingSignature: boolean
+  ): React.JSX.Element => (
     <DocumentToolbar
       activeTab={activeTab}
       navigationOpen={navigationOpen}
-      onToggleNavigation={() => setNavigationOpen((open) => !open)}
+      onToggleNavigation={() => {
+        if (signatureActive) changeAnnotationTool('none')
+        else getActiveViewer()?.cancelImagePlacement()
+        setNavigationOpen((open) => !open)
+      }}
       invertColors={invertColors}
       annotationTool={annotationTool}
-      onAnnotationToolChange={setAnnotationTool}
+      onAnnotationToolChange={changeAnnotationTool}
+      signatureControl={signatureControl}
+      selectionActive={annotationTool === 'none' && !signatureActive && !placingSignature}
       onPageChange={(page) => getActiveViewer()?.setPage(page)}
       onScaleChange={(scale) => getActiveViewer()?.setScale(scale)}
       onZoomIn={() => getActiveViewer()?.zoomIn()}
@@ -307,7 +336,10 @@ function App(): React.JSX.Element {
             theme={theme}
             chatOpen={chatOpen}
             onToggleChat={() => setChatOpen((open) => !open)}
-            onSelect={selectTab}
+            onSelect={(id) => {
+              if (signatureActive && id !== activeId) changeAnnotationTool('none')
+              selectTab(id)
+            }}
             onReorder={reorderTab}
             onClose={(id) => void closeTab(id)}
             onOpen={() => void openDialog()}
@@ -328,43 +360,57 @@ function App(): React.JSX.Element {
         tabs={tabs}
         activeId={activeId}
         getViewer={getChatViewer}
-        onSelectionTool={() => setAnnotationTool('none')}
+        onSelectionTool={() => changeAnnotationTool('none')}
       >
-        <div className="document-stage">
-          <ToolOptionsSidebar
-            canAnnotate={activeTab?.view.canAnnotate ?? false}
-            annotationTool={annotationTool}
-            highlightStyle={highlightStyle}
-            textSettings={textEditor?.id === activeId ? textEditor.settings : null}
-            onHighlightStyleChange={changeHighlightStyle}
-          />
-          <div className="document-canvas">
-            <DocumentWorkspace
-              onAskAI={askAI}
-              tabs={tabs}
-              invertColors={invertColors}
-              activeId={activeId}
-              ready={ready}
-              navigationOpen={navigationOpen}
-              onNavigationOpenChange={setNavigationOpen}
-              navigationTab={navigationTab}
-              onNavigationTabChange={setNavigationTab}
-              annotationTool={annotationTool}
-              highlightStyle={highlightStyle}
-              onOpen={() => void openDialog()}
-              onOpenPath={(path) => openPaths([path])}
-              onViewerHandle={registerDocumentViewer}
-              onSavePages={(id, data, page, onSaved) => saveTab(id, { data, page, onSaved })}
-              onExportPages={exportPages}
-              onPageDraftChange={(id, pageDraft) => updateTab(id, { pageDraft })}
-              onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
-              onSnapshot={(id, view) => updateTab(id, { view })}
-              onError={(id, error) => updateTab(id, { error })}
-              onTextEditorChange={onTextEditorChange}
-            />
-            {toolbar}
-          </div>
-        </div>
+        <SignatureTool
+          active={signatureActive}
+          documentId={activeId}
+          enabled={!!activeTab?.view.canAnnotate}
+          signed={activeTab?.view.signed ?? false}
+          getViewer={getActiveViewer}
+          onActiveChange={(active) => changeAnnotationTool(active ? 'signature' : 'none')}
+          onCreationOpenChange={setSignatureCreationOpen}
+          onError={showMessage}
+        >
+          {({ control, panel, placing }) => (
+            <div className="document-stage">
+              <ToolOptionsSidebar
+                canAnnotate={activeTab?.view.canAnnotate ?? false}
+                annotationTool={annotationTool}
+                signatureOptions={panel}
+                highlightStyle={highlightStyle}
+                textSettings={textEditor?.id === activeId ? textEditor.settings : null}
+                onHighlightStyleChange={changeHighlightStyle}
+              />
+              <div className="document-canvas">
+                <DocumentWorkspace
+                  onAskAI={askAI}
+                  tabs={tabs}
+                  invertColors={invertColors}
+                  activeId={activeId}
+                  ready={ready}
+                  navigationOpen={navigationOpen}
+                  onNavigationOpenChange={setNavigationOpen}
+                  navigationTab={navigationTab}
+                  onNavigationTabChange={setNavigationTab}
+                  annotationTool={annotationTool}
+                  highlightStyle={highlightStyle}
+                  onOpen={() => void openDialog()}
+                  onOpenPath={(path) => openPaths([path])}
+                  onViewerHandle={registerDocumentViewer}
+                  onSavePages={(id, data, page, onSaved) => saveTab(id, { data, page, onSaved })}
+                  onExportPages={exportPages}
+                  onPageDraftChange={(id, pageDraft) => updateTab(id, { pageDraft })}
+                  onDirtyChange={(id, dirty) => updateTab(id, { dirty })}
+                  onSnapshot={(id, view) => updateTab(id, { view })}
+                  onError={(id, error) => updateTab(id, { error })}
+                  onTextEditorChange={onTextEditorChange}
+                />
+                {renderToolbar(control, placing)}
+              </div>
+            </div>
+          )}
+        </SignatureTool>
       </ChatDock>
 
       {message && (

@@ -1,5 +1,6 @@
 import type { ShortcutCommand } from './shortcuts'
 import type { AiApi } from './ai'
+import type { SignaturesApi } from './signatures'
 
 export type PdfFileStats = {
   mtimeMs: number
@@ -62,6 +63,7 @@ export type PdfDraft = Omit<OpenedPdf, 'source'> & {
 
 export interface LepisApi {
   ai: AiApi
+  signatures: SignaturesApi
   saveDraft(draft: SavePdfDraftRequest): Promise<void>
   loadDrafts(): Promise<PdfDraft[]>
   deleteDraft(path: string): Promise<void>

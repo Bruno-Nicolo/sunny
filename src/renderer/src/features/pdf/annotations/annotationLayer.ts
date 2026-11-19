@@ -440,17 +440,29 @@ export class AnnotationLayer {
           const right = resize.includes('Right')
           const top = resize.startsWith('top')
           const bottom = resize.startsWith('bottom')
-          if (original.kind === 'image' && (left || right) && (top || bottom)) {
+          if (original.kind === 'image') {
             const width = bounds[2] - bounds[0]
             const height = bounds[3] - bounds[1]
             const directionX = left ? -1 : 1
             const directionY = top ? -1 : 1
             // Project the pointer movement onto the diagonal through the fixed opposite corner.
             const scaleDelta =
-              (directionX * vx * width + directionY * vy * height) /
-              (width * width + height * height)
-            bounds[left ? 0 : 2] += directionX * width * scaleDelta
-            bounds[top ? 1 : 3] += directionY * height * scaleDelta
+              (left || right) && (top || bottom)
+                ? (directionX * vx * width + directionY * vy * height) /
+                  (width * width + height * height)
+                : left || right
+                  ? (directionX * vx) / width
+                  : (directionY * vy) / height
+            if (left || right) bounds[left ? 0 : 2] += directionX * width * scaleDelta
+            else {
+              bounds[0] -= (width * scaleDelta) / 2
+              bounds[2] += (width * scaleDelta) / 2
+            }
+            if (top || bottom) bounds[top ? 1 : 3] += directionY * height * scaleDelta
+            else {
+              bounds[1] -= (height * scaleDelta) / 2
+              bounds[3] += (height * scaleDelta) / 2
+            }
           } else {
             if (left) bounds[0] += vx
             if (right) bounds[2] += vx

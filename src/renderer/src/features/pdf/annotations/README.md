@@ -207,3 +207,29 @@ Text annotations require a complete style in the model; PDF import supplies font
 alignment from the standard DA and Q entries. The text panel receives updates when its style or
 selected editor changes. Typing alone reuses the current settings. Font dictionaries are shared
 within each incremental save and reused for font metrics and appearance resources.
+
+## Visible signatures
+
+The Signature tool opens the saved signature library in the left sidebar. The creation dialog lets
+users draw black strokes or import PNG, JPEG and WebP images. Acquisition
+uses PDF.js's SignatureExtractor for stroke curves and image contours. Images can be cropped before
+background removal; the preview can retain the original background. Drawn signatures and extracted
+ink have transparent backgrounds and trimmed margins. Acquisition components load on demand.
+
+The named library is stored in the app data directory as `signatures.json`, with owner-only
+file permissions and serialized atomic writes. It is separate from PDF files and session recovery.
+New signatures require a name and are saved to the library before placement. Cancelling creation
+discards the unsaved signature; cancelling placement keeps its saved library entry. Deleting a saved signature leaves copies in documents, recovery and backups unchanged.
+
+`images/imagePlacement.ts` previews an image at the pointer, blocks underlying page controls during
+placement, and inserts a single image on click. Escape, tool/tab changes, viewport changes, loss of
+window focus and document disposal cancel placement. The existing image model, history, reader and
+writer own the resulting standard Stamp. No signature-specific metadata is written to the PDF;
+reopened signatures are ordinary editable images, with proportional corner and side resizing.
+Placement does not save the PDF automatically. Existing signed/restricted-document guards apply.
+This is a visible signature, without cryptographic identity or integrity verification.
+
+`pnpm test:signatures` exercises native drawing and placement input, library persistence across reload,
+image extraction transparency and crop controls, cancellation, rotation/zoom
+preview alignment, drawing history, save/reopen and independent library deletion. `pnpm test` covers library writes,
+validation, file permissions and recovery after failed operations.

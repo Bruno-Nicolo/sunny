@@ -5,11 +5,12 @@ import { basename, dirname, join } from 'path'
 // Replace a file using a temporary file in the same directory; the directory must exist.
 export async function writeFileAtomically(
   filePath: string,
-  data: string | Uint8Array
+  data: string | Uint8Array,
+  mode?: number
 ): Promise<void> {
   const tempPath = join(dirname(filePath), `.${basename(filePath)}.${randomUUID()}.tmp`)
   try {
-    await fs.writeFile(tempPath, data)
+    await fs.writeFile(tempPath, data, { mode })
     const handle = await fs.open(tempPath, 'r')
     try {
       await handle.sync()

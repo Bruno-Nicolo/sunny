@@ -238,6 +238,11 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')
         await controllerRef.current.addImage(file, point)
       },
+      async placeImage(src) {
+        if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')
+        await controllerRef.current.placeImage(src)
+      },
+      cancelImagePlacement: () => controllerRef.current?.cancelImagePlacement(),
       async addText(text, point) {
         if (!controllerRef.current) throw new Error('This PDF is not ready for editing.')
         await controllerRef.current.addText(text, point)

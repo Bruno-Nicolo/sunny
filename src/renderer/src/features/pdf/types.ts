@@ -54,6 +54,8 @@ export type PdfDocumentHandle = {
   scrollVertically(direction: -1 | 1): void
   setHighlightStyle(style: Partial<HighlightStyle>, live?: boolean): void
   addImage(file: File, point?: AnnotationInsertionPoint): Promise<void>
+  placeImage(src: string): Promise<void>
+  cancelImagePlacement(): void
   addText(text: string, point?: AnnotationInsertionPoint): Promise<void>
   undo(): void
   redo(): void

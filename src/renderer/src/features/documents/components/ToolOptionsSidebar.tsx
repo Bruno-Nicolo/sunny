@@ -5,6 +5,7 @@ import type { AnnotationTool, HighlightStyle } from '@/features/pdf/annotations/
 import type { TextEditorSettings } from '@/features/pdf/annotations/text/types'
 
 type Props = {
+  signatureOptions: React.ReactNode
   canAnnotate: boolean
   annotationTool: AnnotationTool
   highlightStyle: HighlightStyle
@@ -14,6 +15,7 @@ type Props = {
 
 export function ToolOptionsSidebar({
   canAnnotate,
+  signatureOptions,
   annotationTool,
   highlightStyle,
   textSettings,
@@ -21,11 +23,13 @@ export function ToolOptionsSidebar({
 }: Props): React.JSX.Element | null {
   if (
     !canAnnotate ||
-    (annotationTool !== 'highlight' && (annotationTool !== 'text' || !textSettings))
+    (!signatureOptions &&
+      annotationTool !== 'highlight' &&
+      (annotationTool !== 'text' || !textSettings))
   )
     return null
 
-  const title = annotationTool === 'text' ? 'Text' : 'Highlight'
+  const title = signatureOptions ? 'Signature' : annotationTool === 'text' ? 'Text' : 'Highlight'
   const label = `${title} tool settings`
 
   return (
@@ -39,16 +43,19 @@ export function ToolOptionsSidebar({
         role="complementary"
         data-sidebar="sidebar"
         data-text-settings={annotationTool === 'text' ? '' : undefined}
+        data-signature-options={signatureOptions ? '' : undefined}
         aria-label={label}
       >
         <SidebarContent className="p-4">
-          <AnnotationToolOptions
-            key={annotationTool}
-            annotationTool={annotationTool}
-            highlightStyle={highlightStyle}
-            textSettings={textSettings}
-            onHighlightStyleChange={onHighlightStyleChange}
-          />
+          {signatureOptions ?? (
+            <AnnotationToolOptions
+              key={annotationTool}
+              annotationTool={annotationTool}
+              highlightStyle={highlightStyle}
+              textSettings={textSettings}
+              onHighlightStyleChange={onHighlightStyleChange}
+            />
+          )}
         </SidebarContent>
       </Sidebar>
     </SidebarProvider>

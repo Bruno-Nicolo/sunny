@@ -1,4 +1,4 @@
-import { LayoutGrid, Minus, MousePointer2, Plus, Shapes, Signature, StickyNote } from 'lucide-react'
+import { LayoutGrid, Minus, MousePointer2, Plus, Shapes, StickyNote } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -15,6 +15,8 @@ type Props = {
   invertColors: boolean
   annotationTool: AnnotationTool
   onAnnotationToolChange(tool: AnnotationTool): void
+  signatureControl: React.ReactNode
+  selectionActive: boolean
   onPageChange(page: number): void
   onScaleChange(scale: string): void
   onZoomIn(): void
@@ -34,6 +36,8 @@ export function DocumentToolbar({
   invertColors,
   annotationTool,
   onAnnotationToolChange,
+  signatureControl,
+  selectionActive,
   onPageChange,
   onScaleChange,
   onZoomIn,
@@ -77,7 +81,7 @@ export function DocumentToolbar({
           <ToolbarButton
             label="Selection tool"
             tooltip="Select text (Esc)"
-            pressed={annotationTool === 'none'}
+            pressed={selectionActive}
             onClick={() => onAnnotationToolChange('none')}
           >
             <MousePointer2 />
@@ -105,14 +109,7 @@ export function DocumentToolbar({
           >
             <StickyNote />
           </ToolbarButton>
-          <ToolbarButton
-            label="Add signature"
-            tooltip="Add signature (placeholder)"
-            aria-disabled="true"
-            className="cursor-default text-muted-foreground"
-          >
-            <Signature />
-          </ToolbarButton>
+          {signatureControl}
         </div>
         <Separator orientation="vertical" className="data-[orientation=vertical]:h-5" />
         <div className="toolbar-view" role="group" aria-label="Zoom and view">

@@ -1,4 +1,4 @@
-import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import type { PDFDocumentProxy, PageViewport } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import {
   RenderingStates,
   type EventBus,
@@ -11,7 +11,8 @@ import { readPageAnnotations } from './pdfAnnotationReader'
 import { updateHighlightStyle } from './highlight/style'
 import { normalizedRect } from './geometry'
 import { layoutText } from './text/textLayout'
-import { validateImage } from './images/imageFiles'
+import { decodeImage } from './images/imageFiles'
+import { placeImage } from './images/imagePlacement'
 import { defaultTextStyle } from './text/options'
 import type { TextEditorSettings, TextStyle } from './text/types'
 import type { AnnotationInsertionPoint, AnnotationOptions, HighlightStyle } from './types'
@@ -35,6 +36,8 @@ type AnnotationController = {
   setOptions(options: AnnotationOptions): void
   setHighlightStyle(style: Partial<HighlightStyle>, live?: boolean): void
   addImage(file: File, point?: AnnotationInsertionPoint): Promise<void>
+  placeImage(src: string): Promise<void>
+  cancelImagePlacement(): void
   addText(text: string, point?: AnnotationInsertionPoint): Promise<void>
   commit(): void
   commitDraft(): void
@@ -65,6 +68,7 @@ export function createAnnotationController({
   onTextEditorChange,
   onError
 }: Options): AnnotationController {
+  let placement: AbortController | null = null
   let options = initialOptions
   let document: PDFDocumentProxy | null = null
   let formRevision = 0
@@ -494,10 +498,18 @@ export function createAnnotationController({
     { signal }
   )
   for (const event of ['scalechanging', 'rotationchanging'])
-    eventBus.on(event, () => render(), { signal })
+    eventBus.on(
+      event,
+      () => {
+        placement?.abort()
+        render()
+      },
+      { signal }
+    )
   signal.addEventListener(
     'abort',
     () => {
+      placement?.abort()
       if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
       container.classList.remove('annotationToolActive')
       resolveInitialized()
@@ -519,6 +531,46 @@ export function createAnnotationController({
       historyAction = false
     }
     refreshText()
+  }
+
+  function imageSize(
+    viewport: PageViewport,
+    width: number,
+    height: number
+  ): { width: number; height: number } {
+    const scale = Math.min(viewport.scale, viewport.width / 2 / width, viewport.height / 2 / height)
+    return { width: width * scale, height: height * scale }
+  }
+
+  async function insertImage(
+    image: ImageBitmap | HTMLImageElement,
+    { pageIndex, left, top }: ReturnType<typeof insertionPoint>,
+    cancelled?: AbortSignal
+  ): Promise<void> {
+    await imports.get(pageIndex)
+    if (!canEdit() || cancelled?.aborted) return
+    const isElement = image instanceof HTMLImageElement
+    const canvas = window.document.createElement('canvas')
+    canvas.width = isElement ? image.naturalWidth : image.width
+    canvas.height = isElement ? image.naturalHeight : image.height
+    canvas.getContext('2d')!.drawImage(image, 0, 0)
+    const viewport = viewer.getPageView(pageIndex).viewport
+    const { width, height } = imageSize(viewport, canvas.width, canvas.height)
+    const record: Annotation = {
+      key: crypto.randomUUID(),
+      kind: 'image',
+      pageIndex,
+      rect: normalizedRect(
+        viewport.convertToPdfPoint(left - width / 2, top - height / 2),
+        viewport.convertToPdfPoint(left + width / 2, top + height / 2)
+      ),
+      rotation: viewport.rotation,
+      color: '#000000',
+      image: { id: crypto.randomUUID(), canvas, rotation: viewport.rotation }
+    }
+    select(null)
+    model.change(undefined, record)
+    select(record.key)
   }
 
   return {
@@ -555,6 +607,7 @@ export function createAnnotationController({
       const toolChanged = options.annotationTool !== next.annotationTool
       options = next
       if (lostFocus || toolChanged) {
+        placement?.abort()
         commit()
         for (const layer of pages.values()) layer.stopEditing()
       }
@@ -578,53 +631,39 @@ export function createAnnotationController({
       if (!canEdit()) return
       createText(pageIndex, left, top, text.replace(/\r\n?/g, '\n'))
     },
+    cancelImagePlacement(): void {
+      placement?.abort()
+    },
+    async placeImage(src: string): Promise<void> {
+      if (!canEdit()) throw new Error('This PDF is not ready for editing.')
+      placement?.abort()
+      const pending = (placement = new AbortController())
+      commit()
+      select(null)
+      for (const layer of pages.values()) layer.stopEditing()
+      try {
+        await placeImage(src, {
+          container,
+          signal: pending.signal,
+          size(page, image) {
+            const viewport = viewer.getPageView(Number(page.dataset.pageNumber) - 1).viewport
+            return imageSize(viewport, image.naturalWidth, image.naturalHeight)
+          },
+          insert: (point, image) => insertImage(image, insertionPoint(point), pending.signal)
+        })
+      } finally {
+        if (placement === pending) placement = null
+      }
+    },
     async addImage(file: File, point?: AnnotationInsertionPoint): Promise<void> {
       if (!canEdit()) throw new Error('This PDF is not ready for editing.')
       const position = insertionPoint(point)
-      const { pageIndex } = position
-      await validateImage(file)
-      const bitmap = await createImageBitmap(file)
-      if (!canEdit()) {
+      const bitmap = await decodeImage(file)
+      try {
+        await insertImage(bitmap, position)
+      } finally {
         bitmap.close()
-        return
       }
-      const canvas = window.document.createElement('canvas')
-      canvas.width = bitmap.width
-      canvas.height = bitmap.height
-      canvas.getContext('2d')!.drawImage(bitmap, 0, 0)
-      bitmap.close()
-      const pending = imports.get(pageIndex)
-      if (pending) await pending
-      if (!canEdit()) {
-        canvas.width = canvas.height = 0
-        return
-      }
-      const page = viewer.getPageView(pageIndex)
-      const viewport = page.viewport
-      const fit = Math.min(
-        1,
-        viewport.width / viewport.scale / 2 / canvas.width,
-        viewport.height / viewport.scale / 2 / canvas.height
-      )
-      const width = canvas.width * fit
-      const height = canvas.height * fit
-      const left = position.left - (width * viewport.scale) / 2
-      const top = position.top - (height * viewport.scale) / 2
-      const record: Annotation = {
-        key: crypto.randomUUID(),
-        kind: 'image',
-        pageIndex,
-        rect: normalizedRect(
-          viewport.convertToPdfPoint(left, top),
-          viewport.convertToPdfPoint(left + width * viewport.scale, top + height * viewport.scale)
-        ),
-        rotation: viewport.rotation,
-        color: '#000000',
-        image: { id: crypto.randomUUID(), canvas, rotation: viewport.rotation }
-      }
-      select(null)
-      model.change(undefined, record)
-      select(record.key)
     },
     commit,
     commitDraft(): void {
