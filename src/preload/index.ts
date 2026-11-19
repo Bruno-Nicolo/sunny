@@ -5,7 +5,7 @@ import type { ChatEvent, ChatgptLoginState } from '../shared/ai'
 const api: LepisApi = {
   signatures: {
     list: () => ipcRenderer.invoke('signatures:list'),
-    save: (name, dataUrl) => ipcRenderer.invoke('signatures:save', name, dataUrl),
+    create: (dataUrl) => ipcRenderer.invoke('signatures:create', dataUrl),
     rename: (id, name) => ipcRenderer.invoke('signatures:rename', id, name),
     remove: (id) => ipcRenderer.invoke('signatures:remove', id)
   },

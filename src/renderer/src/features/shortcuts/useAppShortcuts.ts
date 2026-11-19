@@ -47,6 +47,7 @@ export function useAppShortcuts(handlers: ShortcutHandlers, enabled: boolean): v
     const onToolEscape = (event: KeyboardEvent): void => {
       if (
         !event.isComposing &&
+        !(event.target instanceof HTMLElement && event.target.closest('[data-local-escape]')) &&
         selectionShortcut.keys.some((binding) => matchesKeyBinding(event, binding, isMac))
       )
         dispatch(selectionShortcut.id)

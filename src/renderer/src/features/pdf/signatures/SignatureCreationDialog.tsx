@@ -1,6 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -20,18 +19,17 @@ type Props = {
   busy: boolean
   error: string | null
   onCancel(): void
-  onSave(name: string, dataUrl: string): void
+  onCreate(dataUrl: string): void
 }
 
 export function SignatureCreationDialog({
   busy,
   error,
   onCancel,
-  onSave
+  onCreate
 }: Props): React.JSX.Element {
   const [mode, setMode] = useState<'draw' | 'image'>('draw')
   const [dataUrl, setDataUrl] = useState<string | null>(null)
-  const [name, setName] = useState('')
 
   function changeMode(next: typeof mode): void {
     if (next === mode) return
@@ -93,16 +91,6 @@ export function SignatureCreationDialog({
             <span className="text-sm text-gray-500">Signature preview</span>
           )}
         </div>
-        <label className="grid gap-2 text-sm">
-          Signature name
-          <Input
-            aria-label="Signature name"
-            maxLength={100}
-            disabled={busy}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
@@ -113,12 +101,12 @@ export function SignatureCreationDialog({
             Cancel
           </Button>
           <Button
-            disabled={busy || !dataUrl || !name.trim()}
+            disabled={busy || !dataUrl}
             onClick={() => {
-              if (dataUrl) onSave(name, dataUrl)
+              if (dataUrl) onCreate(dataUrl)
             }}
           >
-            Save and use signature
+            Create
           </Button>
         </DialogFooter>
       </DialogContent>

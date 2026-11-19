@@ -22,9 +22,7 @@ export function registerIpc(): void {
   registerAiIpc(userDataPath)
   const signatures = createSignatureStore(userDataPath)
   ipcMain.handle('signatures:list', () => signatures.list())
-  ipcMain.handle('signatures:save', (_event, name: string, dataUrl: string) =>
-    signatures.save(name, dataUrl)
-  )
+  ipcMain.handle('signatures:create', (_event, dataUrl: string) => signatures.create(dataUrl))
   ipcMain.handle('signatures:rename', (_event, id: string, name: string) =>
     signatures.rename(id, name)
   )

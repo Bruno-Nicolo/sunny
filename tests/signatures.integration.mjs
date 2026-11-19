@@ -13,8 +13,15 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'sunny-signatures-'))
 app.setPath('userData', temp)
 const store = createSignatureStore(temp)
 const saved = new Map()
-for (const action of ['list', 'save', 'rename', 'remove'])
+for (const action of ['list', 'create', 'remove'])
   ipcMain.handle(`signatures:${action}`, (_event, ...args) => store[action](...args))
+const renames = []
+let failRename = false
+ipcMain.handle('signatures:rename', (_event, id, name) => {
+  renames.push(name)
+  if (failRename) throw new Error('Test rename failure')
+  return store.rename(id, name)
+})
 ipcMain.handle('test:read', (_, name) => ({
   path: name,
   name,
@@ -35,7 +42,7 @@ const handlers = new Map()
 contextBridge.exposeInMainWorld('lepis', {
   signatures: {
     list: () => ipcRenderer.invoke('signatures:list'),
-    save: (name, dataUrl) => ipcRenderer.invoke('signatures:save', name, dataUrl),
+    create: (dataUrl) => ipcRenderer.invoke('signatures:create', dataUrl),
     rename: (id, name) => ipcRenderer.invoke('signatures:rename', id, name),
     remove: id => ipcRenderer.invoke('signatures:remove', id)
   },
@@ -58,12 +65,18 @@ async function waitFor(code) {
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
 }
-async function button(text) {
+async function button(text, selector = 'button') {
   await evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(text)});
+    const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(button => (button.getAttribute('aria-label') ?? button.textContent.trim()) === ${JSON.stringify(text)});
     if (!button || button.disabled) throw new Error('Button unavailable: ' + ${JSON.stringify(text)});
     button.click();
   })()`)
+}
+async function signatureAction(action) {
+  await evaluate(`document.querySelector('[data-signature-options] button[aria-haspopup="menu"]')
+    .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))`)
+  await waitFor(`document.querySelector('[role="menuitem"]') !== null`)
+  await button(action, '[role="menuitem"]')
 }
 async function input(selector, value) {
   await evaluate(`(() => {
@@ -72,6 +85,20 @@ async function input(selector, value) {
     input.dispatchEvent(new Event('input', {bubbles:true}));
   })()`)
 }
+const renameInput = '[aria-label="Rename signature"]'
+
+async function editSignatureName(name) {
+  await signatureAction('Rename')
+  await waitFor(`document.activeElement.matches('${renameInput}')`)
+  await input(renameInput, name)
+}
+
+async function renameKey(key, isComposing = false) {
+  await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
+    key: ${JSON.stringify(key)}, isComposing: ${isComposing}, bubbles: true, cancelable: true
+  }))`)
+}
+
 const count = (n) => `document.querySelectorAll('.visible .stampEditor canvas').length === ${n}`
 async function openLibrary() {
   await evaluate(
@@ -193,10 +220,12 @@ app
 
     await openLibrary()
     await draw()
-    await input('[aria-label="Signature name"]', 'Personal')
-    await button('Save and use signature')
+    await button('Create')
     await place(1)
-    assert.equal((await store.list()).length, 1)
+    assert.deepEqual(
+      (await store.list()).map(({ name }) => name),
+      ['signature 1']
+    )
     await evaluate(`window.testCommands.run('save')`)
     await waitFor(`document.body.textContent.includes('Saved')`)
     assert.equal(saved.has('first.pdf'), false)
@@ -211,20 +240,55 @@ app
     })
     await waitFor(count(1))
     await openLibrary()
-    await button('Rename')
-    await input('[aria-label="Rename signature"]', 'Updated')
-    await button('Save name')
-    await waitFor(`!!document.querySelector('[aria-label="Use signature Updated"]')`)
+    await editSignatureName('Temporary')
+    await renameKey('Enter', true)
+    assert.equal(await evaluate(`document.activeElement.matches('${renameInput}')`), true)
+    await renameKey('Escape')
+    await waitFor(`!document.querySelector('${renameInput}')`)
+    assert.equal(await evaluate(`!!document.querySelector('[data-signature-options]')`), true)
+
+    await editSignatureName('   ')
+    await renameKey('Enter')
+    await waitFor(`!document.querySelector('${renameInput}')`)
+    assert.deepEqual(renames, [])
+    assert.equal((await store.list())[0].name, 'signature 1')
+
+    failRename = true
+    await editSignatureName('Cannot save')
+    await renameKey('Enter')
+    await waitFor(
+      `document.querySelector('[data-signature-options] [role="alert"]')?.textContent.includes('Test rename failure')`
+    )
+    assert.equal((await store.list())[0].name, 'signature 1')
+    failRename = false
+
+    await editSignatureName('  Personal  ')
+    await renameKey('Enter')
+    await waitFor(`!!document.querySelector('[aria-label="Use signature Personal"]')`)
+
+    await editSignatureName('Signature 1')
+    await evaluate(
+      `document.querySelector('[data-signature-options] button[aria-label="Add signature"]').focus()`
+    )
+    await waitFor(`!!document.querySelector('[aria-label="Use signature Signature 1"]')`)
+    assert.deepEqual(renames, ['Cannot save', 'Personal', 'Signature 1'])
+    assert.equal(
+      await evaluate(`document.activeElement.getAttribute('aria-label')`),
+      'Add signature'
+    )
+    console.log(
+      'PASS: inline rename saves once on Enter or blur, and handles Escape, IME, empty names and failed writes'
+    )
     await evaluate(`window.testCommands.run('rotate-clockwise');window.testCommands.run('zoom-in')`)
     await openLibrary()
-    await evaluate(`document.querySelector('[aria-label="Use signature Updated"]').click()`)
+    await evaluate(`document.querySelector('[aria-label="Use signature Signature 1"]').click()`)
     await place(2)
     console.log(
       'PASS: the renamed signature survives reload and its preview matches placement after rotation and zoom'
     )
 
     await openLibrary()
-    await evaluate(`document.querySelector('[aria-label="Use signature Updated"]').click()`)
+    await evaluate(`document.querySelector('[aria-label="Use signature Signature 1"]').click()`)
     await waitFor(`!!document.querySelector('.signature-placement-hint')`)
     await evaluate(`document.querySelector('[aria-label="first.pdf"]').click()`)
     await waitFor(`!document.querySelector('.signature-placement-hint')`)
@@ -232,7 +296,7 @@ app
     await evaluate(`document.querySelector('[aria-label="second.pdf"]').click()`)
     await waitFor(count(2))
     await openLibrary()
-    await evaluate(`document.querySelector('[aria-label="Use signature Updated"]').click()`)
+    await evaluate(`document.querySelector('[aria-label="Use signature Signature 1"]').click()`)
     await waitFor(`!!document.querySelector('.signature-placement-hint')`)
     await evaluate(`document.querySelector('[aria-label="Add text"]').click()`)
     await waitFor(`!document.querySelector('.signature-placement-hint')`)
@@ -240,7 +304,7 @@ app
     console.log('PASS: switching documents or tools cancels pending placement')
 
     await openLibrary()
-    await button('Create signature')
+    await button('Add signature', '[data-signature-options] button')
     await button('Import image')
     await waitFor(`document.querySelector('[aria-label="Signature image"]') !== null`)
     await evaluate(`(async () => {
@@ -271,22 +335,24 @@ app
     await waitFor(
       `!!document.querySelector('img[alt="Signature preview"]') && !document.body.textContent.includes('Preparing signature')`
     )
-    await input('[aria-label="Signature name"]', 'Imported')
-    await button('Save and use signature')
+    await button('Create')
     await place(3)
-    assert.equal((await store.list()).length, 2)
+    assert.deepEqual(
+      (await store.list()).map(({ name }) => name),
+      ['Signature 1', 'signature 2']
+    )
     console.log(
       'PASS: image import extracts transparent ink, trims margins, supports crop and background removal and requires saving before placement'
     )
 
     await openLibrary()
-    await button('Delete')
+    await signatureAction('Delete')
     await button('Keep signature')
     assert.equal((await store.list()).length, 2)
-    await button('Delete')
+    await signatureAction('Delete')
     await button('Delete saved signature')
     await waitFor(`document.querySelectorAll('[aria-label^="Use signature " ]').length === 1`)
-    await button('Delete')
+    await signatureAction('Delete')
     await button('Delete saved signature')
     await waitFor(`document.querySelector('[aria-label="Draw your signature"]') !== null`)
     assert.equal((await store.list()).length, 0)

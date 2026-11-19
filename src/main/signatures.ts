@@ -44,14 +44,18 @@ export function createSignatureStore(directory: string): SignaturesApi {
       throw new Error('The saved signature library could not be opened.')
     }
   }
-  function update(action: (items: SavedSignature[]) => void): Promise<void> {
+  function update<T>(action: (items: SavedSignature[]) => T): Promise<T> {
     const operation = queue.then(async () => {
       const items = await read()
-      action(items)
+      const result = action(items)
       await fs.mkdir(directory, { recursive: true, mode: 0o700 })
       await writeFileAtomically(file, JSON.stringify(items), 0o600)
+      return result
     })
-    queue = operation.catch(() => {})
+    queue = operation.then(
+      () => {},
+      () => {}
+    )
     return operation
   }
   return {
@@ -59,12 +63,17 @@ export function createSignatureStore(directory: string): SignaturesApi {
       await queue
       return read()
     },
-    async save(name, dataUrl) {
+    async create(dataUrl) {
       if (!isSignatureImage(dataUrl))
         throw new Error('The signature must be a PNG image smaller than 6 MB.')
-      const item = { id: randomUUID(), name: signatureName(name), dataUrl }
-      await update((items) => items.push(item))
-      return item
+      return update((items) => {
+        const names = new Set(items.map(({ name }) => name.toLowerCase()))
+        let number = 1
+        while (names.has(`signature ${number}`)) number++
+        const item = { id: randomUUID(), name: `signature ${number}`, dataUrl }
+        items.push(item)
+        return item
+      })
     },
     async rename(id, name) {
       const next = signatureName(name)

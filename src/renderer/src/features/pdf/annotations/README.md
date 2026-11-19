@@ -218,8 +218,9 @@ ink have transparent backgrounds and trimmed margins. Acquisition components loa
 
 The named library is stored in the app data directory as `signatures.json`, with owner-only
 file permissions and serialized atomic writes. It is separate from PDF files and session recovery.
-New signatures require a name and are saved to the library before placement. Cancelling creation
-discards the unsaved signature; cancelling placement keeps its saved library entry. Deleting a saved signature leaves copies in documents, recovery and backups unchanged.
+New signatures are saved to the library before placement with the first available numbered name,
+such as `signature 1`. Users can rename them in the library. Cancelling creation discards the draft,
+and cancelling placement keeps the saved library entry. Deleting a saved signature leaves copies in documents, recovery and backups unchanged.
 
 `images/imagePlacement.ts` previews an image at the pointer, blocks underlying page controls during
 placement, and inserts a single image on click. Escape, tool/tab changes, viewport changes, loss of
