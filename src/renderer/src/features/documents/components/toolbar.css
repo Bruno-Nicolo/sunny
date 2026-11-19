@@ -64,6 +64,10 @@
   gap: var(--toolbar-spacing);
 }
 
+.toolbar-navigation {
+  padding-inline-end: calc(16px - var(--toolbar-spacing));
+}
+
 .toolbar-zoom {
   gap: 0;
 }
