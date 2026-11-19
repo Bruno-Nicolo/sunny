@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MoreHorizontal, Pencil, Plus, Signature, Trash2 } from 'lucide-react'
+import { Check, MoreHorizontal, Pencil, Plus, Signature, Trash2, X } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import {
   AlertDialog,
@@ -12,13 +12,13 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { SignatureCreationDialog } from './SignatureCreationDialog'
 import type { SavedSignature } from '../../../../../shared/signatures'
 import type { PdfDocumentHandle } from '../types'
@@ -82,6 +82,7 @@ export function SignatureTool({
     }
   }, [active, documentId])
   const creationOpen = active && !loading && (creating || items.length === 0)
+  const renamingId = action?.type === 'rename' ? action.id : null
   const deleting =
     active && action?.type === 'delete' ? items.find((item) => item.id === action.id) : undefined
   const modalOpen = creationOpen || !!deleting
@@ -119,9 +120,9 @@ export function SignatureTool({
     }
   }
 
-  async function finishRename(item: SavedSignature, draft: string): Promise<void> {
+  async function finishRename(item: SavedSignature, form: HTMLFormElement): Promise<void> {
+    const name = String(new FormData(form).get('name') ?? '').trim()
     setAction(null)
-    const name = draft.trim()
     if (!name || name === item.name) return
 
     setError(null)
@@ -220,59 +221,91 @@ export function SignatureTool({
                   className="max-h-16 max-w-full object-contain"
                 />
               </Button>
-              {action?.type === 'rename' && action.id === item.id ? (
-                <Input
-                  aria-label="Rename signature"
-                  data-local-escape
-                  maxLength={100}
-                  defaultValue={item.name}
-                  onBlur={(event) => void finishRename(item, event.currentTarget.value)}
-                  onKeyDown={(event) => {
-                    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
-                    if (event.key === 'Enter') {
+              <div className="flex h-8 items-center gap-2">
+                {renamingId === item.id ? (
+                  <form
+                    className="flex min-w-0 flex-1 items-center gap-1"
+                    data-local-escape
+                    onSubmit={(event) => {
                       event.preventDefault()
-                      event.currentTarget.blur()
-                    } else if (event.key === 'Escape') {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      setAction(null)
-                    }
-                  }}
-                  autoFocus
-                />
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-sm">{item.name}</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Signature actions: ${item.name}`}
-                        disabled={busy || pendingRenames.includes(item.id)}
-                      >
-                        <MoreHorizontal />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => setAction({ type: 'rename', id: item.id })}>
-                        <Pencil />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => {
-                          setError(null)
-                          setAction({ type: 'delete', id: item.id })
-                        }}
-                      >
-                        <Trash2 />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
+                      void finishRename(item, event.currentTarget)
+                    }}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget))
+                        void finishRename(item, event.currentTarget)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
+                      if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+                        event.preventDefault()
+                        event.currentTarget.requestSubmit()
+                      } else if (event.key === 'Escape') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setAction(null)
+                      }
+                    }}
+                  >
+                    <Input
+                      name="name"
+                      aria-label="Rename signature"
+                      className="h-auto min-w-0 flex-1 rounded-none border-0 p-0 text-sm shadow-[inset_0_-1px_0_var(--ring)] focus-visible:ring-0"
+                      maxLength={100}
+                      defaultValue={item.name}
+                      onFocus={(event) => event.currentTarget.select()}
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Cancel rename"
+                      onClick={() => setAction(null)}
+                    >
+                      <X />
+                    </Button>
+                    <Button type="submit" size="icon-xs" aria-label="Save name">
+                      <Check />
+                    </Button>
+                  </form>
+                ) : (
+                  <>
+                    <span data-signature-name className="min-w-0 flex-1 truncate text-sm">
+                      {item.name}
+                    </span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Signature actions: ${item.name}`}
+                          disabled={busy || pendingRenames.includes(item.id)}
+                        >
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => setAction({ type: 'rename', id: item.id })}
+                        >
+                          <Pencil />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={() => {
+                            setError(null)
+                            setAction({ type: 'delete', id: item.id })
+                          }}
+                        >
+                          <Trash2 />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>

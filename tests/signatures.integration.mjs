@@ -94,6 +94,11 @@ async function editSignatureName(name) {
 }
 
 async function renameKey(key, isComposing = false) {
+  if (!isComposing) {
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: key })
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: key })
+    return
+  }
   await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {
     key: ${JSON.stringify(key)}, isComposing: ${isComposing}, bubbles: true, cancelable: true
   }))`)
@@ -240,12 +245,34 @@ app
     })
     await waitFor(count(1))
     await openLibrary()
+    const nameBounds = (element) =>
+      evaluate(`(() => {
+      const { x, y, width, height } = (${element}).getBoundingClientRect();
+      return { x, y, width, height };
+    })()`)
+    const nameLabel = `document.querySelector('[data-signature-name]')`
+    const nameBeforeRename = await nameBounds(nameLabel)
     await editSignatureName('Temporary')
+    const { width: editingWidth, ...editingPosition } = await nameBounds(
+      `document.querySelector('${renameInput}')`
+    )
+    const { width: labelWidth, ...labelPosition } = nameBeforeRename
+    assert.deepEqual(
+      editingPosition,
+      labelPosition,
+      'The rename field aligns with the signature name'
+    )
+    assert.ok(editingWidth < labelWidth, 'The inline actions have room beside the name')
     await renameKey('Enter', true)
     assert.equal(await evaluate(`document.activeElement.matches('${renameInput}')`), true)
     await renameKey('Escape')
     await waitFor(`!document.querySelector('${renameInput}')`)
     assert.equal(await evaluate(`!!document.querySelector('[data-signature-options]')`), true)
+
+    await editSignatureName('Discard this')
+    await evaluate(`document.querySelector('button[aria-label="Cancel rename"]').focus()`)
+    await button('Cancel rename')
+    await waitFor(`!document.querySelector('${renameInput}')`)
 
     await editSignatureName('   ')
     await renameKey('Enter')
@@ -263,7 +290,8 @@ app
     failRename = false
 
     await editSignatureName('  Personal  ')
-    await renameKey('Enter')
+    await evaluate(`document.querySelector('button[aria-label="Save name"]').focus()`)
+    await button('Save name')
     await waitFor(`!!document.querySelector('[aria-label="Use signature Personal"]')`)
 
     await editSignatureName('Signature 1')
@@ -277,7 +305,7 @@ app
       'Add signature'
     )
     console.log(
-      'PASS: inline rename saves once on Enter or blur, and handles Escape, IME, empty names and failed writes'
+      'PASS: inline rename keeps the name aligned and supports Save, Cancel, Enter, Escape, blur and IME'
     )
     await evaluate(`window.testCommands.run('rotate-clockwise');window.testCommands.run('zoom-in')`)
     await openLibrary()
