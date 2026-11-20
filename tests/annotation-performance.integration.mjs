@@ -164,6 +164,7 @@ async function goTo(page) {
       const input = document.querySelector('[aria-label="Current page"]');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${page}');
       input.dispatchEvent(new Event('input', {bubbles:true}));
+      input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
     })()`
   )
   try {

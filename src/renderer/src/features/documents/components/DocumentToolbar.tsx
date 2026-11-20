@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { AnnotationToolbar } from '@/features/pdf/annotations/AnnotationToolbar'
 import type { AnnotationTool } from '@/features/pdf/annotations/types'
 import type { Tab } from '../types'
+import { PdfViewDropdown } from './PdfViewDropdown'
 import './toolbar.css'
 
 type Props = {
@@ -28,7 +29,36 @@ type Props = {
   onStartPresentation(): void
 }
 
-import { PdfViewDropdown } from './PdfViewDropdown'
+function PageNumberInput({
+  page,
+  pages,
+  onPageChange
+}: {
+  page: number
+  pages: number
+  onPageChange: Props['onPageChange']
+}): React.JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  return (
+    <input
+      aria-label="Current page"
+      inputMode="numeric"
+      className="h-8 w-12 rounded-md border bg-transparent px-1 text-center text-sm"
+      value={draft ?? page}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => setDraft(null)}
+      onKeyDown={({ key, nativeEvent, currentTarget }) => {
+        if (key !== 'Enter' || nativeEvent.isComposing) return
+        const value = currentTarget.value
+        const target = Number(value)
+        if (/^\d+$/.test(value) && target >= 1 && target <= pages && target !== page)
+          onPageChange(target)
+        setDraft(null)
+      }}
+    />
+  )
+}
 
 export function DocumentToolbar({
   activeTab,
@@ -103,16 +133,11 @@ export function DocumentToolbar({
           <LayoutGrid />
         </ToolbarButton>
         <div className="toolbar-navigation" role="group" aria-label="Page navigation">
-          <input
-            aria-label="Current page"
-            inputMode="numeric"
-            className="h-8 w-12 rounded-md border bg-transparent px-1 text-center text-sm"
-            value={activeTab.view.page}
-            onChange={(event) => {
-              const page = Number(event.target.value)
-              if (Number.isInteger(page) && page >= 1 && page <= activeTab.view.pages)
-                onPageChange(page)
-            }}
+          <PageNumberInput
+            key={activeTab.id}
+            page={activeTab.view.page}
+            pages={activeTab.view.pages}
+            onPageChange={onPageChange}
           />
           <span className="text-xs text-muted-foreground">/ {activeTab.view.pages || '—'}</span>
         </div>
