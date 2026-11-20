@@ -181,7 +181,7 @@ function SortableTab({
             '[&:has(+button:is([data-active=true],:hover,[data-dragging=true]))>[data-slot=tab-separator]]:opacity-0',
             '[&:not(:has(+.document-tab))>[data-slot=tab-separator]]:hidden',
             active
-              ? 'border-foreground/6 bg-foreground/6 text-foreground dark:border-border dark:bg-sidebar'
+              ? 'bg-muted text-foreground dark:bg-sidebar'
               : 'text-muted-foreground hover:bg-foreground/7 data-[dragging=true]:bg-foreground/7'
           )}
           aria-label={tab.name}
