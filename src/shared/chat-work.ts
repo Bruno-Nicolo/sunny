@@ -1,39 +1,64 @@
-import type { ChatEvent, ChatMessage, ChatWork } from './ai'
+import type { ChatEvent, ChatMessage, ChatUpdate, ChatWork, ChatWorkPart } from './ai'
 
-type WorkEvent = Extract<ChatEvent, { type: 'reasoning-delta' | 'tool' }>
+type ChatWorkUpdate = Exclude<ChatUpdate, { type: 'delta' }>
 
-/** Keeps reasoning segments and tool invocations in their original stream order. */
-export function updateChatWork(work: ChatWork | undefined, event: WorkEvent): ChatWork {
-  const parts = [...(work?.parts ?? [])]
-  const last = parts.at(-1)
+/** Appends new work entries and updates streamed entries in place. */
+export function updateChatWork(
+  work: ChatWork = { parts: [], durationMs: 0 },
+  event: ChatWorkUpdate
+): ChatWork {
+  if (event.type !== 'tool' && !event.text) return work
+  let index = -1
+  let part: ChatWorkPart
   if (event.type === 'tool') {
-    const index = parts.findIndex((part) => part.type === 'tool' && part.tool.id === event.tool.id)
-    const part = { type: 'tool' as const, tool: { ...event.tool } }
-    if (index === -1) parts.push(part)
-    else parts[index] = part
+    index = work.parts.findIndex((part) => part.type === 'tool' && part.tool.id === event.tool.id)
+    part = { type: 'tool', tool: event.tool }
+  } else if (event.type === 'commentary-delta') {
+    index = work.parts.findIndex((part) => part.type === 'commentary' && part.id === event.id)
+    const previous = work.parts[index]
+    const text = previous?.type === 'commentary' ? previous.text + event.text : event.text
+    part = { type: 'commentary', id: event.id, text }
   } else {
-    if (last?.type === 'reasoning')
-      parts[parts.length - 1] = { ...last, text: last.text + event.text }
-    else if (event.text) parts.push({ type: 'reasoning', text: event.text })
+    const last = work.parts.at(-1)
+    part = { type: 'reasoning', text: event.text }
+    if (last?.type === 'reasoning') {
+      index = work.parts.length - 1
+      part.text = last.text + event.text
+    }
   }
-  return { parts, durationMs: work?.durationMs ?? 0 }
+  return { ...work, parts: index === -1 ? [...work.parts, part] : work.parts.with(index, part) }
+}
+
+/** Closes tool entries that were still running when the response ended. */
+export function stopChatWork(work: ChatWork): ChatWork {
+  if (!work.parts.some((part) => part.type === 'tool' && part.tool.status === 'running'))
+    return work
+  return {
+    ...work,
+    parts: work.parts.map((part) =>
+      part.type === 'tool' && part.tool.status === 'running'
+        ? { ...part, tool: { ...part.tool, status: 'stopped' } }
+        : part
+    )
+  }
 }
 
 /** Applies streamed message updates to a conversation. */
 export function applyChatEvent(messages: ChatMessage[], event: ChatEvent): ChatMessage[] {
+  const messageId = 'message' in event ? event.message.id : event.messageId
+  const index = messages.findLastIndex((message) => message.id === messageId)
   if (event.type === 'edited') {
-    const index = messages.findIndex((message) => message.id === event.message.id)
     return [...messages.slice(0, index < 0 ? messages.length : index), event.message]
   }
   if (event.type === 'message' || event.type === 'finished') {
-    const index = messages.findIndex((message) => message.id === event.message.id)
-    if (index === -1) return [...messages, event.message]
-    return messages.with(index, event.message)
+    return index === -1 ? [...messages, event.message] : messages.with(index, event.message)
   }
-  return messages.map((message) => {
-    if (message.id !== event.messageId) return message
-    return event.type === 'delta'
+  if (index === -1) return messages
+  const message = messages[index]
+  return messages.with(
+    index,
+    event.type === 'delta'
       ? { ...message, text: message.text + event.text }
       : { ...message, work: updateChatWork(message.work, event) }
-  })
+  )
 }

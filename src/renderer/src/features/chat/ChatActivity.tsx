@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import {
   Trace,
   TraceCollapsible,
@@ -41,8 +41,8 @@ function WorkingTitle({ durationMs }: { durationMs: number }): React.JSX.Element
   )
 }
 
-/** One disclosure for the complete, ordered reasoning and tool timeline of a response. */
-export function ChatActivity({
+/** One disclosure for the ordered activity of a response. */
+export const ChatActivity = memo(function ChatActivity({
   work,
   running,
   provider,
@@ -90,25 +90,28 @@ export function ChatActivity({
           </TraceCollapsibleTrigger>
         )}
         <TraceCollapsibleContent className="space-y-4">
-          {work.parts.map((part, index) =>
-            part.type === 'reasoning' ? (
+          {work.parts.map((part, index) => {
+            if (part.type === 'tool')
+              return <ChatToolCallView key={part.tool.id} tool={part.tool} />
+            const reasoning = part.type === 'reasoning'
+            const streaming = running && index === work.parts.length - 1
+            return (
               <div
-                key={`reasoning-${index}`}
-                className="text-foreground"
-                aria-label="Model reasoning"
-                aria-busy={running && index === work.parts.length - 1}
+                key={reasoning ? `reasoning-${index}` : part.id}
+                className={
+                  reasoning
+                    ? 'font-normal text-muted-foreground [&_.chat-markdown_:is(b,strong,h1,h2,h3,h4,h5,h6,th)]:font-normal [&_.chat-markdown_a]:text-muted-foreground'
+                    : 'text-foreground'
+                }
+                aria-label={reasoning ? 'Model reasoning' : 'Assistant update'}
+                aria-busy={streaming}
               >
-                <ChatMarkdown
-                  text={part.text}
-                  streaming={running && index === work.parts.length - 1}
-                />
+                <ChatMarkdown reasoning={reasoning} text={part.text} streaming={streaming} />
               </div>
-            ) : (
-              <ChatToolCallView key={part.tool.id} tool={part.tool} />
             )
-          )}
+          })}
         </TraceCollapsibleContent>
       </TraceCollapsible>
     </Trace>
   )
-}
+})

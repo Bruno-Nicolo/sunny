@@ -4,11 +4,13 @@ import { GoogleGenAI, ThinkingLevel } from '@google/genai'
 import {
   type AiModel,
   type AiProvider,
+  type ChatUpdate,
   type DocumentSource,
   type ReasoningLevel
 } from '../../shared/ai'
 import { ChatgptAuth } from './chatgpt-auth'
 import { CredentialStore } from './credentials'
+import { anthropicStream, googleStream, openaiStream, openrouterStream } from './provider-streams'
 
 function openaiReasoningLevels(model: string): ReasoningLevel[] {
   if (model.includes('chat') || !/^(?:o[3-9](?:-|$)|gpt-[5-9](?:[.-]|$))/.test(model)) return []
@@ -33,8 +35,7 @@ export type GenerateRequest = {
   instructions: string
   turns: ModelTurn[]
   signal: AbortSignal
-  onText(text: string): void
-  onReasoning?(text: string): void
+  onUpdate(update: ChatUpdate): void
 }
 
 export class AiProviders {
@@ -168,16 +169,25 @@ export class AiProviders {
       .sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  async generate(request: GenerateRequest): Promise<string> {
-    const { provider, model, reasoning, instructions, turns, signal, onText, onReasoning } = request
+  async generate(request: GenerateRequest): Promise<void> {
+    const { provider, model, reasoning, instructions, turns, signal, onUpdate } = request
     signal.throwIfAborted()
     const key = await this.key(provider, signal)
     signal.throwIfAborted()
-    let text = ''
-    const emit = (delta: string): void => {
-      text += delta
-      onText(delta)
+    let hasAnswerText = false
+    let reasoningPart: string | number | undefined
+    const emitText = (delta: string): void => {
+      if (!delta) return
+      hasAnswerText ||= Boolean(delta.trim())
+      onUpdate({ type: 'delta', text: delta })
     }
+    const emitReasoning = (delta: string, part?: string | number): void => {
+      if (!delta) return
+      const separator = reasoningPart !== undefined && reasoningPart !== part ? '\n\n' : ''
+      reasoningPart = part
+      onUpdate({ type: 'reasoning-delta', text: separator + delta })
+    }
+    const output = { emitText, emitReasoning, onUpdate }
     if (provider === 'chatgpt' || provider === 'openai') {
       const client = new OpenAI({ apiKey: key, maxRetries: 0, timeout: 120_000 })
       const stream = await client.responses.create(
@@ -186,10 +196,9 @@ export class AiProviders {
           instructions,
           store: false,
           stream: true,
-          reasoning:
-            (onReasoning || reasoning) && openaiReasoningLevels(model).length
-              ? { summary: onReasoning ? 'auto' : undefined, effort: reasoning }
-              : undefined,
+          reasoning: openaiReasoningLevels(model).length
+            ? { summary: 'auto', effort: reasoning }
+            : undefined,
           input: turns.map((turn) => ({
             role: turn.role,
             content:
@@ -207,30 +216,10 @@ export class AiProviders {
         },
         { signal }
       )
-      let complete = false
-      let reasoningPart: string | undefined
-      for await (const event of stream) {
-        if (event.type === 'response.output_text.delta') emit(event.delta)
-        if (event.type === 'response.reasoning_summary_text.delta') {
-          const part = `${event.item_id}:${event.summary_index}`
-          if (reasoningPart && reasoningPart !== part) onReasoning?.('\n\n')
-          reasoningPart = part
-          onReasoning?.(event.delta)
-        }
-        if (event.type === 'response.completed') complete = true
-        if (event.type === 'response.failed')
-          throw new Error(
-            event.response.error?.message ??
-              'The AI request failed. Check account usage and permissions.'
-          )
-        if (event.type === 'response.incomplete')
-          throw new Error('The AI response is incomplete. Try a smaller request.')
-        if (event.type === 'error') throw new Error(event.message)
-      }
-      if (!complete) throw new Error('The AI connection ended before completion.')
+      await openaiStream(stream, output)
     } else if (provider === 'anthropic') {
       const client = new Anthropic({ apiKey: key, maxRetries: 0, timeout: 120_000 })
-      const thinking = onReasoning ? this.anthropicThinking.get(model) : undefined
+      const thinking = this.anthropicThinking.get(model)
       const stream = client.messages.stream(
         {
           model,
@@ -259,33 +248,19 @@ export class AiProviders {
         },
         { signal }
       )
-      let reasoningBlock = false
-      for await (const event of stream) {
-        if (event.type === 'content_block_start' && event.content_block.type === 'thinking') {
-          if (reasoningBlock) onReasoning?.('\n\n')
-          reasoningBlock = true
-        }
-        if (event.type === 'content_block_delta') {
-          if (event.delta.type === 'text_delta') emit(event.delta.text)
-          if (event.delta.type === 'thinking_delta') onReasoning?.(event.delta.thinking)
-        }
-      }
-      const final = await stream.finalMessage()
-      if (final.stop_reason !== 'end_turn')
-        throw new Error(`The AI response stopped before completion (${final.stop_reason}).`)
+      await anthropicStream(stream, output)
     } else if (provider === 'google') {
       const stream = await new GoogleGenAI({ apiKey: key }).models.generateContentStream({
         model,
         config: {
           systemInstruction: instructions,
           abortSignal: signal,
-          thinkingConfig:
-            (onReasoning || reasoning) && this.googleThinking.has(model)
-              ? {
-                  includeThoughts: Boolean(onReasoning),
-                  thinkingLevel: reasoning?.toUpperCase() as ThinkingLevel | undefined
-                }
-              : undefined
+          thinkingConfig: this.googleThinking.has(model)
+            ? {
+                includeThoughts: true,
+                thinkingLevel: reasoning?.toUpperCase() as ThinkingLevel | undefined
+              }
+            : undefined
         },
         contents: turns.map((turn) => ({
           role: turn.role === 'assistant' ? 'model' : 'user',
@@ -297,18 +272,7 @@ export class AiProviders {
           ]
         }))
       })
-      let finish: string | undefined
-      for await (const chunk of stream) {
-        signal.throwIfAborted()
-        for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
-          if (!part.text) continue
-          if (part.thought) onReasoning?.(part.text)
-          else emit(part.text)
-        }
-        finish = chunk.candidates?.[0]?.finishReason ?? finish
-      }
-      if (finish !== 'STOP')
-        throw new Error(`The AI response did not complete (${finish ?? 'connection closed'}).`)
+      await googleStream(stream, output, signal)
     } else {
       const client = new OpenAI({
         apiKey: key,
@@ -320,7 +284,7 @@ export class AiProviders {
         {
           model,
           stream: true,
-          ...((onReasoning || reasoning) && this.openrouterThinking.has(model)
+          ...(this.openrouterThinking.has(model)
             ? {
                 reasoning: {
                   enabled: true,
@@ -349,20 +313,9 @@ export class AiProviders {
         },
         { signal }
       )
-      let finish: string | null = null
-      for await (const chunk of stream) {
-        if ('error' in chunk) throw new Error('OpenRouter reported an error during the response.')
-        if (chunk.choices[0]?.delta.content) emit(chunk.choices[0].delta.content)
-        const delta = chunk.choices[0]?.delta
-        if (delta && 'reasoning' in delta && typeof delta.reasoning === 'string')
-          onReasoning?.(delta.reasoning)
-        finish = chunk.choices[0]?.finish_reason ?? finish
-      }
-      if (finish !== 'stop')
-        throw new Error(`The AI response did not complete (${finish ?? 'connection closed'}).`)
+      await openrouterStream(stream, output)
     }
     signal.throwIfAborted()
-    if (!text.trim()) throw new Error('The model returned an empty response.')
-    return text
+    if (!hasAnswerText) throw new Error('The model returned an empty response.')
   }
 }

@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { FileSearch, FileText, X } from 'lucide-react'
+import { FileSearch, FileText, Wrench, X } from 'lucide-react'
 import {
   Trace,
   TraceCollapsible,
@@ -11,14 +11,17 @@ import {
 } from '@/components/ui/trace'
 import type { ChatToolCall } from '../../../../shared/ai'
 
-/** Shows a real document-tool invocation and its recorded result. */
+/** Shows the invocation status and details available in the stream. */
 export const ChatToolCallView = memo(function ChatToolCallView({
   tool
 }: {
   tool: ChatToolCall
 }): React.JSX.Element {
   const running = tool.status === 'running'
-  const Icon = tool.name === 'read_document' ? FileText : FileSearch
+  const reading = tool.name === 'read_document'
+  const searching = tool.name === 'search_document'
+  const Icon = reading ? FileText : searching ? FileSearch : Wrench
+  const label = reading ? 'Read document' : searching ? 'Search document' : tool.name
   return (
     <Trace aria-label={`Tool call: ${tool.name}`} aria-busy={running}>
       <TraceCollapsible defaultOpen={false}>
@@ -28,7 +31,9 @@ export const ChatToolCallView = memo(function ChatToolCallView({
               <Icon className="size-3.5" />
             </TraceIcon>
             <TraceTitle>
-              {tool.name === 'read_document' ? 'Read document' : 'Search document'}
+              {label}
+              {tool.status === 'requested' && ' · Requested'}
+              {tool.status === 'stopped' && ' · Stopped'}
             </TraceTitle>
             {tool.status === 'error' && (
               <span role="img" aria-label="Tool failed" className="shrink-0 text-destructive">
@@ -41,7 +46,7 @@ export const ChatToolCallView = memo(function ChatToolCallView({
           <div className="space-y-1">
             <p className="font-medium">Input</p>
             <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-2 font-mono text-[11px]">
-              {JSON.stringify(tool.input, null, 2)}
+              {typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input, null, 2)}
             </pre>
           </div>
           {tool.output !== undefined && (

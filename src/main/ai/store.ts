@@ -11,6 +11,7 @@ import type {
   ConversationSummary,
   DocumentSource
 } from '../../shared/ai'
+import { stopChatWork } from '../../shared/chat-work'
 
 export const defaultAiSettings: AiSettings = {
   consent: true,
@@ -51,6 +52,7 @@ export class ChatStore {
       for (const message of chat.messages) {
         if (message.status === 'streaming') {
           message.status = 'stopped'
+          if (message.work) message.work = stopChatWork(message.work)
           changed = true
         }
       }

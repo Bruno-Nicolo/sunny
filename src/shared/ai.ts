@@ -22,14 +22,16 @@ export type ChatDocument = {
 export type ChatDocumentIndex = ChatDocument & { sources: DocumentSource[] }
 export type ChatToolCall = {
   id: string
-  name: 'read_document' | 'search_document'
-  input: Record<string, unknown>
+  name: string
+  input: Record<string, unknown> | string
   output?: string
-  status: 'running' | 'complete' | 'error'
+  status: 'running' | 'requested' | 'complete' | 'error' | 'stopped'
   error?: string
 }
 export type ChatWorkPart =
-  { type: 'reasoning'; text: string } | { type: 'tool'; tool: ChatToolCall }
+  | { type: 'reasoning'; text: string }
+  | { type: 'commentary'; id: string; text: string }
+  | { type: 'tool'; tool: ChatToolCall }
 export type ChatWork = { parts: ChatWorkPart[]; durationMs: number }
 export type ChatMessage = {
   id: string
@@ -96,16 +98,17 @@ export type ChatSendRequest = {
   editMessageId?: string
   retryMessageId?: string
 }
-export type ChatEvent = {
-  requestId: string
-  conversationId: string
-} & (
+export type ChatUpdate =
+  | { type: 'delta'; text: string }
+  | { type: 'reasoning-delta'; text: string }
+  | { type: 'commentary-delta'; id: string; text: string }
+  | { type: 'tool'; tool: ChatToolCall }
+
+export type ChatEvent = { requestId: string; conversationId: string } & (
   | { type: 'edited'; message: ChatMessage }
   | { type: 'message'; message: ChatMessage }
-  | { type: 'delta'; messageId: string; text: string }
-  | { type: 'reasoning-delta'; messageId: string; text: string }
-  | { type: 'tool'; messageId: string; tool: ChatToolCall }
   | { type: 'finished'; message: ChatMessage }
+  | ({ messageId: string } & ChatUpdate)
 )
 
 export interface AiApi {

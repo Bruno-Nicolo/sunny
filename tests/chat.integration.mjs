@@ -204,13 +204,31 @@ app
     service.providers.generate = async (request) => {
       generated.push(request)
       if (request.instructions.startsWith('Write ONLY'))
-        return JSON.stringify({ scope: 'passages', queries: ['photosynthesis', 'chlorophyll'] })
+        return request.onUpdate({
+          type: 'delta',
+          text: JSON.stringify({ scope: 'passages', queries: ['photosynthesis', 'chlorophyll'] })
+        })
       const sources = service.store.sources(currentDocument.version)
       const answer = `The document discusses plant energy [[${sources[0].id}]].\n\nThe formula is $E=mc^2$, also \\(x_i^2\\).\n\n\\[\n\\frac{a}{b}\n\\]`
-      request.onReasoning?.('Checking the passages about plant energy. ')
+      request.onUpdate({
+        type: 'reasoning-delta',
+        text: 'Checking the passages about plant energy.'
+      })
       await new Promise((resolve) => setTimeout(resolve, 150))
-      request.onReasoning?.('The selected evidence supports the explanation.')
-      request.onText(answer.slice(0, 30))
+      request.onUpdate({
+        type: 'reasoning-delta',
+        text: '\n\nThe selected evidence supports the explanation.'
+      })
+      request.onUpdate({
+        type: 'tool',
+        tool: { id: 'lookup', name: 'lookup', input: { query: 'energy' }, status: 'requested' }
+      })
+      request.onUpdate({
+        type: 'commentary-delta',
+        id: 'update',
+        text: 'I’ll compare the passages.'
+      })
+      request.onUpdate({ type: 'delta', text: answer.slice(0, 30) })
       if (cancelAnswer)
         await new Promise((resolve, reject) =>
           request.signal.addEventListener('abort', () => reject(new Error('stopped')), {
@@ -219,8 +237,7 @@ app
         )
       await new Promise((resolve) => setTimeout(resolve, 120))
       request.signal.throwIfAborted()
-      request.onText(answer.slice(30))
-      return answer
+      request.onUpdate({ type: 'delta', text: answer.slice(30) })
     }
     const ai = (name, handler) =>
       ipcMain.handle(`ai:${name}`, (_event, ...args) => handler(...args))
@@ -651,6 +668,27 @@ app
     )
     assert.equal(
       await evaluate(
+        `document.querySelector('[aria-label="Assistant update"] .chat-markdown')?.textContent`
+      ),
+      'I’ll compare the passages.'
+    )
+    assert.ok(
+      await evaluate(`(() => {
+        const tool = document.querySelector('[aria-label="Tool call: lookup"]')
+        const update = document.querySelector('[aria-label="Assistant update"]')
+        return tool?.textContent.includes('Requested') &&
+          Boolean(tool.compareDocumentPosition(update) & Node.DOCUMENT_POSITION_FOLLOWING)
+      })()`)
+    )
+    assert.equal(
+      await evaluate(
+        `document.querySelectorAll('[aria-label="Model reasoning"] .lucide-brain').length`
+      ),
+      2,
+      'each reasoning paragraph has its own icon'
+    )
+    assert.equal(
+      await evaluate(
         `document.querySelector('[aria-label="Show tool call: search_document"]').getAttribute('aria-expanded')`
       ),
       'false'
@@ -714,7 +752,7 @@ app
     assert.ok(recorded.work.durationMs > 0)
     assert.deepEqual(
       recorded.work.parts.filter((part) => part.type === 'tool').map((part) => part.tool.name),
-      ['read_document', 'search_document']
+      ['read_document', 'search_document', 'lookup']
     )
     console.log(
       'PASS: live reasoning before the answer, auto-collapse, inspectable tools and persistence'

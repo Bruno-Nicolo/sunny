@@ -1,8 +1,10 @@
 import { createContext, memo, useContext, useMemo, type ComponentProps } from 'react'
-import Markdown from 'react-markdown'
+import { BrainIcon } from 'lucide-react'
+import Markdown, { type ExtraProps } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+import type { Root } from 'hast'
 import type { DocumentSource } from '../../../../shared/ai'
 import { rehypeStreamText } from './rehypeStreamText'
 import { remarkLatexMath } from './remarkLatexMath'
@@ -22,6 +24,21 @@ const CitationContext = createContext<{
 const remarkPlugins = [remarkGfm, remarkMath, remarkLatexMath]
 const rehypePlugins = [rehypeKatex]
 const streamingRehypePlugins = [rehypeKatex, rehypeStreamText]
+
+function rehypeReasoningBlocks(): (tree: Root) => void {
+  return (tree) => {
+    tree.children = tree.children.map((child) =>
+      child.type === 'element'
+        ? {
+            type: 'element',
+            tagName: 'div',
+            properties: { dataReasoningBlock: 'true' },
+            children: [child]
+          }
+        : child
+    )
+  }
+}
 
 function ChatLink({ href, children }: ComponentProps<'a'>): React.JSX.Element {
   const { sources, stale, onCitation } = useContext(CitationContext)
@@ -52,16 +69,31 @@ const markdownComponents = {
   img: () => <span>[External image omitted]</span>
 }
 
+const reasoningComponents = {
+  ...markdownComponents,
+  div: ({ node, children, ...props }: ComponentProps<'div'> & ExtraProps) =>
+    node?.properties.dataReasoningBlock === 'true' ? (
+      <div className="my-[0.65em] grid grid-cols-[0.875rem_minmax(0,1fr)] items-start gap-2 [&>:last-child]:my-0">
+        <BrainIcon className="mt-1 size-3.5 text-muted-foreground" aria-hidden />
+        {children}
+      </div>
+    ) : (
+      <div {...props}>{children}</div>
+    )
+}
+
 /** Renders chat Markdown with safe external links and optional document citations. */
 export const ChatMarkdown = memo(function ChatMarkdown({
   text,
   sources,
   streaming = false,
+  reasoning = false,
   stale = false,
   onCitation
 }: CitationProps & {
   text: string
   streaming?: boolean
+  reasoning?: boolean
 }): React.JSX.Element {
   const sourceIndex = useMemo(
     () => (sources ? new Map(sources.map((source) => [source.id, source])) : undefined),
@@ -84,21 +116,22 @@ export const ChatMarkdown = memo(function ChatMarkdown({
     () => ({ sources: sourceIndex, stale, onCitation }),
     [sourceIndex, stale, onCitation]
   )
+  const plugins = streaming ? streamingRehypePlugins : rehypePlugins
   const markdown = useMemo(
     () => (
       <Markdown
         remarkPlugins={remarkPlugins}
-        rehypePlugins={streaming ? streamingRehypePlugins : rehypePlugins}
+        rehypePlugins={reasoning ? [...plugins, rehypeReasoningBlocks] : plugins}
         skipHtml
         urlTransform={(url) =>
           url.startsWith('https://') || (canCite && url.startsWith('#source/')) ? url : ''
         }
-        components={markdownComponents}
+        components={reasoning ? reasoningComponents : markdownComponents}
       >
         {content}
       </Markdown>
     ),
-    [content, streaming, canCite]
+    [content, plugins, canCite, reasoning]
   )
   return (
     <CitationContext.Provider value={citations}>

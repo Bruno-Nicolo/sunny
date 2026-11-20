@@ -351,7 +351,7 @@ export function ChatPanel({
     () =>
       window.lepis.ai.onEvent((event) => {
         if (event.conversationId !== conversationRef.current?.id) return
-        if (event.type !== 'finished') {
+        if (event.type !== 'finished' && requestRef.current !== event.requestId) {
           setRequestId(event.requestId)
           requestRef.current = event.requestId
         }

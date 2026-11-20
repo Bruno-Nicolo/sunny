@@ -9,12 +9,14 @@ import type {
   ChatEvent,
   ChatMessage,
   ChatToolCall,
+  ChatUpdate,
+  ChatWork,
   Conversation,
   ChatSendRequest,
   DocumentSource
 } from '../../shared/ai'
 import { aiProviders, reasoningLevels } from '../../shared/ai'
-import { updateChatWork } from '../../shared/chat-work'
+import { stopChatWork, updateChatWork } from '../../shared/chat-work'
 import { ChatStore } from './store'
 import { CredentialStore } from './credentials'
 import { ChatgptAuth, permitsChatgptPlan } from './chatgpt-auth'
@@ -283,7 +285,7 @@ export class AiService {
       if (!conversation.messages.length) conversation.title = user.text.slice(0, 70)
       conversation.messages.push(user)
     }
-    const assistant: ChatMessage = {
+    const assistant: ChatMessage & { work: ChatWork } = {
       id: randomUUID(),
       role: 'assistant',
       text: '',
@@ -301,58 +303,82 @@ export class AiService {
     if (request.editMessageId) emit({ ...base, type: 'edited', message: user })
     else if (!request.retryMessageId) emit({ ...base, type: 'message', message: user })
     emit({ ...base, type: 'message', message: assistant })
-    const workEvent = (event: Extract<ChatEvent, { type: 'reasoning-delta' | 'tool' }>): void => {
-      assistant.work = updateChatWork(assistant.work, event)
-      emit(event)
-    }
     let lastCheckpoint = Date.now()
     const checkpoint = (force = false): void => {
       const now = Date.now()
       if (force || now - lastCheckpoint > 1500) {
-        if (assistant.work) assistant.work.durationMs = now - assistant.createdAt
+        assistant.work.durationMs = now - assistant.createdAt
         this.store.save(conversation)
         lastCheckpoint = now
       }
     }
+    const publish = (update: ChatUpdate, forceCheckpoint = false): void => {
+      if (update.type !== 'tool' && !update.text) return
+      if (update.type === 'delta') assistant.text += update.text
+      else assistant.work = updateChatWork(assistant.work, update)
+      emit({ ...base, ...update, messageId: assistant.id })
+      checkpoint(forceCheckpoint)
+    }
     const runTool = <T>(
-      name: ChatToolCall['name'],
-      input: ChatToolCall['input'],
+      name: 'read_document' | 'search_document',
+      input: Record<string, unknown>,
       run: () => T,
       describe: (result: T) => string
     ): T => {
       const tool: ChatToolCall = { id: randomUUID(), name, input, status: 'running' }
-      workEvent({ ...base, type: 'tool', messageId: assistant.id, tool })
+      publish({ type: 'tool', tool })
       try {
         const result = run()
-        tool.output = describe(result)
-        tool.status = 'complete'
+        publish(
+          { type: 'tool', tool: { ...tool, output: describe(result), status: 'complete' } },
+          true
+        )
         return result
       } catch (error) {
-        tool.status = 'error'
-        tool.error = error instanceof Error ? error.message : String(error)
+        publish(
+          {
+            type: 'tool',
+            tool: {
+              ...tool,
+              status: 'error',
+              error: error instanceof Error ? error.message : String(error)
+            }
+          },
+          true
+        )
         throw error
-      } finally {
-        workEvent({ ...base, type: 'tool', messageId: assistant.id, tool })
-        checkpoint(true)
       }
     }
     try {
-      const generate = (
+      const generate = async (
         instructions: string,
         turns: ModelTurn[],
-        onText: (text: string) => void = () => {},
-        onReasoning?: (text: string) => void
-      ): Promise<string> =>
-        this.providers.generate({
+        showAnswer = false
+      ): Promise<string> => {
+        let text = ''
+        let firstReasoning = true
+        await this.providers.generate({
           provider: conversation.provider,
           model: request.model,
           reasoning: request.reasoning,
           instructions,
           turns,
           signal,
-          onText,
-          onReasoning
+          onUpdate: (update) => {
+            if (update.type === 'delta' && !showAnswer) {
+              text += update.text
+              return
+            }
+            if (update.type === 'reasoning-delta' && update.text && firstReasoning) {
+              firstReasoning = false
+              if (assistant.work.parts.at(-1)?.type === 'reasoning')
+                update = { ...update, text: '\n\n' + update.text }
+            }
+            publish(update)
+          }
         })
+        return text
+      }
       const all = runTool(
         'read_document',
         { version: conversation.documentVersion },
@@ -510,20 +536,7 @@ export class AiService {
           'The request exceeds the context budget. Reduce selections or start a new chat.'
         )
 
-      await generate(
-        chatInstructions,
-        turns,
-        (delta) => {
-          assistant.text += delta
-          emit({ ...base, type: 'delta', messageId: assistant.id, text: delta })
-          checkpoint()
-        },
-        (delta) => {
-          if (!delta) return
-          workEvent({ ...base, type: 'reasoning-delta', messageId: assistant.id, text: delta })
-          checkpoint()
-        }
-      )
+      await generate(chatInstructions, turns, true)
       const validated = validatedAnswer(assistant.text, available)
       assistant.text = validated.text
       assistant.sources = validated.sources
@@ -536,7 +549,8 @@ export class AiService {
       if (!signal.aborted)
         assistant.error = error instanceof Error ? error.message : 'The AI request failed.'
     } finally {
-      if (assistant.work) assistant.work.durationMs = Date.now() - assistant.createdAt
+      assistant.work = stopChatWork(assistant.work)
+      assistant.work.durationMs = Date.now() - assistant.createdAt
       conversation.updatedAt = Date.now()
       // Preserve a title edited while the response was running.
       conversation.title = this.store.get(conversation.id).title
