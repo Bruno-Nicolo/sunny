@@ -19,7 +19,7 @@ export function AnnotationToolbar({
     <>
       <ToolbarButton
         label="Highlight text"
-        tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight text or draw on blank areas (H)'}
+        tooltip={signed ? 'Signed PDFs are read-only' : 'Highlight (H)'}
         aria-keyshortcuts="h"
         pressed={annotationTool === 'highlight'}
         disabled={!canAnnotate}
