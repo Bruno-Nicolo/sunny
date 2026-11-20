@@ -1,4 +1,4 @@
-import { chooseTextSize, showTextOptions } from './fixtures/annotation-toolbar.mjs'
+import { chooseTextSize, textSizeSlider } from './fixtures/annotation-toolbar.mjs'
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { blankPdf } from './fixtures/pdf.mjs'
@@ -114,6 +114,14 @@ async function chooseFont(label) {
   )
 }
 
+async function pressTextSizeKey(key) {
+  await evaluate(`(() => {
+    const thumb = ${textSizeSlider};
+    thumb.focus();
+    thumb.dispatchEvent(new KeyboardEvent('keydown', {key:'${key}', bubbles:true, cancelable:true}));
+  })()`)
+}
+
 async function addText() {
   await waitFor(
     `document.querySelector('.visible .annotationEditorLayer.freetextEditing') !== null`
@@ -160,34 +168,25 @@ app
       await evaluate(`document.querySelector('[aria-label="Text tool settings"] h2')`),
       null
     )
-    await chooseTextSize(evaluate, waitFor, 13.5)
-    await chooseTextSize(evaluate, waitFor, 24)
-    for (const [draft, key, expected] of [
-      ['', 'Enter', 24],
-      ['99', 'Escape', 24],
-      ['200', 'Enter', 144],
-      ['0', 'Enter', 6]
-    ]) {
+    assert.ok(
       await evaluate(`(() => {
-        const input = document.querySelector('input[aria-label="Text size"]');
-        input.focus();
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${draft}');
-        input.dispatchEvent(new Event('input', {bubbles:true}));
-      })()`)
-      await evaluate(
-        `document.querySelector('input[aria-label="Text size"]').dispatchEvent(new KeyboardEvent('keydown', {key:'${key}', bubbles:true, cancelable:true}))`
-      )
-      if (key === 'Escape') await showTextOptions(evaluate, waitFor)
-      await waitFor(
-        `document.querySelector('input[aria-label="Text size"]').value === '${expected}'`
-      )
-    }
-    assert.equal(
-      await evaluate(`document.querySelector('[aria-label="Decrease text size"]').disabled`),
-      true
+        const font = document.querySelector('[aria-label="Text font"]');
+        return font.getBoundingClientRect().width === font.closest('[data-slot="field"]').getBoundingClientRect().width;
+      })()`),
+      'The font selector fills the available field width'
     )
-    console.log('PASS: text size input supports decimals, empty values, Escape and bounds')
-    await chooseTextSize(evaluate, waitFor, 24)
+    for (const [key, expected] of [
+      ['End', 60],
+      ['ArrowRight', 60],
+      ['Home', 4],
+      ['ArrowLeft', 4],
+      ['ArrowRight', 5]
+    ]) {
+      await pressTextSizeKey(key)
+      await waitFor(`${textSizeSlider}.getAttribute('aria-valuenow') === '${expected}'`)
+    }
+    console.log('PASS: text size slider supports keyboard controls and bounds')
+    await chooseTextSize(win.webContents, waitFor, 24)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
     await waitFor(
       `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
@@ -217,8 +216,8 @@ app
       await evaluate(`document.querySelector('[data-text-settings] input[type="color"]')`),
       null
     )
-    await chooseTextSize(evaluate, waitFor, 24)
-    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
+    await chooseTextSize(win.webContents, waitFor, 24)
+    await waitFor(`${textSizeSlider}?.getAttribute('aria-valuenow') === '24'`)
     await evaluate(
       `(() => { const button = document.querySelector('[aria-label="Text color"] [aria-label="Red"]'); button.focus(); button.click(); })()`
     )
@@ -321,7 +320,7 @@ app
     await evaluate(`document.querySelector('.visible .freeTextEditor').focus()`)
     await waitFor(`document.querySelector('.visible .freeTextEditor.selectedEditor') !== null`)
 
-    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
+    await waitFor(`${textSizeSlider}?.getAttribute('aria-valuenow') === '24'`)
     await new Promise((resolve) => setTimeout(resolve, 250))
     assert.equal(
       await evaluate(`document.querySelector('.visible .freeTextEditor .editToolbar')`),
@@ -355,15 +354,15 @@ app
       ),
       'false'
     )
-    await chooseTextSize(evaluate, waitFor, 32)
-    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '32'`)
+    await chooseTextSize(win.webContents, waitFor, 32)
+    await waitFor(`${textSizeSlider}?.getAttribute('aria-valuenow') === '32'`)
     await evaluate(`window.testCommands.run('undo')`)
-    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
+    await waitFor(`${textSizeSlider}?.getAttribute('aria-valuenow') === '24'`)
     await evaluate(`window.testCommands.run('undo')`)
     await waitFor(
       `document.querySelector('[aria-label="Text color"] [aria-label="Red"]')?.getAttribute('aria-pressed') === 'true'`
     )
-    console.log('PASS: real mouse clicks and undo keep the formatting sidebar in sync')
+    console.log('PASS: mouse input and undo keep the formatting sidebar in sync')
     console.log('PASS: sidebar reflects the saved text formatting after reopening')
     await evaluate(
       `document.querySelector('.visible .freeTextEditor').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))`
@@ -394,8 +393,8 @@ app
       )
     }
     for (const size of [32, 16, 24]) {
-      await chooseTextSize(evaluate, waitFor, size)
-      await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '${size}'`)
+      await chooseTextSize(win.webContents, waitFor, size)
+      await waitFor(`${textSizeSlider}?.getAttribute('aria-valuenow') === '${size}'`)
     }
     console.log('PASS: repeated changes update visible checkmarks while typing')
     await save()
@@ -437,7 +436,7 @@ app
       'PASS: formatting and undo after saving remain dirty and persist on subsequent saves'
     )
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
-    await chooseTextSize(evaluate, waitFor, 24)
+    await chooseTextSize(win.webContents, waitFor, 24)
     assert.equal(
       await evaluate(
         `document.querySelector('[aria-label="second.pdf"] > .bg-foreground') === null`
@@ -445,10 +444,9 @@ app
       true,
       'Choosing the current formatting must not dirty the document'
     )
-    // Separate this size-only undo step from PDF.js's earlier grouped size commands.
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Gray"]')`)
     await click(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
-    await chooseTextSize(evaluate, waitFor, 32)
+    await chooseTextSize(win.webContents, waitFor, 32)
     await waitFor(`document.querySelector('[aria-label="second.pdf"] > .bg-foreground') !== null`)
     await save()
     assert.equal(
@@ -461,7 +459,7 @@ app
       '/Helv 32 Tf 1 0 0 rg'
     )
     await evaluate(`window.testCommands.run('undo')`)
-    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '24'`)
+    await waitFor(`${textSizeSlider}?.getAttribute('aria-valuenow') === '24'`)
     await save()
     console.log('PASS: size-only edits persist, while unchanged formatting adds no edits')
 
@@ -473,7 +471,7 @@ app
     assert.equal(await evaluate(`document.querySelectorAll('.visible .freeTextEditor').length`), 0)
     await addText()
 
-    await waitFor(`document.querySelector('input[aria-label="Text size"]')?.value === '8'`)
+    await waitFor(`${textSizeSlider}?.getAttribute('aria-valuenow') === '8'`)
     assert.equal(
       await evaluate(
         `document.querySelector('[aria-label="Text color"] [aria-label="Black"]').getAttribute('aria-pressed')`
@@ -682,11 +680,11 @@ app
     const originalSize = await evaluate(
       `parseFloat(document.querySelector('.visible .freeTextEditor .internal').style.fontSize)`
     )
-    await evaluate(`document.querySelector('[aria-label="Increase text size"]').click()`)
+    await pressTextSizeKey('ArrowRight')
     await waitFor(
       `parseFloat(document.querySelector('.visible .freeTextEditor .internal').style.fontSize) > ${originalSize}`
     )
-    await evaluate(`document.querySelector('[aria-label="Decrease text size"]').click()`)
+    await pressTextSizeKey('ArrowLeft')
     await waitFor(
       `parseFloat(document.querySelector('.visible .freeTextEditor .internal').style.fontSize) === ${originalSize}`
     )
@@ -718,9 +716,7 @@ app
       ),
       'true'
     )
-    console.log(
-      'PASS: font families, size buttons and alignment support undo and persist after reopening'
-    )
+    console.log('PASS: font family, size and alignment support undo and persist after reopening')
   })
   .then(() => finish(0))
   .catch((error) => {

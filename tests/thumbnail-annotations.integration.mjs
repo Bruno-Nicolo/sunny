@@ -208,7 +208,7 @@ app
     )
     await showTextOptions(evaluate, waitFor)
     await waitFor(`document.querySelector('[aria-label="Text size"]') !== null`)
-    await chooseTextSize(evaluate, waitFor, 24)
+    await chooseTextSize(win.webContents, waitFor, 24)
     await evaluate(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]').click()`)
     await showTextOptions(evaluate, waitFor)
     await openNavigation()

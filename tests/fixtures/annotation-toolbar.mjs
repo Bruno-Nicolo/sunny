@@ -1,21 +1,38 @@
+export const textSizeSlider = `document.querySelector('[role="slider"][aria-label="Text size"]')`
+
 export async function showTextOptions(evaluate, waitFor) {
   await evaluate(`(() => {
     const tool = document.querySelector('[aria-label="Add text"]')
     if (tool.getAttribute('aria-pressed') !== 'true') tool.click()
   })()`)
-  await waitFor(`document.querySelector('input[aria-label="Text size"]') !== null`)
+  await waitFor(`${textSizeSlider} !== null`)
 }
 
-export async function chooseTextSize(evaluate, waitFor, size) {
+export async function chooseTextSize(webContents, waitFor, size) {
+  const evaluate = (code) => webContents.executeJavaScript(code)
   await showTextOptions(evaluate, waitFor)
-  await evaluate(`(() => {
-    const input = document.querySelector('input[aria-label="Text size"]')
-    input.focus()
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${size}')
-    input.dispatchEvent(new Event('input', {bubbles:true}))
-    input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true, cancelable:true}))
+  if ((await evaluate(`Number(${textSizeSlider}.getAttribute('aria-valuenow'))`)) === size) return
+  webContents.focus()
+  const { startX, x, y } = await evaluate(`(() => {
+    const thumb = ${textSizeSlider}
+    const handle = thumb.getBoundingClientRect()
+    const track = thumb.closest('[data-slot="slider"]').getBoundingClientRect()
+    const min = Number(thumb.getAttribute('aria-valuemin'))
+    const max = Number(thumb.getAttribute('aria-valuemax'))
+    return {
+      startX: Math.round(handle.left + handle.width / 2),
+      x: Math.round(track.left + track.width * (${size} - min) / (max - min)),
+      y: Math.round(track.top + track.height / 2)
+    }
   })()`)
-  await waitFor(`document.querySelector('input[aria-label="Text size"]').value === '${size}'`)
+  webContents.sendInputEvent({ type: 'mouseMove', x: startX, y })
+  webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: startX, y, clickCount: 1 })
+  try {
+    webContents.sendInputEvent({ type: 'mouseMove', modifiers: ['leftButtonDown'], x, y })
+    await waitFor(`${textSizeSlider}.getAttribute('aria-valuenow') === '${size}'`)
+  } finally {
+    webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x, y, clickCount: 1 })
+  }
 }
 
 export async function chooseHighlightColor(evaluate, waitFor, color) {

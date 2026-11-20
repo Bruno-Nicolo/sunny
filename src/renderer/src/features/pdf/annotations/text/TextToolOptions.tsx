@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { ToolOptionNumberInput } from '@/components/ToolOptionNumberInput'
+import { ToolOptionSlider } from '@/components/ToolOptionSlider'
 import { ToolOptionHeading } from '@/components/ToolOptionHeading'
 import { ColorOptions } from '../ColorOptions'
 import { textColors, textFonts } from './options'
@@ -24,12 +24,15 @@ const alignments = [
 export function TextToolOptions({ settings }: { settings: TextEditorSettings }): React.JSX.Element {
   return (
     <>
-      <ToolOptionNumberInput
+      <ToolOptionSlider
         title="Text size"
         value={settings.fontSize}
-        min={6}
-        max={144}
-        onValueChange={(fontSize) => settings.setStyle({ fontSize })}
+        unit=" pt"
+        min={4}
+        max={60}
+        onDragStart={settings.commitStyle}
+        onDragEnd={settings.commitStyle}
+        onValueChange={(fontSize, live) => settings.setStyle({ fontSize }, live)}
       />
       <Field>
         <ToolOptionHeading id="text-color" title="Color" />
@@ -51,7 +54,7 @@ export function TextToolOptions({ settings }: { settings: TextEditorSettings }):
           <SelectTrigger
             id="tool-text-font"
             aria-label="Text font"
-            className="w-40"
+            className="w-full"
             style={{ fontFamily: textFonts[settings.fontFamily].css }}
           >
             <SelectValue />

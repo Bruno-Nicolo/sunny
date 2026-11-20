@@ -115,8 +115,9 @@ export function createAnnotationController({
     refreshText()
   }
 
-  function setTextStyle(changes: Partial<TextStyle>): void {
+  function setTextStyle(changes: Partial<TextStyle>, live = false): void {
     if (!canEdit()) return
+    if (!live && changes.fontSize !== undefined) model.commit()
     const current = selected ? model.records.get(selected) : undefined
     const text = current?.kind === 'text' ? current : undefined
     if (!hasTextStyleChanges(text ?? defaults, changes)) return
@@ -127,7 +128,7 @@ export function createAnnotationController({
     }
     const next = { ...text, ...changes }
     const reflow = next.fontSize !== text.fontSize || next.fontFamily !== text.fontFamily
-    model.change(text, reflow ? layoutText(next, next.text ?? '') : next)
+    model.change(text, reflow ? layoutText(next, next.text ?? '') : next, live)
   }
 
   function refreshText(): void {
@@ -142,7 +143,8 @@ export function createAnnotationController({
       fontSize: style.fontSize,
       fontFamily: style.fontFamily,
       textAlign: style.textAlign,
-      setStyle: setTextStyle
+      setStyle: setTextStyle,
+      commitStyle: () => model.commit()
     }
     onTextEditorChange(textSettings)
   }

@@ -11,6 +11,8 @@ type Props = {
   min: number
   max: number
   step?: number
+  onDragStart?(): void
+  onDragEnd?(): void
   onValueChange(value: number, live: boolean): void
 }
 
@@ -22,6 +24,8 @@ export function ToolOptionSlider({
   min,
   max,
   step = 1,
+  onDragStart,
+  onDragEnd,
   onValueChange
 }: Props): React.JSX.Element {
   const id = useId()
@@ -39,6 +43,8 @@ export function ToolOptionSlider({
         max={max}
         step={step}
         value={[value]}
+        onPointerDownCapture={onDragStart}
+        onLostPointerCapture={onDragEnd}
         onValueChange={([next]) => onValueChange(next, true)}
         onValueCommit={([next]) => onValueChange(next, false)}
       />

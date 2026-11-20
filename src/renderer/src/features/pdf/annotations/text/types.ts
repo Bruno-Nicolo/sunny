@@ -10,5 +10,6 @@ export type TextStyle = {
 
 export type TextEditorSettings = TextStyle & {
   element: HTMLDivElement | null
-  setStyle(style: Partial<TextStyle>): void
+  setStyle(style: Partial<TextStyle>, live?: boolean): void
+  commitStyle(): void
 }
