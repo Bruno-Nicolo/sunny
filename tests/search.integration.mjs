@@ -104,6 +104,14 @@ app
     await win.loadFile(path.join(root, 'out/renderer/index.html'))
     await enableTestFocus(win)
     await waitFor(`document.querySelector('.visible .textLayer')?.textContent.includes('Hello')`)
+    const resize = (width) =>
+      win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width,
+        height: 780,
+        deviceScaleFactor: 1,
+        mobile: false
+      })
+    await resize(1240)
     const viewerTop = await evaluate(
       `document.querySelector('.visible .pdf-viewer-container').getBoundingClientRect().top`
     )
@@ -129,6 +137,28 @@ app
       ),
       'absolute'
     )
+    const placement = `(() => {
+      const toolbar = document.querySelector('.toolbar-surface')
+      const search = document.querySelector('.visible [role="search"]').getBoundingClientRect()
+      const bounds = toolbar.getBoundingClientRect()
+      return {
+        aligned: search.left >= bounds.right &&
+          Math.abs(search.top + search.height / 2 - bounds.top - bounds.height / 2) < 1,
+        below: search.top >= bounds.bottom,
+        zoomVisible: !!toolbar.querySelector('.toolbar-zoom').getClientRects().length,
+        fits: toolbar.scrollWidth === toolbar.clientWidth
+      }
+    })()`
+    await waitFor(`${placement}.aligned && ${placement}.zoomVisible`)
+    await resize(760)
+    await waitFor(`${placement}.below && ${placement}.zoomVisible`)
+    await evaluate(`document.querySelector('[aria-label="Zoom level"]').click()`)
+    await waitFor(`document.querySelector('[data-slot="popover-content"]') !== null`)
+    await resize(535)
+    await waitFor(`${placement}.below && !${placement}.zoomVisible && ${placement}.fits &&
+      document.querySelector('[data-slot="popover-content"]') === null`)
+    await resize(1240)
+    await waitFor(`${placement}.aligned && ${placement}.zoomVisible`)
     await query('hello')
     await waitFor(`${status} === '1 of 3'`)
     await waitFor(`document.querySelectorAll('.visible .textLayer .highlight').length >= 2`)

@@ -14,6 +14,12 @@
   pointer-events: none;
 }
 
+.document-canvas {
+  --pdf-search-width: 288px;
+  --pdf-search-height: 36px;
+  --pdf-search-inset: 12px;
+}
+
 .toolbar-surface {
   --toolbar-spacing: 6px;
   position: absolute;
@@ -41,6 +47,14 @@
 
 .toolbar-surface > * {
   flex-shrink: 0;
+}
+
+.toolbar-surface[data-compact] {
+  scrollbar-width: thin;
+}
+
+.toolbar-surface[data-compact] .toolbar-zoom {
+  display: none;
 }
 
 .toolbar-surface svg {

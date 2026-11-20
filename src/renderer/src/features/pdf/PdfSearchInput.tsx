@@ -53,7 +53,7 @@ export function PdfSearchInput({
     <div
       role="search"
       aria-label="Find in PDF"
-      className="absolute top-3 right-3 z-20 w-72 max-w-[calc(100%-1.5rem)]"
+      className="absolute top-[var(--pdf-search-top,var(--pdf-search-inset))] right-[var(--pdf-search-inset)] z-20 w-[var(--pdf-search-width)] max-w-[calc(100%-2*var(--pdf-search-inset))]"
       onKeyDown={(event) => {
         if (event.nativeEvent.isComposing) return
         if (event.key === 'Escape') {
@@ -104,7 +104,7 @@ export function PdfSearchInput({
         aria-label="Find in PDF"
         aria-describedby={hintId}
         placeholder="Find in PDF…"
-        className="h-9 bg-background pr-40 pl-9 shadow-lg"
+        className="h-[var(--pdf-search-height)] bg-background pr-40 pl-9 shadow-lg"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />

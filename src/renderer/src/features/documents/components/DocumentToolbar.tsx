@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import { LayoutGrid, Minus, MousePointer2, Plus, Shapes, StickyNote } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import { Button } from '@/components/ui/button'
@@ -47,11 +48,50 @@ export function DocumentToolbar({
   onToggleInvertColors,
   onStartPresentation
 }: Props): React.JSX.Element | null {
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const [zoomOpen, setZoomOpen] = useState(false)
+  const pageCount = activeTab?.view.pages
+  const tabId = activeTab?.id
+
+  useLayoutEffect(() => {
+    const surface = surfaceRef.current
+    const canvas = surface?.closest<HTMLElement>('.document-canvas')
+    if (!surface || !canvas) return
+
+    const style = getComputedStyle(canvas)
+    const searchWidth = parseFloat(style.getPropertyValue('--pdf-search-width'))
+    const searchHeight = parseFloat(style.getPropertyValue('--pdf-search-height'))
+    const searchInset = parseFloat(style.getPropertyValue('--pdf-search-inset'))
+    const gap = 8
+    const updateLayout = (): void => {
+      if (!canvas.clientWidth) return
+      surface.removeAttribute('data-compact')
+      const compact = surface.scrollWidth > surface.clientWidth
+      surface.toggleAttribute('data-compact', compact)
+      if (compact) setZoomOpen(false)
+
+      const freeSpace = (canvas.clientWidth - surface.offsetWidth) / 2
+      const searchTop =
+        freeSpace >= searchWidth + searchInset + gap
+          ? surface.offsetTop + (surface.offsetHeight - searchHeight) / 2
+          : surface.offsetTop + surface.offsetHeight + gap
+      canvas.style.setProperty('--pdf-search-top', `${searchTop}px`)
+    }
+
+    updateLayout()
+    const observer = new ResizeObserver(updateLayout)
+    observer.observe(canvas)
+    return () => {
+      observer.disconnect()
+      canvas.style.removeProperty('--pdf-search-top')
+    }
+  }, [pageCount, tabId])
+
   if (!activeTab) return null
 
   return (
     <div className="document-toolbar titlebar-no-drag">
-      <div className="toolbar-surface" role="group" aria-label="Document controls">
+      <div ref={surfaceRef} className="toolbar-surface" role="group" aria-label="Document controls">
         <ToolbarButton
           label="Toggle PDF navigation"
           tooltip="Open navigation"
@@ -117,7 +157,7 @@ export function DocumentToolbar({
             <ToolbarButton label="Zoom out" onClick={onZoomOut}>
               <Minus />
             </ToolbarButton>
-            <Popover>
+            <Popover open={zoomOpen} onOpenChange={setZoomOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
