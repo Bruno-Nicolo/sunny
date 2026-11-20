@@ -147,6 +147,17 @@ async function draw() {
   await waitFor(`document.querySelector('img[alt="Signature preview"]') !== null`)
 }
 
+async function createAndSelectSignature(name, insertedCount) {
+  await button('Create')
+  await waitFor(
+    `!document.querySelector('[role="dialog"]') &&
+    document.querySelector(${JSON.stringify(`[data-signature-options] [aria-label="Use signature ${name}"]`)}) !== null`
+  )
+  assert.equal(await evaluate(count(insertedCount)), true)
+  assert.equal(await evaluate(`document.querySelector('.signature-placement-hint') === null`), true)
+  await button(`Use signature ${name}`, '[data-signature-options] button')
+}
+
 async function place(n, x = 0.5, y = 0.55) {
   await waitFor(`document.querySelector('.signature-placement-hint') !== null`)
   const point = await evaluate(`(() => {
@@ -225,7 +236,7 @@ app
 
     await openLibrary()
     await draw()
-    await button('Create')
+    await createAndSelectSignature('signature 1', 0)
     await place(1)
     assert.deepEqual(
       (await store.list()).map(({ name }) => name),
@@ -236,7 +247,7 @@ app
     assert.equal(saved.has('first.pdf'), false)
     assert.match(saved.get('second.pdf').toString('latin1'), /\/Subtype\s*\/Stamp/)
     console.log(
-      'PASS: named signature is saved locally; placement targets active document and survives PDF save'
+      'PASS: drawn signature appears in the sidebar and is placed on the active PDF only after selection'
     )
 
     await new Promise((resolve) => {
@@ -429,14 +440,14 @@ app
     await evaluate(`${backgroundCheckbox}.closest('label').click()`)
     await waitFor(`${backgroundCheckbox}.getAttribute('aria-checked') === 'false'`)
     await waitFor(`!!${readyPreview}`)
-    await button('Create')
+    await createAndSelectSignature('signature 2', 2)
     await place(3)
     assert.deepEqual(
       (await store.list()).map(({ name }) => name),
       ['Signature 1', 'signature 2']
     )
     console.log(
-      'PASS: drag and drop and the image picker import signatures with crop and background removal before saving and placement'
+      'PASS: imported signature appears in the sidebar after crop and background processing and waits for selection'
     )
 
     await openLibrary()

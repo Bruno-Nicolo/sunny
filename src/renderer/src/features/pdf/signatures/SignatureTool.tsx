@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, MoreHorizontal, Pencil, Plus, Signature, Trash2, X } from 'lucide-react'
 import { ToolbarButton } from '@/components/ToolbarButton'
 import {
@@ -58,11 +58,9 @@ export function SignatureTool({
   const [pendingRenames, setPendingRenames] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const panelSession = useRef<AbortController | null>(null)
   useEffect(() => {
     if (!active || !documentId) return
     const session = new AbortController()
-    panelSession.current = session
     void window.lepis.signatures
       .list()
       .then((items) => {
@@ -137,22 +135,30 @@ export function SignatureTool({
     }
   }
 
-  async function place(signature: SavedSignature | string): Promise<void> {
-    const viewer = getViewer()
-    const session = panelSession.current
-    if (!viewer || !enabled || busy || !session) return
-    setOperation(typeof signature === 'string' ? 'create' : 'place')
+  async function createSignature(dataUrl: string): Promise<void> {
+    if (busy) return
+    setOperation('create')
     setError(null)
     try {
-      const dataUrl = typeof signature === 'string' ? signature : signature.dataUrl
-      if (typeof signature === 'string') {
-        const savedSignature = await window.lepis.signatures.create(dataUrl)
-        setItems((items) => [...items, savedSignature])
-      }
-      if (session.signal.aborted) return
+      const signature = await window.lepis.signatures.create(dataUrl)
+      setItems((items) => [...items, signature])
       setCreating(false)
-      setOperation('place')
-      await viewer.placeImage(dataUrl)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The signature could not be saved.'
+      setError(message)
+      onError(message)
+    } finally {
+      setOperation(null)
+    }
+  }
+
+  async function place(signature: SavedSignature): Promise<void> {
+    const viewer = getViewer()
+    if (!viewer || !enabled || busy) return
+    setOperation('place')
+    setError(null)
+    try {
+      await viewer.placeImage(signature.dataUrl)
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'The signature could not be inserted.'
@@ -361,7 +367,7 @@ export function SignatureTool({
           busy={busy}
           error={error}
           onCancel={closeCreation}
-          onCreate={(dataUrl) => void place(dataUrl)}
+          onCreate={(dataUrl) => void createSignature(dataUrl)}
         />
       )}
     </>
