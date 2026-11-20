@@ -7,20 +7,11 @@
   min-height: 0;
 }
 
-.document-stage {
-  background: var(--sidebar);
-}
-
 .document-toolbar {
   position: absolute;
   inset: 0;
   z-index: 20;
   pointer-events: none;
-}
-
-.toolbar-surface,
-.tool-options-sidebar {
-  background: color-mix(in oklab, var(--background) 94%, transparent);
 }
 
 .toolbar-surface {
@@ -36,6 +27,7 @@
   padding: var(--toolbar-spacing);
   overflow-x: auto;
   scrollbar-width: none;
+  background: color-mix(in oklab, var(--background) 94%, transparent);
   border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
   border-radius: 14px;
   color: var(--foreground);

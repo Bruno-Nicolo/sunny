@@ -43,7 +43,7 @@ export function ToolOptionsSidebar({
     >
       <Sidebar
         collapsible="none"
-        className="tool-options-sidebar min-h-0 w-[var(--sidebar-width)] shrink-0 border-r border-sidebar-border"
+        className="min-h-0 w-[var(--sidebar-width)] shrink-0 bg-background text-foreground"
         role="complementary"
         data-sidebar="sidebar"
         data-text-settings={annotationTool === 'text' ? '' : undefined}

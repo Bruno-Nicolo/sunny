@@ -20,6 +20,7 @@ import { defaultHighlightStyle, type HighlightStyle } from '../../shared/highlig
 import type { ChatAttachment } from '../../shared/ai'
 import { ChatDock } from '@/features/chat/ChatDock'
 import { SignatureTool } from '@/features/pdf/signatures/SignatureTool'
+import { cn } from '@/lib/utils'
 
 function App(): React.JSX.Element {
   const [selectedTool, setSelectedTool] = useState<AnnotationTool | 'signature'>('none')
@@ -342,7 +343,7 @@ function App(): React.JSX.Element {
       }}
     >
       {tabs.length > 0 ? (
-        <header className="shrink-0 border-b bg-background/95 backdrop-blur">
+        <header className="shrink-0">
           <TabBar
             tabs={tabs}
             activeId={activeId}
@@ -397,7 +398,12 @@ function App(): React.JSX.Element {
                 textSettings={textEditor?.id === activeId ? textEditor.settings : null}
                 onHighlightStyleChange={changeHighlightStyle}
               />
-              <div className="document-canvas">
+              <div
+                className={cn(
+                  'document-canvas',
+                  tabs.length > 0 && 'mx-2 mb-2 overflow-hidden rounded-xl border'
+                )}
+              >
                 <DocumentWorkspace
                   onAskAI={askAI}
                   tabs={tabs}

@@ -66,7 +66,7 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center bg-sidebar pr-3 pl-[92px]">
+      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center pr-3 pl-[92px]">
         <div className="relative flex h-full min-w-0 flex-1">
           <div
             ref={tabStripRef}
@@ -103,14 +103,14 @@ export function TabBar({
             <div
               aria-hidden="true"
               data-slot="tab-overflow-hint"
-              className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-sidebar/70 backdrop-blur-[2px] [mask-image:linear-gradient(to_left,transparent,black)]"
+              className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-background/70 backdrop-blur-[2px] [mask-image:linear-gradient(to_left,transparent,black)]"
             />
           )}
           {hasMoreTabs && (
             <div
               aria-hidden="true"
               data-slot="tab-overflow-hint"
-              className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-sidebar/70 backdrop-blur-[2px] [mask-image:linear-gradient(to_right,transparent,black)]"
+              className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-background/70 backdrop-blur-[2px] [mask-image:linear-gradient(to_right,transparent,black)]"
             />
           )}
         </div>
@@ -181,7 +181,7 @@ function SortableTab({
             '[&:has(+button:is([data-active=true],:hover,[data-dragging=true]))>[data-slot=tab-separator]]:opacity-0',
             '[&:not(:has(+.document-tab))>[data-slot=tab-separator]]:hidden',
             active
-              ? 'border-border bg-background text-foreground'
+              ? 'border-border bg-sidebar text-foreground'
               : 'text-muted-foreground hover:bg-foreground/7 data-[dragging=true]:bg-foreground/7'
           )}
           aria-label={tab.name}

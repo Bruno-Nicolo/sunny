@@ -153,7 +153,7 @@ export function ChatDock({
             key={tab.id}
             id={tab.id === activeId ? 'ai-chat-panel' : undefined}
             style={{ width: narrow ? '100%' : width }}
-            className={`min-h-0 shrink-0 border-l ${open && tab.id === activeId ? '' : 'hidden'}`}
+            className={`min-h-0 shrink-0 ${open && tab.id === activeId ? '' : 'hidden'}`}
           >
             <Suspense fallback={<p className="p-4 text-sm">Opening AI chat…</p>}>
               <ChatPanel

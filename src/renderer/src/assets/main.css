@@ -62,7 +62,7 @@
 }
 
 .pdf-viewer-container {
-  background: var(--sidebar);
+  background: var(--muted);
 }
 
 .pdf-viewer-container .pdfViewer {
