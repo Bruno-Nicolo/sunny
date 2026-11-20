@@ -181,6 +181,19 @@ app
       await evaluate('document.querySelectorAll("header .document-tab[aria-label]").length'),
       2
     )
+    const insets = await evaluate(`(() => {
+      const header = document.querySelector('header');
+      const tab = header.querySelector('.document-tab[data-active="true"]').getBoundingClientRect();
+      const canvas = document.querySelector('.document-canvas').getBoundingClientRect();
+      return {
+        aboveTab: tab.top - header.getBoundingClientRect().top,
+        belowTab: canvas.top - tab.bottom,
+        left: canvas.left,
+        right: window.innerWidth - canvas.right,
+        bottom: window.innerHeight - canvas.bottom
+      };
+    })()`)
+    assert.deepEqual(insets, { aboveTab: 8, belowTab: 8, left: 8, right: 8, bottom: 8 })
     await evaluate(
       `document.querySelector('header .document-tab[aria-label="startup.pdf"]').focus()`
     )

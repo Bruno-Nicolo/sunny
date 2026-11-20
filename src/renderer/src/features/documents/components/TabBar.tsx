@@ -177,11 +177,11 @@ function SortableTab({
             window.lepis.showTabContextMenu(tab.path)
           }}
           className={cn(
-            'document-tab group relative flex h-9 min-w-[120px] max-w-60 flex-1 basis-60 select-none items-center gap-2 rounded-md border border-transparent px-3 py-1 text-left text-sm outline-offset-[-4px]',
+            'document-tab group relative flex h-8 min-w-[120px] max-w-60 flex-1 basis-60 select-none items-center gap-2 rounded-md border border-transparent px-3 py-1 text-left text-sm outline-offset-[-4px]',
             '[&:has(+button:is([data-active=true],:hover,[data-dragging=true]))>[data-slot=tab-separator]]:opacity-0',
             '[&:not(:has(+.document-tab))>[data-slot=tab-separator]]:hidden',
             active
-              ? 'border-border bg-sidebar text-foreground'
+              ? 'border-foreground/6 bg-foreground/6 text-foreground dark:border-border dark:bg-sidebar'
               : 'text-muted-foreground hover:bg-foreground/7 data-[dragging=true]:bg-foreground/7'
           )}
           aria-label={tab.name}
