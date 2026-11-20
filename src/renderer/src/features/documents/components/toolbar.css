@@ -23,7 +23,7 @@
 .toolbar-surface {
   --toolbar-spacing: 6px;
   position: absolute;
-  top: 16px;
+  top: 12px;
   left: 50%;
   display: flex;
   align-items: center;

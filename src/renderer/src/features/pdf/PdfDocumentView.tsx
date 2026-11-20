@@ -89,7 +89,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, PdfDocumentViewProp
             <div
               ref={containerRef}
               tabIndex={-1}
-              className="pdf-viewer-container absolute inset-0 isolate overflow-auto"
+              className="pdf-viewer-container absolute inset-0 isolate overflow-auto focus:outline-none"
             >
               <div ref={viewerElementRef} className="pdfViewer" />
             </div>
