@@ -82,6 +82,7 @@ function App(): React.JSX.Element {
     openDialog,
     openPaths,
     saveTab,
+    exportWithoutAnnotations,
     exportPages,
     printTab,
     closeTab,
@@ -191,6 +192,9 @@ function App(): React.JSX.Element {
       save: () => {
         if (activeId) void saveTab(activeId)
       },
+      'export-without-annotations': () => {
+        if (activeId) void exportWithoutAnnotations(activeId)
+      },
       'export-flattened': () => {
         if (activeId) void printTab(activeId, 'flatten')
       },
@@ -246,6 +250,7 @@ function App(): React.JSX.Element {
     getActiveViewer,
     openDialog,
     printTab,
+    exportWithoutAnnotations,
     saveTab,
     selectTab,
     tabs

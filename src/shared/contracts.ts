@@ -51,8 +51,6 @@ export type PdfCopyDestination = {
   excludedPaths: string[]
 }
 
-export type SavePdfAsRequest = PdfCopyDestination & { data: Uint8Array }
-
 export type SavePdfDraftRequest = PdfFileStats & {
   path: string
   data: Uint8Array
@@ -76,9 +74,8 @@ export interface LepisApi {
   releasePdfSource(source: PdfSource): Promise<void>
   statPdf(path: string): Promise<PdfFileStats>
   savePdf(payload: SavePdfRequest): Promise<PdfFileStats>
-  savePdfAs(payload: SavePdfAsRequest): Promise<string | null>
-  chooseFlattenedCopy(destination: PdfCopyDestination): Promise<boolean>
-  finishFlattenedCopy(rendered: boolean): Promise<void>
+  choosePdfCopy(destination: PdfCopyDestination): Promise<string | null>
+  finishPdfCopy(output: Uint8Array | 'print' | null): Promise<void>
   closePdf(tabId: string): Promise<void>
   showTabContextMenu(path: string): void
   loadSession(): Promise<SessionState>

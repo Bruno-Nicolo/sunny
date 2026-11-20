@@ -27,6 +27,7 @@ import type { TextEditorSettings } from './annotations/text/types'
 import { createKeyboardScroll } from './keyboardScroll'
 import { createPresentationMode } from './createPresentationMode'
 import { printPdf } from './printPdf'
+import { savePdfCopy } from './savePdfCopy'
 import { createChatSelection } from './createChatSelection'
 import type {
   PasswordRequest,
@@ -371,6 +372,18 @@ export function createPdfViewer({
   }
 
   return {
+    async exportWithoutAnnotations(destination) {
+      const pdf = document
+      if (destroyed || loading || !pdf) throw new Error('The PDF is not ready.')
+      if (!snapshot.canAnnotate || !canReorder || pdf.isPureXfa)
+        throw new Error('This PDF does not support saving a copy without annotations.')
+      const path = await savePdfCopy(destination, async () => {
+        const data = await pdf.exportWithoutAnnotations()
+        if (!data) throw new Error('The PDF copy could not be created.')
+        return data
+      })
+      return path !== null
+    },
     async extractPages(order) {
       if (destroyed || loading || !document) throw new Error('The PDF is not ready.')
       if (!canReorder) throw new Error('This PDF does not allow page extraction or reordering.')

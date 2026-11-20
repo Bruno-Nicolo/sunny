@@ -4,7 +4,6 @@ import { app, clipboard, ipcMain, Menu, nativeTheme, type WebContents } from 'el
 import type {
   PdfCopyDestination,
   PdfSource,
-  SavePdfAsRequest,
   SavePdfRequest,
   SavePdfDraftRequest,
   SessionState
@@ -39,31 +38,39 @@ export function registerIpc(): void {
   ipcMain.handle('pdf:release-source', (_event, source: PdfSource) => releasePdfSource(source))
   ipcMain.handle('pdf:stat', (_event, filePath: string) => statPdf(filePath))
   ipcMain.handle('pdf:save', (_event, payload: SavePdfRequest) => savePdf(payload, userDataPath))
-  ipcMain.handle('pdf:save-as', async (_event, payload: SavePdfAsRequest) => {
-    const path = await choosePdfCopyPath(getMainWindow(), payload)
-    if (path) await writePdfCopy(path, payload.data)
-    return path
-  })
-  const flattenedPaths = new WeakMap<WebContents, string>()
-  ipcMain.handle('pdf:choose-flattened-copy', async (event, destination: PdfCopyDestination) => {
+  const copyPaths = new WeakMap<WebContents, string | null>()
+  ipcMain.handle('pdf:choose-copy', async ({ sender }, destination: PdfCopyDestination) => {
     const window = getMainWindow()
-    if (!window || event.sender !== window.webContents) return false
-    const path = await choosePdfCopyPath(window, destination)
-    if (!path) return false
-    flattenedPaths.set(event.sender, path)
-    return true
+    if (!window || sender !== window.webContents || copyPaths.has(sender)) return null
+    copyPaths.set(sender, null)
+    let path: string | null = null
+    try {
+      path = await choosePdfCopyPath(window, destination)
+      if (path) copyPaths.set(sender, path)
+      return path
+    } finally {
+      if (!path) copyPaths.delete(sender)
+    }
   })
-  ipcMain.handle('pdf:finish-flattened-copy', async ({ sender }, rendered: boolean) => {
-    const path = flattenedPaths.get(sender)
-    flattenedPaths.delete(sender)
-    if (!rendered) return
-    if (!path) throw new Error('Choose a destination for the flattened PDF first.')
-    const data = await sender.printToPDF({
-      preferCSSPageSize: true,
-      printBackground: true,
-      generateTaggedPDF: false
-    })
-    await writePdfCopy(path, data)
+  ipcMain.handle('pdf:finish-copy', async ({ sender }, output: Uint8Array | 'print' | null) => {
+    const path = copyPaths.get(sender)
+    if (!path) throw new Error('Choose a destination for the PDF copy first.')
+    // Keep the copy slot occupied while writing, and consume the selected path once.
+    copyPaths.set(sender, null)
+    try {
+      if (output === null) return
+      const data =
+        output === 'print'
+          ? await sender.printToPDF({
+              preferCSSPageSize: true,
+              printBackground: true,
+              generateTaggedPDF: false
+            })
+          : output
+      await writePdfCopy(path, data)
+    } finally {
+      copyPaths.delete(sender)
+    }
   })
   ipcMain.on('pdf:tab-context-menu', (event, filePath: string) => {
     const window = getMainWindow()

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import type { OpenedPdf, PdfCopyDestination, PdfDraft } from '../../../../shared/contracts'
+import { savePdfCopy } from '@/features/pdf/savePdfCopy'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
 import { createDraftAutosave } from './draftAutosave'
 import {
@@ -29,7 +30,8 @@ type DocumentsController = DocumentsState & {
   getActiveViewer(): PdfDocumentHandle | undefined
   openDialog(): Promise<void>
   openPaths(paths: string[]): Promise<void>
-  exportPages(id: string, data: Uint8Array): Promise<boolean>
+  exportPages(id: string, generate: () => Promise<Uint8Array>): Promise<void>
+  exportWithoutAnnotations(id: string): Promise<void>
   printTab(id: string, mode: 'print' | 'flatten'): Promise<void>
   saveTab(id: string, pages?: PageSave): Promise<boolean>
   closeTab(id: string, discard?: boolean): Promise<boolean>
@@ -247,15 +249,27 @@ export function useDocuments(
     [draftAutosave, showMessage]
   )
 
-  const exportPages = useCallback(async (id: string, data: Uint8Array): Promise<boolean> => {
+  const exportPages = useCallback(async (id: string, generate: () => Promise<Uint8Array>) => {
     const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
-    if (!tab) return false
-    const saved = await window.lepis.savePdfAs({
-      data,
-      ...copyDestination(tab.name, 'pages', stateRef.current.tabs)
-    })
-    return saved !== null
+    if (tab) await savePdfCopy(copyDestination(tab.name, 'pages', stateRef.current.tabs), generate)
   }, [])
+
+  const exportWithoutAnnotations = useCallback(
+    async (id: string): Promise<void> => {
+      const tab = stateRef.current.tabs.find((candidate) => candidate.id === id)
+      const viewer = viewers.current.get(id)
+      if (!tab || !viewer) return
+      try {
+        const exported = await viewer.exportWithoutAnnotations(
+          copyDestination(tab.name, 'without annotations', stateRef.current.tabs)
+        )
+        if (exported) showMessage('PDF copy saved without annotations.')
+      } catch (error) {
+        showMessage(error instanceof Error ? error.message : 'The PDF copy could not be saved.')
+      }
+    },
+    [showMessage]
+  )
 
   const printTab = useCallback(
     async (id: string, mode: 'print' | 'flatten'): Promise<void> => {
@@ -381,17 +395,20 @@ export function useDocuments(
     if (!id || !tab || !viewer) return
     return draftAutosave.withPaused([id], async () => {
       try {
-        const pending = await viewer.preparePageChanges()
-        const data = pending?.data ?? (await viewer.saveDocument())
-        const path = await window.lepis.savePdfAs({
-          data,
-          ...copyDestination(tab.name, 'Sunny', stateRef.current.tabs)
-        })
+        let page: number | undefined
+        const path = await savePdfCopy(
+          copyDestination(tab.name, 'Sunny', stateRef.current.tabs),
+          async () => {
+            const pending = await viewer.preparePageChanges()
+            page = pending?.page
+            return pending?.data ?? viewer.saveDocument()
+          }
+        )
         if (!path) return
         const saved = await window.lepis.readPdf(path)
         await window.lepis.closePdf(id)
         await window.lepis.deleteDraft(tab.path)
-        dispatch({ type: 'replace', id, pdf: saved, page: pending?.page })
+        dispatch({ type: 'replace', id, pdf: saved, page })
         setConflictId(null)
         showMessage('Saved as a copy')
       } catch (error) {
@@ -492,6 +509,7 @@ export function useDocuments(
     openDialog,
     openPaths,
     saveTab,
+    exportWithoutAnnotations,
     exportPages,
     printTab,
     closeTab,

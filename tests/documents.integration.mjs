@@ -56,10 +56,9 @@ ipcMain.handle('test:save', (_, payload) => {
   files.set(payload.filePath, payload.data)
   return { mtimeMs: 1, size: payload.data.length }
 })
-ipcMain.handle('test:copy', (_, payload) => {
-  if (copyCanceled) return null
-  files.set('copy.pdf', payload.data)
-  return 'copy.pdf'
+ipcMain.handle('test:choose-copy', () => (copyCanceled ? null : 'copy.pdf'))
+ipcMain.handle('test:finish-copy', (_, data) => {
+  if (data) files.set('copy.pdf', data)
 })
 ipcMain.handle('test:close', (_, id) => {
   if (closeFailed) throw new Error('Close failed')
@@ -95,7 +94,8 @@ contextBridge.exposeInMainWorld('lepis', {
   loadSession: () => ipcRenderer.invoke('test:session'),
   readPdf: path => ipcRenderer.invoke('test:read', path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),
-  savePdfAs: payload => ipcRenderer.invoke('test:copy', payload),
+  choosePdfCopy: destination => ipcRenderer.invoke('test:choose-copy', destination),
+  finishPdfCopy: data => ipcRenderer.invoke('test:finish-copy', data),
   closePdf: id => ipcRenderer.invoke('test:close', id),
   statPdf: path => ipcRenderer.invoke('test:stat', path), saveSession: state => ipcRenderer.invoke('test:persist', state),
   openPdfDialog: async () => [], getPathForFile: file => file.name,

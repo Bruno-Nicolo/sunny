@@ -31,6 +31,7 @@ export function createMenu(): void {
         shortcutMenuItem('open'),
         shortcutMenuItem('new-chat'),
         shortcutMenuItem('save'),
+        shortcutMenuItem('export-without-annotations'),
         shortcutMenuItem('export-flattened'),
         shortcutMenuItem('print'),
         { type: 'separator' },

@@ -84,7 +84,8 @@ contextBridge.exposeInMainWorld('lepis', {
   loadSession: async () => ({ tabs: ['many.pdf', 'multi.pdf', 'empty.pdf', 'outline.pdf'].map(path => ({path,page:1,scale:'page-fit',scrollTop:0})), activePath:'outline.pdf', highlightColor: '#FDE047', highlightOpacity: 0.9, highlightThickness: 12, theme:'light' }),
   readPdf: path => ipcRenderer.invoke('test:read',path),
   savePdf: payload => ipcRenderer.invoke('test:save', payload),
-  savePdfAs: payload => ipcRenderer.invoke('test:export', payload),
+  choosePdfCopy: destination => ipcRenderer.invoke('test:choose-copy', destination),
+  finishPdfCopy: data => ipcRenderer.invoke('test:finish-copy', data),
   statPdf: async () => ({mtimeMs:1,size:1}), saveSession: async () => {}, closePdf: async () => {},
   openPdfDialog: async () => [], getPathForFile: () => '', confirmWindowClose: () => {},
   onOpenRequested: () => () => {}, onCommand: (name,cb) => {commands.set(name,cb);return () => commands.delete(name)}
@@ -96,11 +97,13 @@ let exportedPdf
 let saveFailure = null
 let cancelExport = false
 let saveCount = 0
-ipcMain.handle('test:export', (_, payload) => {
+ipcMain.handle('test:choose-copy', (_, destination) => {
   if (cancelExport) return null
-  exportedPdf = payload.data
-  assert.ok(payload.excludedPaths.includes('multi.pdf'))
+  assert.ok(destination.excludedPaths.includes('multi.pdf'))
   return 'export.pdf'
+})
+ipcMain.handle('test:finish-copy', (_, data) => {
+  if (data) exportedPdf = data
 })
 ipcMain.handle('test:save', (_, payload) => {
   if (saveFailure) throw new Error(saveFailure)
@@ -410,7 +413,7 @@ app
     await openNavigation()
     await clickTab('Outline')
     await waitFor(
-      `document.querySelector('[role="tabpanel"]').textContent.includes('This PDF has no outline.')`
+      `document.querySelector('[role="tabpanel"]').textContent.includes('No outline available')`
     )
     await clickTab('Pages')
     await waitFor(`document.querySelectorAll('[aria-label^="Go to page"]').length === 1`)
@@ -476,7 +479,7 @@ app
       ),
       true
     )
-    await button('Done selecting')
+    await button('Done')
     await selectMode()
     await select(2)
     await select(4)
@@ -510,7 +513,7 @@ app
       [550, 650, 500, 600, 700],
       'Export preserves the complete draft permutation'
     )
-    await button('Done selecting')
+    await button('Done')
     await selectMode()
     await select(1)
     await select(2)
@@ -532,7 +535,7 @@ app
     await select(1)
     await button('Delete')
     await button('Delete page', 'alertdialog')
-    await button('Done selecting')
+    await button('Done')
     await evaluate(`document.querySelector('[aria-label="Go to page 1"]').click()`)
     await waitFor(`document.querySelector('[role="alertdialog"]') !== null`)
     await button('Continue editing', 'alertdialog')

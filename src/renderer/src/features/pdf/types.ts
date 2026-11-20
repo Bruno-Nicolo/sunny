@@ -42,6 +42,7 @@ export type PdfDocumentHandle = {
   openSearch(): void
   snapshotDocument(previousHash?: string): Promise<PdfSnapshot | null>
   saveDocument(): Promise<Uint8Array>
+  exportWithoutAnnotations(destination: PdfCopyDestination): Promise<boolean>
   print(destination?: PdfCopyDestination): Promise<boolean>
   setPage(page: number): void
   setScale(scale: string): void
@@ -79,7 +80,7 @@ export type PdfDocumentViewProps = AnnotationOptions & {
   navigationTab: 'pages' | 'outline'
   onNavigationTabChange(tab: 'pages' | 'outline'): void
   onSavePages(data: Uint8Array, page: number, onSaved: () => void): Promise<boolean>
-  onExportPages(data: Uint8Array): Promise<boolean>
+  onExportPages(generate: () => Promise<Uint8Array>): Promise<void>
   onPageDraftChange(dirty: boolean): void
   source: PdfSource
   initialPage: number

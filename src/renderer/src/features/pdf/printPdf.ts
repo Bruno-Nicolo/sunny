@@ -1,5 +1,6 @@
 import { AnnotationMode, getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { PdfCopyDestination } from '../../../../shared/contracts'
+import { savePdfCopy } from './savePdfCopy'
 
 const printScale = 150 / 72
 let printing = false
@@ -77,9 +78,7 @@ export async function printPdf(
   container.id = 'pdf-print'
   const style = document.createElement('style')
   try {
-    if (destination && !(await window.lepis.chooseFlattenedCopy(destination))) return false
-    let rendered = false
-    try {
+    const render = async (): Promise<void> => {
       await renderPrintPages(
         await snapshot(),
         password,
@@ -89,11 +88,16 @@ export async function printPdf(
       )
       document.head.append(style)
       document.body.append(container)
-      rendered = true
-    } finally {
-      if (destination) await window.lepis.finishFlattenedCopy(rendered)
     }
-    if (!destination) await openPrintDialog()
+    if (destination) {
+      const path = await savePdfCopy(destination, async () => {
+        await render()
+        return 'print'
+      })
+      return path !== null
+    }
+    await render()
+    await openPrintDialog()
     return true
   } finally {
     container.remove()

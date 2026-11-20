@@ -275,10 +275,9 @@ export const PdfNavigationDialog = forwardRef<NavigationHandle, Props>(function 
               onToggleSelection={() => dispatch({ type: 'toggle-selection' })}
               onToggleAll={() => dispatch({ type: allSelected ? 'deselect-all' : 'select-all' })}
               onExport={() =>
-                void run(async () => {
-                  const data = await onExtractPages(order.filter((id) => selected.has(id)))
-                  await onExportPages(data)
-                })
+                void run(() =>
+                  onExportPages(() => onExtractPages(order.filter((id) => selected.has(id))))
+                )
               }
               onDelete={() => setConfirmation('delete')}
             />

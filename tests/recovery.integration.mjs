@@ -82,9 +82,9 @@ ipcMain.handle('pdf:save', (_, value) => {
   if (failSave) throw new Error('Simulated save failure')
   return savePdf(value, temp)
 })
-ipcMain.handle('pdf:save-as', async (_, value) => {
-  await writePdfCopy(copyPath, value.data)
-  return copyPath
+ipcMain.handle('pdf:choose-copy', () => copyPath)
+ipcMain.handle('pdf:finish-copy', async (_, data) => {
+  if (data) await writePdfCopy(copyPath, data)
 })
 ipcMain.handle('pdf:close', () => {})
 ipcMain.handle('pdf:open-dialog', () => [])
@@ -98,7 +98,8 @@ contextBridge.exposeInMainWorld('lepis', {
  loadDrafts: () => ipcRenderer.invoke('draft:load'), saveDraft: value => ipcRenderer.invoke('draft:save', value), deleteDraft: value => ipcRenderer.invoke('draft:delete', value),
  loadSession: () => ipcRenderer.invoke('session:load'), saveSession: value => ipcRenderer.invoke('session:save', value),
  readPdf: value => ipcRenderer.invoke('pdf:read', value), statPdf: value => ipcRenderer.invoke('pdf:stat', value),
- savePdf: value => ipcRenderer.invoke('pdf:save', value), savePdfAs: value => ipcRenderer.invoke('pdf:save-as', value),
+ savePdf: value => ipcRenderer.invoke('pdf:save', value),
+ choosePdfCopy: destination => ipcRenderer.invoke('pdf:choose-copy', destination), finishPdfCopy: data => ipcRenderer.invoke('pdf:finish-copy', data),
  closePdf: value => ipcRenderer.invoke('pdf:close', value), openPdfDialog: () => ipcRenderer.invoke('pdf:open-dialog'),
  getPathForFile: () => '', setTheme: () => {}, confirmWindowClose: () => {}, onOpenRequested: () => () => {},
  onCommand: (name, callback) => { commands.set(name, callback); return () => commands.delete(name) }

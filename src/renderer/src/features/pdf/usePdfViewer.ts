@@ -220,6 +220,10 @@ export function usePdfViewer(props: PdfDocumentViewProps): PdfViewerState {
         }
         return controllerRef.current.saveDocument()
       },
+      async exportWithoutAnnotations(destination) {
+        if (!controllerRef.current) throw new Error('The PDF is not ready.')
+        return controllerRef.current.exportWithoutAnnotations(destination)
+      },
       setPage: (page) => controllerRef.current?.setPage(page),
       async print(destination) {
         return (await controllerRef.current?.print(destination)) ?? false

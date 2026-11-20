@@ -20,7 +20,7 @@ type Props = {
   highlightFreehandOnly: boolean
   onAskAI: PdfDocumentViewProps['onAskAI']
   onSavePages(id: string, data: Uint8Array, page: number, onSaved: () => void): Promise<boolean>
-  onExportPages(id: string, data: Uint8Array): Promise<boolean>
+  onExportPages(id: string, generate: () => Promise<Uint8Array>): Promise<void>
   onPageDraftChange(id: string, dirty: boolean): void
   onOpen(): void
   onOpenPath(path: string): Promise<void>
@@ -69,7 +69,7 @@ export function DocumentWorkspace({
             onAskAI={onAskAI}
             source={tab.source}
             onSavePages={(data, page, onSaved) => onSavePages(tab.id, data, page, onSaved)}
-            onExportPages={(data) => onExportPages(tab.id, data)}
+            onExportPages={(generate) => onExportPages(tab.id, generate)}
             onPageDraftChange={(dirty) => onPageDraftChange(tab.id, dirty)}
             initialPage={tab.view.page}
             initialScale={tab.view.scale}

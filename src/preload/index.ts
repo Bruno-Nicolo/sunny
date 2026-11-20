@@ -49,10 +49,8 @@ const api: LepisApi = {
   releasePdfSource: (source) => ipcRenderer.invoke('pdf:release-source', source),
   statPdf: (path: string) => ipcRenderer.invoke('pdf:stat', path),
   savePdf: (payload) => ipcRenderer.invoke('pdf:save', payload),
-  savePdfAs: (payload) => ipcRenderer.invoke('pdf:save-as', payload),
-  chooseFlattenedCopy: (destination) =>
-    ipcRenderer.invoke('pdf:choose-flattened-copy', destination),
-  finishFlattenedCopy: (rendered) => ipcRenderer.invoke('pdf:finish-flattened-copy', rendered),
+  choosePdfCopy: (destination) => ipcRenderer.invoke('pdf:choose-copy', destination),
+  finishPdfCopy: (output) => ipcRenderer.invoke('pdf:finish-copy', output),
   showTabContextMenu: (path) => ipcRenderer.send('pdf:tab-context-menu', path),
   closePdf: (tabId) => ipcRenderer.invoke('pdf:close', tabId),
   loadSession: () => ipcRenderer.invoke('session:load'),
