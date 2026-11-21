@@ -1553,8 +1553,8 @@ app
     )
     await dragChatFiles('drop')
     await click('New chat')
-    await evaluate(`window.restoreImageBitmap(); window.finishAttachmentRead()`)
     await waitFor(`!document.body.innerText.includes('Reading attachments…')`)
+    await evaluate(`window.restoreImageBitmap(); window.finishAttachmentRead()`)
     assert.equal(
       await evaluate(`document.querySelector('[aria-label="Remove figure.png"]') !== null`),
       false,

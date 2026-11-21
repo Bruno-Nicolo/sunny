@@ -391,6 +391,11 @@ export function ChatPanel({
   }
   const newChat = (): void => {
     if (busy || modelChanging) return
+    if (attachmentImportRef.current) {
+      attachmentImportRef.current.abort()
+      attachmentImportRef.current = null
+      setAttachingFiles(false)
+    }
     resetConversation()
     setSummarize(false)
     setError('')
@@ -461,8 +466,10 @@ export function ChatPanel({
     } catch (error) {
       if (!controller.signal.aborted) showError(error)
     } finally {
-      attachmentImportRef.current = null
-      setAttachingFiles(false)
+      if (attachmentImportRef.current === controller) {
+        attachmentImportRef.current = null
+        setAttachingFiles(false)
+      }
     }
   }
   const forkConversation = async (messageId: string): Promise<void> => {
