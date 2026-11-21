@@ -2,8 +2,8 @@
 
 # Sunny
 
-Sunny is a local-first PDF viewer and annotation editor for macOS. Open PDFs in tabs,
-highlight text, add notes, images and visible signatures, and reorder or export pages.
+Sunny is a local-first PDF app for macOS. Read and annotate documents, organize pages,
+and ask questions about a PDF in an optional side-by-side chat.
 
 ## Download
 
@@ -17,16 +17,39 @@ The first release uses an ad hoc signature and has no Apple notarization. If mac
 it, verify that you downloaded it from the release above and follow
 [Apple’s instructions for opening the app](https://support.apple.com/en-us/102445).
 
-## Using Sunny
+![Sunny showing a highlighted passage and a demo AI answer with a page citation](docs/images/sunny-pdf-and-chat.png)
 
-Open a PDF with **⌘O** and save edits with **⌘S**. See the
-[user guide](docs/using-sunny.md) for page organization, recovery and keyboard shortcuts.
+## Features
 
-PDF viewing and editing run on your Mac. If you send an optional AI chat request, the
-provider you select receives the prompt and relevant excerpts, attachments and conversation
-context. Region attachments can include unsaved annotations. You can turn off requests in
-**AI settings → Allow AI requests**.
-See [AI chat data handling](docs/ai-chat.md#data-flow-and-citations).
+### Read and annotate
 
+Open several PDFs in tabs, search within a document, and jump to pages using thumbnails
+or the outline. Read two pages side by side or switch to full-screen presentation mode.
+Highlight text or draw freehand, add editable text boxes and images, and draw or import
+a visible signature for reuse. Sunny restores your tabs and keeps local recovery copies
+of unsaved annotations.
+
+### Organize and export pages
+
+Select pages in the thumbnail grid and drag them into a new order, delete them, or
+export the selection as a separate PDF. Preview page changes before saving them to
+the original document.
+
+- **Export without annotations** creates a clean copy with selectable text, links and form fields.
+- **Export flattened PDF** embeds annotations in page images. The exported copy has no
+  selectable text, clickable links or interactive form fields.
+
+### Chat with a PDF
+
+Ask about a passage, attach a figure or a selected region, or summarize a document.
+Click a citation in an answer to jump to the corresponding passage. Connect an eligible
+ChatGPT plan or use your own OpenAI, Anthropic, Gemini or OpenRouter API key.
+
+PDF viewing and editing run on your Mac. When you send a chat request, your chosen
+provider receives the prompt and relevant excerpts, attachments and conversation history.
+Region attachments can include unsaved annotations. You can disable requests in AI settings.
+See [how Sunny handles chat data](docs/ai-chat.md#data-flow-and-citations).
+
+[User guide](docs/using-sunny.md) ·
 [Report a bug](https://github.com/Bruno-Nicolo/sunny/issues/new/choose) ·
 [Build from source or contribute](CONTRIBUTING.md) · [MIT License](LICENSE)
