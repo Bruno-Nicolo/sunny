@@ -3,21 +3,18 @@ productName: Sunny
 directories:
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/**/*
+  - LICENSE
 mac:
   icon: build/icon.icns
   category: public.app-category.productivity
+  minimumSystemVersion: '13.0.0'
   entitlementsInherit: build/entitlements.mac.plist
-  notarize: false
+  target: dmg
 fileAssociations:
   - ext: pdf
     name: PDF Document
     role: Editor
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}-${arch}.${ext}
 npmRebuild: false

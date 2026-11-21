@@ -5,6 +5,11 @@
   "main": "./out/main/index.js",
   "author": "Nicol\u00f2 Bruno",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bruno-Nicolo/sunny.git"
+  },
+  "packageManager": "pnpm@11.14.0",
   "engines": {
     "node": ">=22.13"
   },
@@ -54,7 +59,7 @@
     "clsx": "^2.1.1",
     "cn": "^0.2.5",
     "jose": "^6.2.12",
-    "katex": "^0.16.47",
+    "katex": "^0.19.1",
     "lucide-react": "^1.54.0",
     "openai": "^7.34.0",
     "pdfjs-dist": "6.3.289",
@@ -76,8 +81,8 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "electron": "^39.2.6",
-    "electron-builder": "^26.0.12",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.1",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react": "^7.37.5",

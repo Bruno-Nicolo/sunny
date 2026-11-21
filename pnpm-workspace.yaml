@@ -6,3 +6,7 @@ allowBuilds:
   protobufjs: false
 patchedDependencies:
   pdfjs-dist@6.3.289: patches/pdfjs-dist@6.3.289.patch
+overrides:
+  katex: ^0.19.1
+  undici@6: ^6.29.1
+  zod@4: ^4.6.6

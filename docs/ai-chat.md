@@ -186,6 +186,7 @@ accounts and representative PDFs.
 
 ## Provider logos
 
+The provider marks identify the respective services and belong to their owners.
 Monochrome logos explicitly use black in light mode and white in dark mode instead of inheriting
 muted control colors. OpenAI's [brand guidelines](https://openai.com/brand/) specify a monochrome
 Blossom. Gemini uses the full-color [official favicon](https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png),
