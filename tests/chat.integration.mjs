@@ -483,10 +483,6 @@ app
       true,
       'model and title use compact widths with a minimum'
     )
-    assert.equal(
-      await evaluate(`getComputedStyle(document.querySelector('.chat-resizer'), '::after').width`),
-      '1px'
-    )
     await click('AI model')
     await click('Select model')
     await waitFor(

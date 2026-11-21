@@ -114,12 +114,13 @@ export function ChatDock({
         <div
           role="separator"
           aria-label="Resize AI chat"
+          aria-controls="ai-chat-panel"
           aria-orientation="vertical"
           aria-valuemin={300}
           aria-valuemax={maxWidth}
           aria-valuenow={width}
           tabIndex={0}
-          className="chat-resizer relative z-25 -mx-0.5 w-[5px] shrink-0 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-0.5 after:w-px after:content-[''] hover:after:bg-ring focus-visible:after:bg-ring"
+          className="relative z-25 w-3 shrink-0 touch-none cursor-col-resize outline-none"
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
               event.preventDefault()
@@ -128,6 +129,7 @@ export function ChatDock({
           }}
           onBlur={() => void persistWidth().catch(() => {})}
           onPointerDown={(event) => {
+            if (!event.isPrimary || event.button !== 0) return
             event.preventDefault()
             const element = event.currentTarget
             element.setPointerCapture(event.pointerId)
