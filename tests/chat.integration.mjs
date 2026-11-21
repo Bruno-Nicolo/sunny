@@ -19,7 +19,7 @@ let win
 let service
 let generated = []
 let indexed = []
-let currentDocument
+const documents = new Map()
 let cancelAnswer = false
 let sessionWrites = []
 const mtimes = new Map()
@@ -208,8 +208,11 @@ app
           type: 'delta',
           text: JSON.stringify({ scope: 'passages', queries: ['photosynthesis', 'chlorophyll'] })
         })
-      const sources = service.store.sources(currentDocument.version)
-      const answer = `The document discusses plant energy [[${sources[0].id}]].\n\nThe formula is $E=mc^2$, also \\(x_i^2\\).\n\n\\[\n\\frac{a}{b}\n\\]`
+      const source = /\n\nDocument context: \[\{"source_id":"([^"]+)"/.exec(
+        request.turns.at(-1).text
+      )
+      const citation = source ? ` [[${source[1]}]]` : ''
+      const answer = `The document discusses plant energy${citation}.\n\nThe formula is $E=mc^2$, also \\(x_i^2\\).\n\n\\[\n\\frac{a}{b}\n\\]`
       request.onUpdate({
         type: 'reasoning-delta',
         text: 'Checking the passages about plant energy.'
@@ -246,11 +249,11 @@ app
     ai('models', (value) => service.providers.models(value))
     ai('open-document', (key, file) => {
       const document = service.openDocument(key, file)
-      if (document) currentDocument = document
+      if (document) documents.set(document.path, document)
       return document
     })
     ai('index', (value) => {
-      currentDocument = value
+      documents.set(value.path, value)
       indexed.push(value)
       service.index(value)
     })
@@ -1043,9 +1046,8 @@ app
     await waitFor(
       `document.querySelector('aside:not(.hidden) [aria-label="New chat"]')?.disabled === false`
     )
-    assert.equal(currentDocument.path, 'first.pdf')
     assert.equal(
-      currentDocument.version,
+      documents.get('first.pdf').version,
       originalVersion,
       'saved annotations do not change the source content version'
     )
@@ -1235,7 +1237,7 @@ app
       ),
       0
     )
-    assert.notEqual(currentDocument.version, originalVersion)
+    assert.notEqual(documents.get('second.pdf').version, originalVersion)
     console.log(
       'PASS: drafts survive closing and narrow layout; conversations and sources are isolated between tabs'
     )
@@ -1322,7 +1324,7 @@ app
       await evaluate(`document.querySelector('aside:not(.hidden) .chat-source').disabled`),
       true
     )
-    assert.notEqual(currentDocument.version, originalVersion)
+    assert.notEqual(documents.get('first.pdf').version, originalVersion)
     console.log('PASS: externally changed PDF content disables old citation navigation')
 
     const pageCount = 300
