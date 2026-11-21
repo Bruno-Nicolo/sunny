@@ -233,18 +233,21 @@ app
         return [start, end];
       })()`)
       const [start, end] = points
-      win.webContents.sendInputEvent({ type: 'mouseMove', ...start })
-      win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...start })
+      const input = (parameters) =>
+        win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', parameters)
+      await input({ type: 'mouseMoved', ...start })
+      await input({ type: 'mousePressed', button: 'left', clickCount: 1, ...start })
       for (let step = 1; step <= 12; step++) {
-        win.webContents.sendInputEvent({
-          type: 'mouseMove',
+        await input({
+          type: 'mouseMoved',
+          button: 'left',
+          buttons: 1,
           x: Math.round(start.x + ((end.x - start.x) * step) / 12),
-          y: start.y,
-          modifiers: ['leftbuttondown']
+          y: start.y
         })
         await new Promise((resolve) => setTimeout(resolve, 30))
       }
-      win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...end })
+      await input({ type: 'mouseReleased', button: 'left', clickCount: 1, ...end })
     }
     await dragTab('startup.pdf', 'restored.pdf')
     await waitUntil(async () => (await tabOrder())[0] === 'startup.pdf')
