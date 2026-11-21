@@ -24,7 +24,8 @@ Open a PDF with **⌘O** and save edits with **⌘S**. See the
 
 PDF viewing and editing run on your Mac. If you send an optional AI chat request, the
 provider you select receives the prompt and relevant excerpts, attachments and conversation
-context. You can turn off requests in **AI settings → Allow AI requests**.
+context. Region attachments can include unsaved annotations. You can turn off requests in
+**AI settings → Allow AI requests**.
 See [AI chat data handling](docs/ai-chat.md#data-flow-and-citations).
 
 [Report a bug](https://github.com/Bruno-Nicolo/sunny/issues/new/choose) ·

@@ -109,15 +109,10 @@ export function DocumentToolbar({
     }
 
     updateLayout()
-    let frame = 0
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(updateLayout)
-    })
+    const observer = new ResizeObserver(updateLayout)
     observer.observe(canvas)
     return () => {
       observer.disconnect()
-      cancelAnimationFrame(frame)
       canvas.style.removeProperty('--pdf-search-top')
     }
   }, [pageCount, tabId])

@@ -33,16 +33,11 @@ export function DirectoryPath({ path }: { path: string }): React.JSX.Element {
       setLabel(shortenDirectoryPath(path, (value) => context.measureText(value).width <= width))
     }
     measure()
-    let frame = 0
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(measure)
-    })
+    const observer = new ResizeObserver(measure)
     observer.observe(element)
     document.fonts.addEventListener('loadingdone', measure)
     return () => {
       observer.disconnect()
-      cancelAnimationFrame(frame)
       document.fonts.removeEventListener('loadingdone', measure)
     }
   }, [path])

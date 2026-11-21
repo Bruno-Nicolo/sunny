@@ -877,12 +877,17 @@ app
       window.dispatchEvent(new PointerEvent('pointerup'));
     })()`)
     await waitFor(`document.querySelector('.visible .highlightEditor')`)
-    await evaluate(`(() => {
-      const data = new DataTransfer(); data.setData('text/plain', 'Unsaved annotation');
-      document.querySelector('.visible .pdf-viewer-container').dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
-    })()`)
-    await waitFor(`document.querySelector('.visible .freeTextEditor')`)
     await showTextOptions(evaluate, waitFor)
+    await evaluate(`(() => {
+      const layer = document.querySelector('.visible .lepisAnnotationLayer');
+      const bounds = layer.getBoundingClientRect();
+      layer.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, button: 0, clientX: bounds.left + bounds.width * 0.25, clientY: bounds.top + bounds.height * 0.38
+      }));
+      const input = layer.querySelector('.freeTextEditor .internal');
+      input.innerText = 'Unsaved annotation';
+      input.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText'}));
+    })()`)
     await waitFor(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]')`)
     await evaluate(`document.querySelector('[aria-label="Text color"] [aria-label="Red"]').click()`)
     await showTextOptions(evaluate, waitFor)

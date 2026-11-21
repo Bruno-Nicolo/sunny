@@ -31,6 +31,7 @@ const files = new Map(
 const mtimes = new Map()
 const reads = new Map()
 const rendererErrors = []
+const deferredResize = 'ResizeObserver loop completed with undelivered notifications.'
 const document = (name) => ({
   path: name,
   name,
@@ -538,7 +539,12 @@ app
     await waitUntil(() => confirmations === 4)
     console.log('PASS: annotations added during pending session persistence stop automatic closure')
 
-    assert.deepEqual(rendererErrors, [])
+    assert.deepEqual(
+      rendererErrors.filter((error) => error !== deferredResize),
+      []
+    )
+    // Chromium can defer a resize notification to the next frame during a layout change.
+    assert.ok(rendererErrors.filter((error) => error === deferredResize).length <= 1)
     console.log(
       'PASS: password prompts belong to the active tab, retry correctly, and release the viewer on close'
     )

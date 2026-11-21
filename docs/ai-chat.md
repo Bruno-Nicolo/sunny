@@ -31,8 +31,8 @@ be continued, renamed or deleted independently. Message actions wait for an acti
 
 - Select text in the PDF, then choose **Ask AI**. Selections spanning pages produce one
   attachment per page.
-- Choose **Select region**, then drag a rectangle. The attachment contains a fresh rendering of
-  the original PDF content, without annotations or editor overlays. Escape cancels selection.
+- Choose **Select region**, then drag a rectangle. The attachment contains the rendered PDF
+  region, including visible annotations and unsaved edits inside it. Escape cancels selection.
 - Drop files onto the message input, or choose **Attach files** in the paperclip menu to add
   external PDFs, UTF-8 text/code files,
   or PNG, JPEG and WebP images. Files are read locally; their extracted text or resized images
