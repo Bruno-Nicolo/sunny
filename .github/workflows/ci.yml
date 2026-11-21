@@ -28,3 +28,4 @@ jobs:
       - run: pnpm build
       - run: pnpm exec electron tests/documents.integration.mjs
       - run: pnpm exec electron tests/chat.integration.mjs
+      - run: pnpm exec electron tests/math-layout.integration.mjs

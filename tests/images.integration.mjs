@@ -1,7 +1,7 @@
 import { enableTestFocus } from './fixtures/focus.mjs'
 import electron from 'electron'
 import { blankPdf, createPdf } from './fixtures/pdf.mjs'
-const { app, BrowserWindow, clipboard, ipcMain } = electron
+const { app, BrowserWindow, clipboard, ipcMain, nativeImage } = electron
 import fs from 'node:fs'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -213,12 +213,15 @@ app
       window.dispatchEvent(new PointerEvent('pointerup', {button:0, pointerId:1}));
     })()`)
     await waitFor(`document.querySelectorAll('.visible .stampEditor .resizer').length === 8`)
-    clipboard.writeText('Before image copy')
+    await clipboard.writeText('Before image copy')
     win.webContents.copy()
     await waitFor(
       `navigator.clipboard.read().then(items => items.some(item => item.types.includes('image/png')))`
     )
-    const copiedImage = clipboard.readImage()
+    const imageItem = (await clipboard.read()).find((item) => item.types.includes('image/png'))
+    assert.ok(imageItem, 'The native clipboard contains a PNG')
+    const copiedPng = await imageItem.getType('image/png')
+    const copiedImage = nativeImage.createFromBuffer(Buffer.from(await copiedPng.arrayBuffer()))
     assert.deepEqual(copiedImage.getSize(), { width: 80, height: 40 })
     const copiedPixel = copiedImage.toBitmap()
     assert.deepEqual([...copiedPixel.subarray(0, 4)], [0, 0, 255, 255])
@@ -299,7 +302,7 @@ app
     await waitFor(
       `document.querySelector('.visible .freeTextEditor').style.left === ${JSON.stringify(textLeft)}`
     )
-    clipboard.writeText('Before text copy')
+    await clipboard.writeText('Before text copy')
     win.webContents.copy()
     await waitFor(
       `navigator.clipboard.readText().then(text => text === 'Pasted text\\nSecond line')`
@@ -479,6 +482,6 @@ app
   })
 function finish(code) {
   win?.destroy()
-  fs.rmSync(temp, { recursive: true, force: true })
+  fs.rmSync(temp, { recursive: true, force: true, maxRetries: 3 })
   app.exit(code)
 }

@@ -3,7 +3,9 @@ productName: Sunny
 directories:
   buildResources: build
 files:
-  - out/**/*
+  - out/main/**/*
+  - out/preload/**/*
+  - out/renderer/**/*
   - LICENSE
 mac:
   icon: build/icon.icns

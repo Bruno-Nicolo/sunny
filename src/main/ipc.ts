@@ -76,7 +76,14 @@ export function registerIpc(): void {
     const window = getMainWindow()
     if (!window || event.sender !== window.webContents) return
     Menu.buildFromTemplate([
-      { label: 'Copy full path', click: () => clipboard.writeText(filePath) }
+      {
+        label: 'Copy full path',
+        click: () => {
+          void clipboard.writeText(filePath).catch((error) => {
+            console.error('Could not copy the PDF path:', error)
+          })
+        }
+      }
     ]).popup({ window })
   })
   ipcMain.handle('pdf:close', (_event, tabId: string) => deleteBackup(userDataPath, tabId))

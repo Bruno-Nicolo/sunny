@@ -238,7 +238,8 @@ app
         win.webContents.sendInputEvent({
           type: 'mouseMove',
           x: Math.round(start.x + ((end.x - start.x) * step) / 12),
-          y: start.y
+          y: start.y,
+          modifiers: ['leftbuttondown']
         })
         await new Promise((resolve) => setTimeout(resolve, 30))
       }
@@ -550,6 +551,6 @@ app
 
 function finish(code) {
   win?.destroy()
-  fs.rmSync(temp, { recursive: true, force: true })
+  fs.rmSync(temp, { recursive: true, force: true, maxRetries: 3 })
   app.exit(code)
 }

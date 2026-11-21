@@ -46,7 +46,7 @@ async function main() {
         const measurements = await window.webContents
           .executeJavaScript(`Array.from(document.querySelectorAll('.katex-display')).map((display) => {
     const bounds = display.getBoundingClientRect()
-    const script = display.querySelector('.msupsub .sizing')
+    const script = display.querySelector('.msupsub .katex-sizing')
     const scriptRatio = script
       ? parseFloat(getComputedStyle(script).fontSize) / parseFloat(getComputedStyle(display.querySelector('.katex')).fontSize)
       : null

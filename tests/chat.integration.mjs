@@ -32,7 +32,7 @@ const evaluate = async (code) => {
 }
 async function waitFor(code, timeout = 20000) {
   const deadline = Date.now() + timeout
-  while (!(await evaluate(code))) {
+  while (!(await evaluate(`Boolean(${code})`))) {
     if (Date.now() > deadline)
       throw new Error(`Timed out: ${code}\n${await evaluate('document.body.innerText')}`)
     await new Promise((resolve) => setTimeout(resolve, 50))
@@ -782,10 +782,10 @@ app
     await click('Response activity')
     await click('Copy message')
     await waitFor(`document.querySelector('[aria-label="Message copied"]')`)
-    assert.equal(electron.clipboard.readText(), 'Explain photosynthesis')
+    assert.equal(await electron.clipboard.readText(), 'Explain photosynthesis')
     await click('Copy answer')
     await waitFor(`document.querySelector('[aria-label="Answer copied"]')`)
-    assert.ok(electron.clipboard.readText().includes('The document discusses'))
+    assert.ok((await electron.clipboard.readText()).includes('The document discusses'))
     console.log('PASS: aligned messages, collapsible response activity and message copy feedback')
     await click('Rename conversation')
 
@@ -871,9 +871,10 @@ app
     console.log('PASS: Ask AI opens the chat with selected PDF text attached')
     await click('Highlight text')
     await evaluate(`(() => {
-      const span = document.querySelector('.visible .textLayer span');
-      const range = document.createRange(); range.selectNodeContents(span);
+      const text = document.querySelector('.visible .textLayer span').firstChild;
+      const range = document.createRange(); range.selectNodeContents(text);
       const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      window.dispatchEvent(new PointerEvent('pointerup'));
     })()`)
     await waitFor(`document.querySelector('.visible .highlightEditor')`)
     await evaluate(`(() => {
@@ -905,15 +906,18 @@ app
       `Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent.includes('Attach pdf region')).click()`
     )
     await waitFor(`document.querySelector('.visible .chat-region-mode') !== null`)
-    const bounds = await evaluate(
-      `(() => { const page = document.querySelector('.visible .page').getBoundingClientRect(); return {x:page.left,y:page.top,width:page.width,height:page.height} })()`
-    )
+    const bounds = await evaluate(`(() => {
+      const page = document.querySelector('.visible .page').getBoundingClientRect();
+      const toolbar = document.querySelector('[aria-label="Document controls"]').getBoundingClientRect();
+      return {x:page.left,y:page.top,width:page.width,height:page.height,toolbarBottom:toolbar.bottom};
+    })()`)
     const point = (x, y) => ({
       x: Math.round(bounds.x + x * bounds.width),
       y: Math.round(bounds.y + y * bounds.height)
     })
     const start = point(0.1, 0.08),
       end = point(0.85, 0.7)
+    start.y = Math.max(start.y, Math.ceil(bounds.toolbarBottom) + 2)
     await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mousePressed',
       ...start,
@@ -1578,6 +1582,6 @@ function finish(code) {
   service?.dispose()
   service?.store.close()
   modules.dispose()
-  fs.rmSync(temp, { recursive: true, force: true })
+  fs.rmSync(temp, { recursive: true, force: true, maxRetries: 3 })
   app.exit(code)
 }

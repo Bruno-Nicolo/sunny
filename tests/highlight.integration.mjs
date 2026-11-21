@@ -670,6 +670,6 @@ app
   })
 function finish(code) {
   win?.destroy()
-  fs.rmSync(temp, { recursive: true, force: true })
+  fs.rmSync(temp, { recursive: true, force: true, maxRetries: 3 })
   app.exit(code)
 }
