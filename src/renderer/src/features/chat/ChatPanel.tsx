@@ -662,7 +662,7 @@ export function ChatPanel({
       aria-label="AI chat panel"
       style={{ '--chat-font-size': `${status?.settings.chatFontSize ?? 14}px` } as CSSProperties}
     >
-      <div className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
+      <div className="flex h-12 shrink-0 items-center gap-1 border-y ps-3 pe-1">
         {historyOpen ? (
           <div className="mr-auto flex min-w-0 items-center gap-2">
             <Tooltip>

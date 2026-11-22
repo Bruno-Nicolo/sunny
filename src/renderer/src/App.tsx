@@ -387,7 +387,7 @@ function App(): React.JSX.Element {
           onError={showMessage}
         >
           {({ control, panel, placing }) => (
-            <div className="document-stage">
+            <div className="document-stage gap-2">
               <ToolOptionsSidebar
                 canAnnotate={activeTab?.view.canAnnotate ?? false}
                 annotationTool={annotationTool}
@@ -401,7 +401,7 @@ function App(): React.JSX.Element {
               <div
                 className={cn(
                   'document-canvas',
-                  tabs.length > 0 && 'mx-2 mb-2 overflow-hidden rounded-xl border'
+                  tabs.length > 0 && 'mb-2 overflow-hidden rounded-xl border'
                 )}
               >
                 <DocumentWorkspace

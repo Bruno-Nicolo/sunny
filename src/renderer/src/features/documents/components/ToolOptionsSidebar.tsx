@@ -50,7 +50,7 @@ export function ToolOptionsSidebar({
         data-signature-options={signatureOptions ? '' : undefined}
         aria-label={label}
       >
-        <SidebarContent className="p-4">
+        <SidebarContent className="px-2 py-4">
           {signatureOptions ?? (
             <AnnotationToolOptions
               key={annotationTool}

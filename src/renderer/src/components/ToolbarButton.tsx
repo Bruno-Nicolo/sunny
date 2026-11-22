@@ -12,7 +12,7 @@ export function ToolbarButton({
   label,
   tooltip = label,
   pressed,
-  variant = pressed ? 'secondary' : 'ghost',
+  variant = pressed ? 'default' : 'ghost',
   size = 'icon-sm',
   ...props
 }: Props): React.JSX.Element {

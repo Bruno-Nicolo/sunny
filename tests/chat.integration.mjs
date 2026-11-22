@@ -915,6 +915,7 @@ app
     )
     await waitFor(`document.querySelector('.visible .chat-region-mode') !== null`)
     const bounds = await evaluate(`(() => {
+      document.querySelector('.visible .pdf-viewer-container').scrollTop = 0;
       const page = document.querySelector('.visible .page').getBoundingClientRect();
       const toolbar = document.querySelector('[aria-label="Document controls"]').getBoundingClientRect();
       return {x:page.left,y:page.top,width:page.width,height:page.height,toolbarBottom:toolbar.bottom};

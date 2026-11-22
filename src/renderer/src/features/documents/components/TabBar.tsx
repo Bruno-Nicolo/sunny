@@ -66,7 +66,7 @@ export function TabBar({
         if (isSortable(source)) onReorder(String(source.id), source.index)
       }}
     >
-      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center pr-3 pl-[92px]">
+      <div className="titlebar-drag relative z-10 flex h-12 min-w-0 items-center gap-1 pr-3 pl-[92px]">
         <div className="relative flex h-full min-w-0 flex-1">
           <div
             ref={tabStripRef}
@@ -118,7 +118,7 @@ export function TabBar({
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               className="titlebar-no-drag"
               aria-label={`Change theme: ${theme}`}
               onClick={onCycleTheme}
@@ -132,7 +132,7 @@ export function TabBar({
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               className="titlebar-no-drag"
               disabled={!activeId}
               aria-label="Toggle AI chat"

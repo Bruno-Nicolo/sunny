@@ -126,6 +126,7 @@ export function DocumentToolbar({
           label="Toggle PDF navigation"
           tooltip="Open navigation"
           pressed={navigationOpen}
+          variant={navigationOpen ? 'secondary' : 'ghost'}
           aria-expanded={navigationOpen}
           aria-haspopup="dialog"
           onClick={onToggleNavigation}

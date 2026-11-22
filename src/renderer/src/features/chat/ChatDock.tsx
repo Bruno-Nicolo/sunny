@@ -3,6 +3,7 @@ import type { Tab } from '@/features/documents/types'
 import type { PdfDocumentHandle } from '@/features/pdf/types'
 import type { ChatAttachment } from '../../../../shared/ai'
 import { useAppShortcuts } from '@/features/shortcuts/useAppShortcuts'
+import { cn } from '@/lib/utils'
 const ChatPanel = lazy(() =>
   import('./ChatPanel').then((module) => ({ default: module.ChatPanel }))
 )
@@ -106,7 +107,7 @@ export function ChatDock({
     shortcutsEnabled
   )
   return (
-    <div className="relative flex min-h-0 flex-1">
+    <div className={cn('relative flex min-h-0 flex-1', tabs.length > 0 && 'mx-2')}>
       <div className={`flex min-w-0 flex-1 ${open && narrow && activeId ? 'hidden' : ''}`}>
         {children}
       </div>
@@ -120,7 +121,7 @@ export function ChatDock({
           aria-valuemax={maxWidth}
           aria-valuenow={width}
           tabIndex={0}
-          className="relative z-25 w-3 shrink-0 touch-none cursor-col-resize outline-none"
+          className="relative z-25 w-2 shrink-0 touch-none cursor-col-resize outline-none before:absolute before:inset-y-0 before:-inset-x-0.5"
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
               event.preventDefault()
